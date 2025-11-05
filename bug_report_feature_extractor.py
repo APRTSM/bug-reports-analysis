@@ -123,12 +123,8 @@ class BugReportFeatureExtractor:
             df = pd.DataFrame([{"text": text}])
             metrics = self.td.extract_metrics(
                 text=df["text"],
-                metrics=[
-                    "descriptive_stats",
-                    "readability",
-                    "pos_proportions",
-                    "dependency_distance"
-                ],
+                metrics=["descriptive_stats", "readability", "pos_proportions", "dependency_distance",
+                "coherence", "information_theory", "quality"],
                 spacy_model="en_core_web_sm"
             )
             
