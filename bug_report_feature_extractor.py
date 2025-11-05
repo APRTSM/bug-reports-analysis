@@ -126,7 +126,6 @@ class BugReportFeatureExtractor:
                 metrics=[
                     "descriptive_stats",
                     "readability",
-                    "syntactic_complexity",
                     "pos_proportions",
                     "dependency_distance"
                 ],
@@ -229,27 +228,29 @@ class BugReportFeatureExtractor:
             all_embeddings = self.sentence_model.encode(texts + [current_text])
             
             # Use cleanlab's OutOfDistribution detector
-            ood = self.OutOfDistribution()
-            
-            # Fit on the dataset
             train_embeddings = all_embeddings[:-1]
-            test_embedding = all_embeddings[-1:].reshape(1, -1)
+            test_embedding = all_embeddings[-1:]
             
-            # Calculate outlier score
-            ood.fit(train_embeddings)
-            outlier_score = ood.score(test_embedding)[0]
+            # Initialize OutOfDistribution detector and get scores
+            # Newer cleanlab API: pass features to score method directly
+            ood = self.OutOfDistribution()
+            # Score returns outlier scores for the test embedding
+            outlier_scores = ood.score(features=test_embedding, feature_embeddings=train_embeddings)
+            outlier_score = outlier_scores[0]
             
             return float(outlier_score)
         except Exception as e:
-            print(f"Error calculating outlier score: {e}")
             # Fallback: calculate average distance to all other samples
             if self.embeddings_available:
-                all_embeddings = self.sentence_model.encode(texts + [current_text])
-                current_emb = all_embeddings[-1]
-                others_emb = all_embeddings[:-1]
-                
-                distances = [np.linalg.norm(current_emb - other) for other in others_emb]
-                return float(np.mean(distances))
+                try:
+                    all_embeddings = self.sentence_model.encode(texts + [current_text])
+                    current_emb = all_embeddings[-1]
+                    others_emb = all_embeddings[:-1]
+                    
+                    distances = [np.linalg.norm(current_emb - other) for other in others_emb]
+                    return float(np.mean(distances))
+                except Exception:
+                    pass
             return 0.0
     
     def calculate_semantic_similarity(self, text: str, demonstration_examples: List[str]) -> Dict[str, float]:
