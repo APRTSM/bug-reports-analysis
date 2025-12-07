@@ -1,8 +1,16 @@
-# Bug Reports Analysis - Feature Extraction
+# Bug Reports Analysis
 
-This repository contains tools for extracting comprehensive text features from bug reports in the Defects4J and GHRB datasets. The feature extractor analyzes bug reports and generates ~70 features including descriptive statistics, readability metrics, coherence scores, outlier detection, and semantic similarity.
+This repository contains tools for extracting comprehensive text features from bug reports and analyzing which tools can detect which bugs based on those features.
 
 ## Overview
+
+The project includes:
+1. **Feature Extraction**: Extract ~70 features from bug reports (text statistics, readability, coherence, semantic similarity)
+2. **Tool Detection Clustering Analysis**: Understand which bug features predict tool detection success
+
+---
+
+## Part 1: Feature Extraction
 
 The `BugReportFeatureExtractor` class extracts the following feature categories:
 
@@ -13,54 +21,21 @@ The `BugReportFeatureExtractor` class extracts the following feature categories:
 
 **Total: ~48-70 features per bug report** (depending on available metrics)
 
-## Repository Structure
+### Installation
 
+```bash
+# Create virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Download SpaCy language model
+python -m spacy download en_core_web_sm
 ```
-bug-reports-analysis/
-├── bug_report_feature_extractor.py  # Main feature extraction script
-├── textdescriptives_diagnostic.py   # Diagnostic tool for TextDescriptives
-├── requirements.txt                  # Python dependencies
-├── bug_reports/                      # Bug report datasets
-│   ├── Defects4J/                   # 835 JSON bug reports
-│   └── GHRB/                        # 97 JSON bug reports
-└── outputs/                          # Output directory for CSV files
-```
 
-## Installation
-
-### Prerequisites
-
-- Python 3.8 or higher
-- pip package manager
-
-### Setup
-
-1. **Clone the repository** (if applicable) or navigate to the project directory:
-   ```bash
-   cd bug-reports-analysis
-   ```
-
-2. **Create a virtual environment** (recommended):
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Download SpaCy language model**:
-   ```bash
-   python -m spacy download en_core_web_sm
-   ```
-
-## Usage
-
-### Basic Usage
-
-Process all bug reports from a specific dataset:
+### Usage
 
 ```bash
 # Process Defects4J dataset (default)
@@ -73,131 +48,244 @@ python bug_report_feature_extractor.py --dataset GHRB
 python bug_report_feature_extractor.py --dataset both
 ```
 
-### Command-Line Options
+### Output
 
-- `--dataset`: Choose which dataset to process (`Defects4J`, `GHRB`, or `both`). Default: `Defects4J`
-- `--output-dir`: Specify output directory for CSV files. Default: `outputs`
-- `--bug-reports-dir`: Specify directory containing bug report subdirectories. Default: `bug_reports`
+Generates `outputs/all_bug_report_features.csv` with all extracted features.
 
-### Examples
+---
+
+## Part 2: Tool Detection Clustering Analysis
+
+This analysis helps you understand:
+- **Which bug features predict tool detection success**
+- **What types of bugs each tool handles best**
+- **How to improve bug reports for better tool detection**
+
+### Quick Start
 
 ```bash
-# Process both datasets and save to custom output directory
-python bug_report_feature_extractor.py --dataset both --output-dir results
+# Install required packages
+pip install pandas numpy scikit-learn matplotlib seaborn scipy
 
-# Process only GHRB with custom bug reports directory
-python bug_report_feature_extractor.py --dataset GHRB --bug-reports-dir /path/to/bug_reports
+# Run basic analysis
+python tool_detection_clustering_analysis.py
+
+# Run advanced analysis (correlations, category analysis, etc.)
+python advanced_clustering_analysis.py
 ```
 
-## Output
+### What the Analysis Does
 
-The script generates a single CSV file containing all extracted features:
+1. **Data Integration**: Merges bug features, categorizations, quality ratings, and tool detection results
+2. **Clustering**: Groups bugs into clusters based on feature similarity using K-means
+3. **Feature Importance**: Uses Random Forest to identify which features predict tool detection
+4. **Visualization**: Creates 2D PCA visualizations showing clusters and detection patterns
 
-- **Output file**: `outputs/all_bug_report_features.csv`
-- **Format**: CSV with columns:
-  - `bug_id`: Unique identifier (filename or title)
-  - `dataset`: Source dataset (Defects4J or GHRB)
-  - Feature columns: All extracted features (prefixed with `td_` for TextDescriptives, `bertscore_` for similarity scores, etc.)
+### Output Files
 
-### Output Structure
+**Basic Analysis:**
+- `tool_detection_clustering.png` - Visual overview
+- `cluster_analysis_results.csv` - Cluster statistics
+- `feature_importance_*.csv` - Feature rankings per tool
+
+**Advanced Analysis:**
+- `advanced_clustering_analysis.png` - Comprehensive visualization
+- `correlations_*.csv` - Feature correlations with detection
+- `category_detection_*.csv` - Detection rates by bug category
+- `feature_category_importance_*.csv` - Category-level insights
+
+### Interpreting Results
+
+#### High Detection Clusters
+- Bugs with features that tools can easily match
+- Well-documented, specific bugs
+- Good candidates for automated detection
+
+#### Low Detection Clusters
+- Bugs that tools struggle with
+- May have vague descriptions, missing context, or ambiguous issues
+
+#### Feature Importance
+- Top features indicate what tools rely on
+- Can guide bug report improvement
+- Helps understand tool limitations
+
+### Key Questions Answered
+
+1. **Which bug features correlate with tool detection?**
+   - See feature importance rankings in `feature_importance_*.csv`
+
+2. **Are there distinct groups of bugs that tools handle differently?**
+   - See cluster analysis results in `cluster_analysis_results.csv`
+
+3. **Which tools work best for which types of bugs?**
+   - See detection rates by cluster and tool
+
+4. **What makes a bug hard to detect?**
+   - Compare features of low-detection vs high-detection clusters
+
+### Example Workflow
+
+```bash
+# 1. Run basic analysis
+python tool_detection_clustering_analysis.py
+
+# 2. Review cluster_analysis_results.csv
+# Find: Cluster 2 has 90% detection rate, Cluster 4 has 20%
+
+# 3. Check feature_importance_any_tool.csv
+# Find: Top features are clarity, specificity, has_stacktrace
+
+# 4. Run advanced analysis
+python advanced_clustering_analysis.py
+
+# 5. Review correlations_any_tool.csv
+# Find: clarity correlates 0.45 with detection (p < 0.001)
+
+# 6. Action: Update bug report template to emphasize clarity
+```
+
+### Actionable Insights
+
+**For Bug Report Writers:**
+- Increase clarity and specificity (if these correlate with detection)
+- Include stack traces (if `has_stacktrace` is important)
+- Add code examples (if `has_code` helps)
+- Improve readability (if readability metrics matter)
+
+**For Tool Selection:**
+- Check tool-specific feature importance files
+- Match tools to bug characteristics
+- Use `category_detection_*.csv` to see which tool works best for your bug category
+
+**For Tool Developers:**
+- Identify gaps: Clusters with low detection = opportunities
+- Feature engineering: Focus on features that correlate with detection
+
+---
+
+## Methodology
+
+### Data Pipeline
 
 ```
-bug_id,dataset,td_n_tokens,td_n_sentences,...,coherence_momentum,outlier_score,bertscore_max,bertscore_mean,bertscore_min
-Chart-1.json,Defects4J,45,3,...,0.75,0.23,0.85,0.82,0.78
-Lang-1.json,Defects4J,52,4,...,0.72,0.19,0.88,0.84,0.80
-...
+bug_features_v2.csv          ┐
+gemini_bug_categorization.csv├─→ Merge on bug_id ─→ Feature Matrix
+gemini_bug_ratings.csv       │
+tool_comparison_summary.csv  ┘
 ```
 
-## Features Extracted
+### Feature Categories
 
-### TextDescriptives Features
+**Text Features:**
+- Length metrics: `summary_chars`, `description_chars`, `n_tokens`, `n_words`, `n_sentences`
+- Readability: `flesch_reading_ease`, `smog_index`, `gunning_fog`
+- Structure: `has_stacktrace`, `has_code`, `has_patch`, `num_steps`
 
-Extracted using the [TextDescriptives](https://github.com/hlasse/TextDescriptives) library:
+**Linguistic Features:**
+- Causal markers: `num_causal_markers`, `causal_density`
+- Temporal markers: `num_temporal_markers`, `temporal_density`
+- Verb analysis: `behavior_verb_count`, `behavior_verb_density`
+- Modal verbs: `num_modal_verbs`, `modal_density`
 
-- **Descriptive Statistics**: Token count, sentence count, character count, average word/sentence length
-- **Readability Scores**: Flesch Reading Ease, Dale-Chall, etc.
-- **POS Proportions**: Part-of-speech tag distributions
-- **Dependency Distance**: Syntactic dependency metrics
+**Quality Metrics:**
+- `actionability`, `clarity`, `specificity`
+- `technical_depth`, `repair_difficulty`
+- `completeness_score`, `specificity_score`
 
-### Coherence Momentum
+### Clustering Approach
 
-Measures semantic consistency across sentences using sentence embeddings and cosine similarity between consecutive sentences.
+- **K-Means Clustering**: Groups bugs into k clusters based on feature similarity
+- **Standardization**: Features are standardized before clustering
+- **Analysis**: Detection rates per cluster, average feature values, category distribution
 
-### Outlier Score
+### Feature Importance Analysis
 
-Uses Cleanlab's OutOfDistribution detector to identify how atypical a bug report is compared to the dataset. Falls back to average distance metric if Cleanlab is unavailable.
+- **Random Forest Classifier**: Predicts tool detection from features
+- **Feature Importance**: Ranks features by how much they predict detection
+- **Handles**: Non-linear relationships and many features
 
-### Semantic Similarity (BERTScore)
+### Statistical Methods
 
-Calculates semantic similarity to demonstration examples using BERTScore, providing max, mean, and min similarity scores.
+- **Pearson Correlation**: Measures linear relationships between features and detection
+- **Hypothesis Testing**: Tests statistical significance (α = 0.05)
+- **Cross-Validation**: K-fold cross-validation for robust estimates
 
-## Dependencies
+---
 
-- **numpy** (>=1.21.0): Numerical operations
-- **pandas** (>=1.3.0): Data manipulation
-- **textdescriptives** (>=2.8.0): Text feature extraction
-- **bert-score** (>=0.3.13): Semantic similarity
-- **cleanlab** (>=2.6.0): Outlier detection
-- **sentence-transformers** (>=2.2.0): Sentence embeddings
-- **spacy** (>=3.0.0): NLP processing
-- **torch** (>=1.9.0): Deep learning backend
+## Common Questions
+
+**Q: Which tool should I use?**
+A: Check `category_detection_*.csv` to see which tool works best for your bug category.
+
+**Q: Why aren't my bugs being detected?**
+A: Check `cluster_analysis_results.csv` - if your bugs are in low-detection clusters, improve the features that matter (see feature importance).
+
+**Q: How many clusters should I use?**
+A: Start with 5. You can adjust in the code: `perform_clustering(X, n_clusters=10)`
+
+**Q: Can I use this for prediction?**
+A: Yes! The Random Forest models in the code can predict detection probability.
+
+---
 
 ## Troubleshooting
 
+### Missing Data
+- The script handles missing values by filling with median
+- Check for columns with too many missing values
+
+### Imbalanced Classes
+- Some tools may detect very few bugs
+- Consider class weighting in models
+
 ### TextDescriptives Errors
-
-If you encounter errors about missing TextDescriptives metrics:
-
 1. Update TextDescriptives:
    ```bash
    pip install --upgrade textdescriptives
    ```
-
 2. Run the diagnostic script:
    ```bash
    python textdescriptives_diagnostic.py
    ```
 
 ### Model Loading Issues
+The script may take a few minutes to initialize on first run as it downloads models. Ensure you have sufficient disk space and a stable internet connection.
 
-The script may take a few minutes to initialize on first run as it downloads models:
-- SentenceTransformer model (`all-MiniLM-L6-v2`)
-- BERTScore models (RoBERTa-large)
+---
 
-If model loading hangs, ensure you have:
-- Sufficient disk space
-- Stable internet connection (for first-time downloads)
-- Proper permissions to write to cache directories
+## Repository Structure
 
-### Common Warnings
-
-- **RobertaModel warnings**: These are informational messages from BERTScore and can be safely ignored
-- **Missing metrics**: Some TextDescriptives metrics may not be available in all versions - the script will fall back to available features
-
-## Bug Report Format
-
-Expected JSON format for bug reports:
-
-```json
-{
-    "title": "Bug report title",
-    "description": "Detailed bug description..."
-}
+```
+bug-reports-analysis/
+├── bug_report_feature_extractor.py      # Feature extraction script
+├── tool_detection_clustering_analysis.py # Basic clustering analysis
+├── advanced_clustering_analysis.py       # Advanced analysis
+├── textdescriptives_diagnostic.py       # Diagnostic tool
+├── requirements.txt                      # Python dependencies
+├── bug_reports/                          # Bug report datasets
+│   ├── Defects4J/                       # 835 JSON bug reports
+│   └── GHRB/                            # 97 JSON bug reports
+└── outputs/                              # Output directory
 ```
 
-The script will also use the filename as `bug_id` if available.
+---
 
 ## Performance
 
-- Processing time: ~1-5 seconds per bug report (depending on text length and available hardware)
-- Full dataset processing: ~60-120 minutes for all 932 bug reports
-- Memory usage: ~2-4 GB (due to model loading)
+- **Feature Extraction**: ~1-5 seconds per bug report
+- **Full Dataset Processing**: ~60-120 minutes for all 932 bug reports
+- **Memory Usage**: ~2-4 GB (due to model loading)
+- **Clustering Analysis**: ~1-5 minutes depending on dataset size
+
+---
 
 ## License
 
 © APRTSM Lab — Bilkent University.
 Distributed under the APRTSM Lab Research License (non-commercial use only).
 
+---
 
 ## Acknowledgments
 
@@ -206,4 +294,12 @@ Distributed under the APRTSM Lab Research License (non-commercial use only).
 - [TextDescriptives](https://github.com/hlasse/TextDescriptives) library
 - [BERTScore](https://github.com/Tiiiger/bert_score) for semantic similarity
 - [Cleanlab](https://github.com/cleanlab/cleanlab) for outlier detection
+- scikit-learn for clustering and machine learning
 
+---
+
+## References
+
+- Scikit-learn documentation: https://scikit-learn.org/
+- Clustering algorithms: https://scikit-learn.org/stable/modules/clustering.html
+- Feature importance: https://scikit-learn.org/stable/modules/permutation_importance.html
