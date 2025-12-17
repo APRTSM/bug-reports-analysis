@@ -1,208 +1,190 @@
-import pandas as pd
+import itertools
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from scipy.stats import pearsonr, spearmanr
-from statsmodels.stats.multitest import multipletests
 from pathlib import Path
+from scipy.stats import spearmanr
+from statsmodels.stats.multitest import multipletests
 
 # ======================================
 # CONFIG
 # ======================================
-
 DATA_DIR = Path(".")
-IN_FILE  = DATA_DIR / "experimentA_preprocessed.csv"
+IN_FILE  = DATA_DIR / "experimentA_preprocessed_rich.csv"
 
-OUT_DIR  = DATA_DIR / "experimentA_corr_results"
+OUT_DIR  = DATA_DIR / "experimentA_gap_corr_results"
 OUT_DIR.mkdir(exist_ok=True, parents=True)
 
-TOP_K_PLOTS = 5  # how many strongest features per metric to visualize with scatter plots
+ALPHA = 0.05
+MAX_FEATURES_HEATMAP = 80     # for readability
+INCLUDE_MISSINGNESS_FEATURES = True
 
+# Choose which base performance metric to use for gaps
+# "mrr" is usually best; you can also do "top@1" or "top@5"
+BASE_METRIC_PREFIXES = ["mrr"]  # e.g., ["mrr", "top@1", "top@5"]
 
 # ======================================
 # 1. LOAD DATA
 # ======================================
-
 df = pd.read_csv(IN_FILE)
 print("Loaded:", df.shape, "from", IN_FILE)
 
-# Identify key columns
-id_cols = [c for c in ["bug_id", "project"] if c in df.columns]
+id_cols = [c for c in ["project", "bug_id", "id"] if c in df.columns]
 
-# Performance metrics: any column starting with mrr_ or top@
+# All perf columns
 perf_cols = [c for c in df.columns if c.startswith("mrr_") or c.startswith("top@")]
-print("Performance columns:", perf_cols)
-
-# Candidate feature columns: numeric, not perf, not IDs
 numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+# Candidate features: numeric, not perf, not IDs
 feature_cols = [c for c in numeric_cols if c not in perf_cols + id_cols]
+if not INCLUDE_MISSINGNESS_FEATURES:
+    feature_cols = [c for c in feature_cols if not (c.endswith("_is_missing") or "__is_missing" in c)]
 
-print("Number of feature columns:", len(feature_cols))
+print("Feature columns:", len(feature_cols))
 
+def tools_for_prefix(prefix: str):
+    cols = [c for c in df.columns if c.startswith(prefix + "_")]
+    tools = sorted({c.split("_", 1)[1] for c in cols})
+    return tools, cols
 
 # ======================================
-# 2. CORRELATION FUNCTIONS
+# 2. BUILD GAP + ADVANTAGE TARGETS
 # ======================================
 
-def compute_corr_table(df, feature_cols, perf_cols, method="pearson"):
-    """
-    Compute feature × metric correlations with p-values.
-    method: "pearson" or "spearman"
-    Returns tidy DataFrame with columns:
-        metric, feature, corr, pval
-    """
+gap_targets = {}      # name -> series
+adv_targets = {}      # name -> series  (tool vs best-other)
+
+for prefix in BASE_METRIC_PREFIXES:
+    tools, cols = tools_for_prefix(prefix)
+    if len(tools) < 2:
+        print(f"[WARN] Not enough tools found for prefix {prefix}. Skipping.")
+        continue
+
+    # Pairwise gaps: metric_A - metric_B
+    for a, b in itertools.combinations(tools, 2):
+        col_a = f"{prefix}_{a}"
+        col_b = f"{prefix}_{b}"
+        name_ab = f"gap_{prefix}_{a}_minus_{b}"
+        name_ba = f"gap_{prefix}_{b}_minus_{a}"
+        gap_targets[name_ab] = df[col_a] - df[col_b]
+        gap_targets[name_ba] = df[col_b] - df[col_a]  # optional symmetric target
+
+    # Advantage: tool - max(other tools)
+    mat = np.column_stack([df[f"{prefix}_{t}"].to_numpy(dtype=float) for t in tools])
+    for j, t in enumerate(tools):
+        others = np.delete(mat, j, axis=1)
+        best_other = np.max(others, axis=1) if others.shape[1] > 0 else np.zeros(len(df))
+        adv_targets[f"adv_{prefix}_{t}"] = mat[:, j] - best_other
+
+gap_df = pd.DataFrame(gap_targets)
+adv_df = pd.DataFrame(adv_targets)
+
+print("Gap targets:", gap_df.shape[1])
+print("Adv targets:", adv_df.shape[1])
+
+# Combine into one working DF (keeps df untouched)
+df_gap = pd.concat([df, gap_df, adv_df], axis=1)
+
+# ======================================
+# 3. CORRELATION (Spearman) + HOLM
+# ======================================
+
+def compute_spearman_table(df, feature_cols, target_cols):
     records = []
-    for metric in perf_cols:
-        y = df[metric].values
+    for target in target_cols:
+        y = df[target].to_numpy(dtype=float)
         for feat in feature_cols:
-            x = df[feat].values
+            x = df[feat].to_numpy(dtype=float)
 
-            # drop rows where either is NaN
             mask = ~np.isnan(x) & ~np.isnan(y)
             if mask.sum() < 3:
-                corr = np.nan
-                pval = np.nan
-            else:
-                x_clean = x[mask]
-                y_clean = y[mask]
-                
-                # Check if either array is constant (all values the same)
-                if np.std(x_clean) == 0 or np.std(y_clean) == 0:
-                    corr = np.nan
-                    pval = np.nan
-                else:
-                    try:
-                        if method == "pearson":
-                            corr, pval = pearsonr(x_clean, y_clean)
-                        elif method == "spearman":
-                            corr, pval = spearmanr(x_clean, y_clean)
-                        else:
-                            raise ValueError("Unknown method: " + method)
-                    except (ValueError, RuntimeWarning):
-                        # Handle any edge cases that might cause errors
-                        corr = np.nan
-                        pval = np.nan
+                records.append({"target": target, "feature": feat, "corr": np.nan, "pval": np.nan, "n": int(mask.sum())})
+                continue
 
-            records.append({
-                "metric": metric,
-                "feature": feat,
-                "corr": corr,
-                "pval": pval
-            })
+            x_clean = x[mask]
+            y_clean = y[mask]
+
+            if np.nanstd(x_clean) == 0 or np.nanstd(y_clean) == 0:
+                records.append({"target": target, "feature": feat, "corr": np.nan, "pval": np.nan, "n": int(mask.sum())})
+                continue
+
+            try:
+                rho, p = spearmanr(x_clean, y_clean)
+            except Exception:
+                rho, p = np.nan, np.nan
+
+            records.append({"target": target, "feature": feat, "corr": rho, "pval": p, "n": int(mask.sum())})
+
     return pd.DataFrame(records)
 
-
-def apply_holm_bonferroni(df_corr, alpha=0.05):
-    """
-    Apply Holm–Bonferroni correction over all correlations in df_corr.
-    Adds columns: pval_adj, reject
-    """
-    mask_valid = df_corr["pval"].notna()
-    pvals = df_corr.loc[mask_valid, "pval"].values
-
-    # Handle case where there are no valid p-values to adjust
+def apply_holm(df_corr, alpha=0.05):
+    df_corr = df_corr.copy()
+    mask = df_corr["pval"].notna()
+    pvals = df_corr.loc[mask, "pval"].values
     if len(pvals) == 0:
         df_corr["pval_adj"] = np.nan
         df_corr["reject"] = False
         return df_corr
 
-    reject, pval_adj, _, _ = multipletests(pvals, alpha=alpha, method="holm")
-
-    df_corr.loc[mask_valid, "pval_adj"] = pval_adj
-    df_corr.loc[mask_valid, "reject"] = reject
-
+    reject, p_adj, _, _ = multipletests(pvals, alpha=alpha, method="holm")
+    df_corr.loc[mask, "pval_adj"] = p_adj
+    df_corr.loc[mask, "reject"] = reject
+    df_corr["reject"] = df_corr["reject"].fillna(False)
     return df_corr
 
+gap_corr = compute_spearman_table(df_gap, feature_cols, gap_df.columns.tolist())
+gap_corr = apply_holm(gap_corr, alpha=ALPHA)
+gap_corr.to_csv(OUT_DIR / "gap_corr_spearman.csv", index=False)
+print("Saved:", OUT_DIR / "gap_corr_spearman.csv")
+
+adv_corr = compute_spearman_table(df_gap, feature_cols, adv_df.columns.tolist())
+adv_corr = apply_holm(adv_corr, alpha=ALPHA)
+adv_corr.to_csv(OUT_DIR / "adv_corr_spearman.csv", index=False)
+print("Saved:", OUT_DIR / "adv_corr_spearman.csv")
 
 # ======================================
-# 3. COMPUTE PEARSON & SPEARMAN
+# 4. HEATMAPS (top features only)
 # ======================================
 
-pearson_df = compute_corr_table(df, feature_cols, perf_cols, method="pearson")
-spearman_df = compute_corr_table(df, feature_cols, perf_cols, method="spearman")
+def top_features_for_heatmap(df_corr, max_feats=80):
+    # keep features that have strongest absolute correlation across any target
+    d = df_corr.dropna(subset=["corr"]).copy()
+    if d.empty:
+        return []
+    scores = d.groupby("feature")["corr"].apply(lambda s: s.abs().max()).sort_values(ascending=False)
+    return scores.head(max_feats).index.tolist()
 
-pearson_df = apply_holm_bonferroni(pearson_df, alpha=0.05)
-spearman_df = apply_holm_bonferroni(spearman_df, alpha=0.05)
+def make_heatmap(df_corr, title, filename, max_feats=80):
+    feats = top_features_for_heatmap(df_corr, max_feats=max_feats)
+    d = df_corr[df_corr["feature"].isin(feats)].copy()
+    if d.empty:
+        print("[WARN] No data for heatmap:", filename)
+        return
 
-# Save tables
-pearson_df.to_csv(OUT_DIR / "correlations_pearson.csv", index=False)
-spearman_df.to_csv(OUT_DIR / "correlations_spearman.csv", index=False)
+    pivot = d.pivot(index="feature", columns="target", values="corr")
 
-print("Saved correlation tables to", OUT_DIR)
-
-
-# ======================================
-# 4. HEATMAP VISUALIZATIONS
-# ======================================
-
-def make_heatmap(df_corr, title, filename, value_col="corr"):
-    """
-    Create a heatmap with features on y-axis and metrics on x-axis.
-    """
-    # Pivot to metrics (columns) × features (rows)
-    pivot = df_corr.pivot(index="feature", columns="metric", values=value_col)
-
-    plt.figure(figsize=(max(8, len(perf_cols) * 1.2), max(10, len(feature_cols) * 0.2)))
+    plt.figure(figsize=(max(10, pivot.shape[1] * 0.9), max(10, pivot.shape[0] * 0.25)))
     sns.heatmap(pivot, cmap="coolwarm", center=0, annot=False)
     plt.title(title)
     plt.tight_layout()
     plt.savefig(OUT_DIR / filename, dpi=300)
     plt.close()
+    print("Saved heatmap:", OUT_DIR / filename)
 
-
-# Pearson heatmap
 make_heatmap(
-    pearson_df,
-    title="Feature–Performance Correlations (Pearson)",
-    filename="heatmap_pearson.png",
-    value_col="corr"
+    gap_corr,
+    title="Feature correlations with tool–tool gaps (Spearman)",
+    filename="heatmap_gap_corr.png",
+    max_feats=MAX_FEATURES_HEATMAP
 )
 
-# Spearman heatmap
 make_heatmap(
-    spearman_df,
-    title="Feature–Performance Correlations (Spearman)",
-    filename="heatmap_spearman.png",
-    value_col="corr"
+    adv_corr,
+    title="Feature correlations with tool advantage vs best alternative (Spearman)",
+    filename="heatmap_adv_corr.png",
+    max_feats=MAX_FEATURES_HEATMAP
 )
 
-print("Saved heatmaps to", OUT_DIR)
-
-
-# ======================================
-# 5. SCATTER PLOTS FOR STRONGEST CORRELATIONS
-# ======================================
-
-def plot_top_k_scatter(df, df_corr, metric, k=5, method_name="pearson"):
-    """
-    For a given metric, plot scatter + regression for top-k |corr| features.
-    """
-    sub = df_corr[df_corr["metric"] == metric].dropna(subset=["corr"])
-    sub = sub.reindex(sub["corr"].abs().sort_values(ascending=False).index)  # sort by |corr|
-    top = sub.head(k)
-
-    for _, row in top.iterrows():
-        feat = row["feature"]
-        corr_val = row["corr"]
-        p_adj = row.get("pval_adj", np.nan)
-
-        plt.figure(figsize=(6, 4))
-        sns.regplot(x=df[feat], y=df[metric], scatter_kws={"alpha": 0.5}, line_kws={"linewidth": 2})
-        plt.xlabel(feat)
-        plt.ylabel(metric)
-        plt.title(f"{method_name} corr={corr_val:.3f}, p_adj={p_adj:.3g}")
-        plt.tight_layout()
-
-        fname = f"scatter_{method_name}_{metric}_{feat}.png".replace("/", "_")
-        plt.savefig(OUT_DIR / fname, dpi=300)
-        plt.close()
-
-
-# Example: use Spearman for scatter (often nicer for monotonic relationships)
-for metric in perf_cols:
-    print(f"Generating scatter plots for metric: {metric}")
-    plot_top_k_scatter(df, spearman_df, metric, k=TOP_K_PLOTS, method_name="spearman")
-
-print("Scatter plots saved to", OUT_DIR)
-print("Done.")
+print("Done. Outputs in:", OUT_DIR)
