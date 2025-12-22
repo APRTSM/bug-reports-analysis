@@ -20,6 +20,7 @@ OUT_DIR.mkdir(exist_ok=True, parents=True)
 ALPHA = 0.05
 MAX_FEATURES_HEATMAP = 80     # for readability
 INCLUDE_MISSINGNESS_FEATURES = True
+TOP_N_FEATURES_HEATMAP = 15
 
 # Choose which base performance metric to use for gaps
 # "mrr" is usually best; you can also do "top@1" or "top@5"
@@ -87,6 +88,31 @@ print("Adv targets:", adv_df.shape[1])
 # Combine into one working DF (keeps df untouched)
 df_gap = pd.concat([df, gap_df, adv_df], axis=1)
 
+def shorten_target(t):
+    t = str(t)
+
+    # Tool abbreviations
+    t = t.replace("boostnsift", "BNS")
+    t = t.replace("buglocator", "BL")
+    t = t.replace("locus", "LOC")
+
+    # Advantage
+    if t.startswith("adv_mrr_"):
+        core = t.replace("adv_mrr_", "")
+        if core.endswith("_is_missing"):
+            core = core.replace("_is_missing", "")
+            return f"Adv({core.upper()})*"
+        return f"Adv({core.upper()})"
+
+    # Gap
+    if t.startswith("gap_mrr_"):
+        core = t.replace("gap_mrr_", "")
+        core = core.replace("_minus_", "−")
+        return f"Δ({core.upper()})"
+
+    return t
+
+
 # ======================================
 # 3. CORRELATION (Spearman) + HOLM
 # ======================================
@@ -136,13 +162,38 @@ def apply_holm(df_corr, alpha=0.05):
 
 gap_corr = compute_spearman_table(df_gap, feature_cols, gap_df.columns.tolist())
 gap_corr = apply_holm(gap_corr, alpha=ALPHA)
+gap_corr["target"] = gap_corr["target"].apply(shorten_target)
+
 gap_corr.to_csv(OUT_DIR / "gap_corr_spearman.csv", index=False)
 print("Saved:", OUT_DIR / "gap_corr_spearman.csv")
 
 adv_corr = compute_spearman_table(df_gap, feature_cols, adv_df.columns.tolist())
 adv_corr = apply_holm(adv_corr, alpha=ALPHA)
+adv_corr["target"] = adv_corr["target"].apply(shorten_target)
 adv_corr.to_csv(OUT_DIR / "adv_corr_spearman.csv", index=False)
 print("Saved:", OUT_DIR / "adv_corr_spearman.csv")
+
+
+def select_top_bottom_features(df_corr, feature_col="feature",
+                               value_col="corr", target_col="target",
+                               top_n=15):
+    """
+    Select top-N and bottom-N features by max absolute effect
+    across all targets.
+    """
+    d = df_corr.dropna(subset=[value_col]).copy()
+
+    # max |effect| per feature across all targets
+    scores = (
+        d.groupby(feature_col)[value_col]
+        .apply(lambda s: s.abs().max())
+        .sort_values(ascending=False)
+    )
+
+    top_feats = scores.head(top_n).index.tolist()
+    bottom_feats = scores.tail(top_n).index.tolist()
+
+    return top_feats + bottom_feats
 
 # ======================================
 # 4. HEATMAPS (top features only)
@@ -156,8 +207,8 @@ def top_features_for_heatmap(df_corr, max_feats=80):
     scores = d.groupby("feature")["corr"].apply(lambda s: s.abs().max()).sort_values(ascending=False)
     return scores.head(max_feats).index.tolist()
 
-def make_heatmap(df_corr, title, filename, max_feats=80):
-    feats = top_features_for_heatmap(df_corr, max_feats=max_feats)
+def make_heatmap(df_corr, title, filename, top_n=15):
+    feats = select_top_bottom_features(df_corr, top_n=top_n)
     d = df_corr[df_corr["feature"].isin(feats)].copy()
     if d.empty:
         print("[WARN] No data for heatmap:", filename)
@@ -176,15 +227,15 @@ def make_heatmap(df_corr, title, filename, max_feats=80):
 make_heatmap(
     gap_corr,
     title="Feature correlations with tool–tool gaps (Spearman)",
-    filename="heatmap_gap_corr.png",
-    max_feats=MAX_FEATURES_HEATMAP
+    filename="heatmap_gap_corr_compressed.png",
+    top_n=TOP_N_FEATURES_HEATMAP
 )
 
 make_heatmap(
     adv_corr,
     title="Feature correlations with tool advantage vs best alternative (Spearman)",
-    filename="heatmap_adv_corr.png",
-    max_feats=MAX_FEATURES_HEATMAP
+    filename="heatmap_adv_corr_compressed.png",
+    top_n=TOP_N_FEATURES_HEATMAP
 )
 
 print("Done. Outputs in:", OUT_DIR)
