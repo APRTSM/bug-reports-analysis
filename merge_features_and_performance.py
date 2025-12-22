@@ -1,3 +1,20 @@
+"""
+Merge and preprocess bug report datasets.
+
+This script:
+1. Loads multiple data sources (features, ratings, categories, performance metrics, bee_results)
+2. Merges them into a unified dataset
+3. Performs rich preprocessing including:
+   - Text feature extraction
+   - Category encoding
+   - Concept multi-hot encoding
+   - Feature standardization
+4. Outputs:
+   - experimentA_full_dataset.csv: Full dataset with all original columns
+   - experimentA_preprocessed_rich.csv: Preprocessed dataset ready for modeling
+   - feature_scaler.pkl: StandardScaler for feature scaling
+"""
+
 import re
 import json
 import pickle
@@ -13,6 +30,7 @@ FEATURES_FILE = DATA_DIR / "bug_features_v2.csv"
 RATINGS_FILE  = DATA_DIR / "gemini_bug_ratings.csv"
 CATEG_FILE    = DATA_DIR / "gemini_bug_categorization.csv"
 PERF_FILE     = DATA_DIR / "tool_comparison_summary.csv"
+BEE_RESULTS_FILE = DATA_DIR / "bee_results.jsonl"
 
 OUT_FULL = DATA_DIR / "experimentA_full_dataset.csv"
 OUT_PREP = DATA_DIR / "experimentA_preprocessed_rich.csv"
@@ -206,6 +224,51 @@ def add_missingness_indicators(df: pd.DataFrame, cols: List[str]) -> pd.DataFram
             out[f"{c}__is_missing"] = out[c].isna().astype(int)
     return out
 
+def load_bee_results(jsonl_path: Path) -> pd.DataFrame:
+    """
+    Load bee_results.jsonl and extract the 9 stats features.
+    Returns a DataFrame with 'id' column and the 9 bee_results features.
+    """
+    bee_records = []
+    
+    if not jsonl_path.exists():
+        print(f"  Warning: {jsonl_path} not found, skipping bee_results merge")
+        return pd.DataFrame()
+    
+    with open(jsonl_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+                bug_id = record.get('bug_id')
+                stats = record.get('stats', {})
+                
+                if bug_id and stats:
+                    bee_records.append({
+                        'id': bug_id,
+                        'has_OB': stats.get('has_OB'),
+                        'has_EB': stats.get('has_EB'),
+                        'has_S2R': stats.get('has_S2R'),
+                        'missing_OB': stats.get('missing_OB'),
+                        'missing_EB': stats.get('missing_EB'),
+                        'missing_S2R': stats.get('missing_S2R'),
+                        'num_OB': stats.get('num_OB'),
+                        'num_EB': stats.get('num_EB'),
+                        'num_S2R': stats.get('num_S2R'),
+                    })
+            except json.JSONDecodeError as e:
+                print(f"  Warning: Failed to parse line in bee_results: {e}")
+                continue
+    
+    if bee_records:
+        bee_df = pd.DataFrame(bee_records)
+        print(f"  Loaded {len(bee_df)} records from bee_results.jsonl")
+        return bee_df
+    else:
+        return pd.DataFrame()
+
 # -----------------------------
 # 1. Load
 # -----------------------------
@@ -220,6 +283,7 @@ print(f"  Features: {features_df.shape}")
 print(f"  Ratings:  {ratings_df.shape}")
 print(f"  Categories: {categ_df.shape}")
 print(f"  Performance: {perf_df.shape}")
+print(f"  Bee results: {BEE_RESULTS_FILE} (will be loaded during merge)")
 
 # -----------------------------
 # 2. Parse IDs
@@ -275,6 +339,30 @@ merged = merged.merge(
     how="left",
     suffixes=("", "_categ")
 )
+
+# -----------------------------
+# 5.5 Merge bee_results features
+# -----------------------------
+print("\nMerging bee_results features...")
+bee_df = load_bee_results(BEE_RESULTS_FILE)
+if not bee_df.empty:
+    # Merge on 'id' column (e.g., "Chart-1" matches "Chart-1")
+    merged = merged.merge(
+        bee_df,
+        on="id",
+        how="left",
+        suffixes=("", "_bee")
+    )
+    # Convert boolean columns to int for consistency
+    bool_cols = ['has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R']
+    for col in bool_cols:
+        if col in merged.columns:
+            merged[col] = merged[col].astype('Int64')  # Nullable integer type
+    
+    matched_count = merged[['has_OB', 'has_EB', 'has_S2R']].notna().any(axis=1).sum()
+    print(f"  Matched {matched_count} records with bee_results features")
+else:
+    print("  No bee_results data to merge")
 
 # Save full dataset
 print(f"\nFull merged shape: {merged.shape}")
@@ -410,7 +498,8 @@ print(f"  Performance metrics: {len([c for c in df.columns if c.startswith('mrr_
 print(f"  Category features: {len([c for c in df.columns if c.startswith('cat_') or c.startswith('cat__')])}")
 print(f"  Text-derived features: {len([c for c in df.columns if c.startswith('txt_')])}")
 print(f"  Concept features: {len([c for c in df.columns if c.startswith('concept')])}")
-print(f"  Other features: {len([c for c in df.columns if not any(c.startswith(p) for p in ['mrr_', 'top@', 'cat', 'txt_', 'concept']) and c not in key_cols])}")
+print(f"  Bee results features: {len([c for c in df.columns if c in ['has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R', 'num_OB', 'num_EB', 'num_S2R']])}")
+print(f"  Other features: {len([c for c in df.columns if not any(c.startswith(p) for p in ['mrr_', 'top@', 'cat', 'txt_', 'concept']) and c not in key_cols and c not in ['has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R', 'num_OB', 'num_EB', 'num_S2R']])}")
 
 print("\nFiles created:")
 print(f"  1. {OUT_FULL} - Full dataset with all original columns")
