@@ -1,22 +1,22 @@
 """
-gemini_bug_categorization.py
+fine_grained_gemini_catg.py
 
-Uses Google Gemini API to categorize bug reports into one of 9 predefined categories:
-1. Configuration Issue
-2. Network Issue
-3. Database-Related Issue
-4. GUI-Related Issue
-5. Performance Issue
-6. Permission/Deprecation Issue
-7. Security Issue
-8. Functional Issue
-9. Test Code-Related Issue
+Uses Google Gemini API to perform fine-grained categorization of bug reports that are
+already categorized as "Functional Issue" into one of 18 sub-categories:
+- Logic categories: Exception handling, Missing case, Processing, Typo, Dependency, Other (Logic)
+- Memory categories: Buffer overflow, Null pointer dereference, Uninitialized memory read, 
+  Memory leak, Dangling pointer, Double free, Other (Memory)
+- Concurrency categories: Order violation, Race condition, Atomicity violation, Deadlock, Other (Concurrency)
+
+This script reads gemini_bug_categorization.csv to filter for only bug reports with 
+category="Functional Issue" and then performs fine-grained categorization on those.
 
 Usage:
-    python gemini_bug_categorization.py
+    python fine_grained_gemini_catg.py
 
 Requires:
     - Google Gemini API key set as environment variable GEMINI_API_KEY
+    - gemini_bug_categorization.csv file with functional issue categories
 """
 
 import os
@@ -39,7 +39,8 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 DATA_DIR = "bug_reports/Defects4J"
-OUTPUT_FILE = "gemini_bug_categorization.csv"
+OUTPUT_FILE = "fine_grained_gemini_categorization.csv"  # Different output file
+FUNCTIONAL_ISSUES_CSV = "gemini_bug_categorization.csv"  # CSV with functional issue categories
 
 # Try these model names in order (fallback if one doesn't work)
 GEMINI_MODELS = [
@@ -57,7 +58,7 @@ if not GEMINI_API_KEY:
     print("Warning: GEMINI_API_KEY environment variable not set.")
     print("Please set it with: export GEMINI_API_KEY='your-api-key'")
     # Uncomment and set your key here if needed:
-    # GEMINI_API_KEY = "your-api-key-here"
+    GEMINI_API_KEY = "AIzaSyC-J9-kYUpfiu_8ENKlm50oXm2AYkK1Edk"
 
 # Rate limiting: delay between API calls (seconds)
 API_DELAY = 2.0
@@ -119,14 +120,17 @@ def create_categorization_prompt(title: str, description: str) -> str:
         for i, (cat, desc) in enumerate(BUG_CATEGORIES.items())
     ])
     
+    # Count categories for accurate prompt
+    num_categories = len(BUG_CATEGORIES)
+    
     # Escape curly braces for f-string
     json_example = """{
-  "category": "<one of the 9 categories above, exact string>",
+  "category": "<one of the categories above, exact string>",
   "confidence": <integer 1-5>,
   "reasoning": "<max 2 sentences explaining the choice>"
 }"""
     
-    prompt = f"""You are an expert software engineer categorizing bug reports. Please analyze the following functional issue bug report and categorize it into ONE of the 9 predefined categories.
+    prompt = f"""You are an expert software engineer categorizing bug reports. Please analyze the following bug report and categorize it into ONE of the {num_categories} predefined categories.
 
 Bug Report Title: {title}
 
@@ -190,8 +194,8 @@ def parse_gemini_response(response_text: str) -> Optional[Dict[str, Any]]:
         if "category" in result:
             category = result["category"]
             if category not in BUG_CATEGORIES:
-                print(f"  Warning: Invalid category '{category}', using 'Functional Issue' as default")
-                result["category"] = "Functional Issue"
+                print(f"  Warning: Invalid category '{category}', using 'Other (Logic)' as default")
+                result["category"] = "default: Other (Logic)"
         return result
     except json.JSONDecodeError as e:
         print(f"  Warning: Failed to parse JSON response: {e}")
@@ -319,6 +323,25 @@ def get_processed_ids(output_file: str) -> set:
         print(f"Warning: Could not read existing CSV: {e}")
         return set()
 
+def get_functional_issue_ids(csv_file: str) -> set:
+    """Get set of bug IDs that are categorized as 'Functional Issue'."""
+    if not os.path.exists(csv_file):
+        print(f"Warning: {csv_file} not found. Will process all bug reports.")
+        return None  # None means process all
+    
+    try:
+        df = pd.read_csv(csv_file)
+        if "category" not in df.columns or "id" not in df.columns:
+            print(f"Warning: {csv_file} missing required columns. Will process all bug reports.")
+            return None
+        
+        functional_ids = set(df[df["category"] == "Functional Issue"]["id"].astype(str).tolist())
+        print(f"Found {len(functional_ids)} bug reports categorized as 'Functional Issue' in {csv_file}")
+        return functional_ids
+    except Exception as e:
+        print(f"Warning: Could not read {csv_file}: {e}. Will process all bug reports.")
+        return None
+
 
 def write_row_to_csv(row: dict, output_file: str, is_first_row: bool = False):
     """Write a single row to CSV file, appending if file exists."""
@@ -361,6 +384,9 @@ def process_bug_reports(data_dir: str = DATA_DIR, output_file: str = OUTPUT_FILE
     else:
         print(f"\nWarning: Could not auto-detect model. Will try: {', '.join(GEMINI_MODELS)}")
     
+    # Get functional issue IDs to filter by
+    functional_issue_ids = get_functional_issue_ids(FUNCTIONAL_ISSUES_CSV)
+    
     # Check for existing results to resume from
     processed_ids = get_processed_ids(output_file)
     if processed_ids:
@@ -372,6 +398,10 @@ def process_bug_reports(data_dir: str = DATA_DIR, output_file: str = OUTPUT_FILE
     # Find all JSON files
     json_files = glob.glob(os.path.join(data_dir, "**/*.json"), recursive=True)
     print(f"Found {len(json_files)} JSON files under {data_dir!r}")
+    
+    # Filter to only functional issues if specified
+    if functional_issue_ids is not None:
+        print(f"Filtering to only process {len(functional_issue_ids)} functional issue bug reports...")
     
     try:
         from tqdm import tqdm
@@ -394,6 +424,11 @@ def process_bug_reports(data_dir: str = DATA_DIR, output_file: str = OUTPUT_FILE
                     continue
                 bid = str(obj.get("id") or obj.get("bug_id") or name)
                 
+                # Skip if not a functional issue (when filtering is enabled)
+                if functional_issue_ids is not None and bid not in functional_issue_ids:
+                    skipped_count += 1
+                    continue
+                
                 # Skip if already processed
                 if bid in processed_ids:
                     skipped_count += 1
@@ -409,7 +444,7 @@ def process_bug_reports(data_dir: str = DATA_DIR, output_file: str = OUTPUT_FILE
                         "id": bid,
                         "title": title,
                         "description_length": len(desc),
-                        "category": categorization.get("category", "Functional Issue"),
+                        "category": categorization.get("category", "Other (Logic)"),
                         "confidence": categorization.get("confidence", 3),
                         "reasoning": categorization.get("reasoning", ""),
                     }
@@ -427,7 +462,7 @@ def process_bug_reports(data_dir: str = DATA_DIR, output_file: str = OUTPUT_FILE
                         "id": bid,
                         "title": title,
                         "description_length": len(desc),
-                        "category": "Functional Issue",  # Default category
+                        "category": "Other (Logic)",  # Default category
                         "confidence": None,
                         "reasoning": "Failed to categorize",
                     }
