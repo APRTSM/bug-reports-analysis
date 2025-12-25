@@ -26,7 +26,7 @@ from statsmodels.stats.multitest import multipletests
 DATA_DIR = Path(".")
 
 # Input files
-IN_FILE_PREPROCESSED = DATA_DIR / "experimentA_preprocessed_rich.csv"
+IN_FILE_PREPROCESSED = DATA_DIR / "full_feature_preproccessed/experimentA_full_dataset.csv"
 IN_FILE_TOOL_COMPARISON = DATA_DIR / "tool_comparison_summary.csv"
 
 # Output directories
@@ -100,7 +100,7 @@ def apply_holm(df_corr, alpha=0.05, pval_col="pval"):
     reject, p_adj, _, _ = multipletests(pvals, alpha=alpha, method="holm")
     df_corr.loc[mask, "pval_adj"] = p_adj
     df_corr.loc[mask, "reject"] = reject
-    df_corr["reject"] = df_corr["reject"].fillna(False)
+    df_corr["reject"] = df_corr["reject"].fillna(False).astype(bool)
     return df_corr
 
 def load_data_and_features(in_file):
@@ -401,7 +401,7 @@ def run_success_failure_analysis():
         stats_df = pd.DataFrame(records)
         stats_df = apply_holm(stats_df, alpha=ALPHA, pval_col="p_value")
         stats_df["abs_delta"] = stats_df["cliffs_delta"].abs()
-        stats_df.sort_values(["reject", "abs_delta", "p_adj"], ascending=[False, False, True], inplace=True)
+        stats_df.sort_values(["reject", "abs_delta", "pval_adj"], ascending=[False, False, True], inplace=True)
 
         out_stats = OUT_DIR_SUCCESS / f"stats_{safe_name(label_name)}.csv"
         stats_df.to_csv(out_stats, index=False)
@@ -766,5 +766,6 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("ALL ANALYSES COMPLETE")
     print("=" * 60)
+
 
 

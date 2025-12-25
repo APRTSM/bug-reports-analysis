@@ -27,13 +27,14 @@ from sklearn.preprocessing import StandardScaler
 DATA_DIR = Path(".")
 
 FEATURES_FILE = DATA_DIR / "bug_features_v2.csv"
-RATINGS_FILE  = DATA_DIR / "gemini_bug_ratings.csv"
-CATEG_FILE    = DATA_DIR / "gemini_bug_categorization.csv"
+RATINGS_FILE  = DATA_DIR / "gemini_ratings/gemini_bug_ratings.csv"
+CATEG_FILE    = DATA_DIR / "gemini_ratings/gemini_bug_categorization.csv"
+FINE_GRAINED_CATEG_FILE = DATA_DIR / "gemini_ratings/fine_grained_gemini_categorization.csv"
 PERF_FILE     = DATA_DIR / "tool_comparison_summary.csv"
 BEE_RESULTS_FILE = DATA_DIR / "bee_results.jsonl"
 
-OUT_FULL = DATA_DIR / "experimentA_full_dataset.csv"
-OUT_PREP = DATA_DIR / "experimentA_preprocessed_rich.csv"
+OUT_FULL = DATA_DIR / "full_feature_preproccessed/experimentA_full_dataset.csv"
+OUT_PREP = DATA_DIR / "full_feature_preproccessed/experimentA_preprocessed_rich.csv"
 SCALER_FILE = DATA_DIR / "feature_scaler.pkl"
 
 # -----------------------------
@@ -277,11 +278,13 @@ print("Loading data...")
 features_df = pd.read_csv(FEATURES_FILE)
 ratings_df  = pd.read_csv(RATINGS_FILE)
 categ_df    = pd.read_csv(CATEG_FILE)
+fine_grained_categ_df = pd.read_csv(FINE_GRAINED_CATEG_FILE) if FINE_GRAINED_CATEG_FILE.exists() else pd.DataFrame()
 perf_df     = pd.read_csv(PERF_FILE)
 
 print(f"  Features: {features_df.shape}")
 print(f"  Ratings:  {ratings_df.shape}")
 print(f"  Categories: {categ_df.shape}")
+print(f"  Fine-grained categories: {fine_grained_categ_df.shape if not fine_grained_categ_df.empty else 'Not found'}")
 print(f"  Performance: {perf_df.shape}")
 print(f"  Bee results: {BEE_RESULTS_FILE} (will be loaded during merge)")
 
@@ -292,6 +295,8 @@ print("\nParsing bug IDs...")
 features_df = split_id(features_df)
 ratings_df  = split_id(ratings_df)
 categ_df    = split_id(categ_df)
+if not fine_grained_categ_df.empty:
+    fine_grained_categ_df = split_id(fine_grained_categ_df)
 
 # -----------------------------
 # 3. Compute per-tool MRR from rank
@@ -339,6 +344,28 @@ merged = merged.merge(
     how="left",
     suffixes=("", "_categ")
 )
+
+# Merge fine-grained categorization
+if not fine_grained_categ_df.empty:
+    print("\nMerging fine-grained categorization...")
+    # Rename columns to avoid conflicts with regular categorization
+    fine_grained_for_merge = fine_grained_categ_df.rename(columns={
+        "category": "fine_grained_category",
+        "confidence": "fine_grained_confidence",
+        "reasoning": "fine_grained_reasoning",
+        "title": "fine_grained_title",
+        "description_length": "fine_grained_description_length"
+    })
+    merged = merged.merge(
+        fine_grained_for_merge,
+        on=["project", "bug_id"],
+        how="left",
+        suffixes=("", "_fine_grained")
+    )
+    matched_count = merged["fine_grained_category"].notna().sum()
+    print(f"  Matched {matched_count} records with fine-grained categorization")
+else:
+    print("\n  Fine-grained categorization file not found, skipping merge")
 
 # -----------------------------
 # 5.5 Merge bee_results features
@@ -393,10 +420,19 @@ for cat_col in ["category", "category_categ", "bug_category", "bug_category_cate
         df.drop(columns=[cat_col], inplace=True)
         break
 
+# Also encode fine-grained category if present
+if "fine_grained_category" in df.columns:
+    print("\n6.2.1 Encoding fine-grained categories...")
+    fine_grained_oh = one_hot_topk_categories(df, "fine_grained_category", prefix="fg_cat", min_freq=10)
+    df = pd.concat([df, fine_grained_oh], axis=1)
+    # keep raw fine_grained_category in OUT_FULL, but drop from modeling view
+    df.drop(columns=["fine_grained_category"], inplace=True)
+
 # 6.3 Extract numeric features from text instead of dropping it
 print("\n6.3 Extracting text statistics...")
 text_candidates = [
     "title", "description", "reasoning", "reasoning_ratings",
+    "fine_grained_reasoning", "fine_grained_title",
     "likely_impacted_code_concepts"
 ]
 for col in text_candidates:
@@ -419,7 +455,9 @@ if "likely_impacted_code_concepts" in df.columns:
 # 6.5 Keep original text columns in OUT_FULL, but drop them from OUT_PREP modeling view
 print("\n6.5 Dropping raw text columns from preprocessed dataset...")
 drop_raw_text_cols = [
-    "title", "description", "reasoning", "reasoning_ratings", "likely_impacted_code_concepts"
+    "title", "description", "reasoning", "reasoning_ratings", 
+    "fine_grained_reasoning", "fine_grained_title",
+    "likely_impacted_code_concepts"
 ]
 df.drop(columns=drop_raw_text_cols, inplace=True, errors="ignore")
 
@@ -439,9 +477,10 @@ numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
 # - Performance targets (we want to keep these interpretable)
 exclude_from_scaling = (
     key_cols + 
-    [c for c in numeric_cols if c.startswith(("mrr_", "top@", "cat_", "cat__", "concept__"))] +
+    [c for c in numeric_cols if c.startswith(("mrr_", "top@", "cat_", "cat__", "fg_cat_", "fg_cat__", "concept__"))] +
     [c for c in numeric_cols if c.endswith("_is_missing") or c.endswith("__is_missing")] +
-    [c for c in numeric_cols if "_has_" in c]  # Binary indicators
+    [c for c in numeric_cols if "_has_" in c] +  # Binary indicators
+    [c for c in numeric_cols if c == "fine_grained_confidence"]  # Keep confidence interpretable
 )
 
 cols_to_scale = [c for c in numeric_cols if c not in exclude_from_scaling]
@@ -496,10 +535,11 @@ print(f"\nColumn breakdown:")
 print(f"  Key columns: {len(key_cols)}")
 print(f"  Performance metrics: {len([c for c in df.columns if c.startswith('mrr_') or c.startswith('top@')])}")
 print(f"  Category features: {len([c for c in df.columns if c.startswith('cat_') or c.startswith('cat__')])}")
+print(f"  Fine-grained category features: {len([c for c in df.columns if c.startswith('fg_cat_') or c.startswith('fg_cat__')])}")
 print(f"  Text-derived features: {len([c for c in df.columns if c.startswith('txt_')])}")
 print(f"  Concept features: {len([c for c in df.columns if c.startswith('concept')])}")
 print(f"  Bee results features: {len([c for c in df.columns if c in ['has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R', 'num_OB', 'num_EB', 'num_S2R']])}")
-print(f"  Other features: {len([c for c in df.columns if not any(c.startswith(p) for p in ['mrr_', 'top@', 'cat', 'txt_', 'concept']) and c not in key_cols and c not in ['has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R', 'num_OB', 'num_EB', 'num_S2R']])}")
+print(f"  Other features: {len([c for c in df.columns if not any(c.startswith(p) for p in ['mrr_', 'top@', 'cat', 'fg_cat', 'txt_', 'concept']) and c not in key_cols and c not in ['has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R', 'num_OB', 'num_EB', 'num_S2R']])}")
 
 print("\nFiles created:")
 print(f"  1. {OUT_FULL} - Full dataset with all original columns")
