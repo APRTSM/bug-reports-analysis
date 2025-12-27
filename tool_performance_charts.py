@@ -9,6 +9,7 @@ from pathlib import Path
 
 DATA_DIR = Path(".")
 IN_FILE = DATA_DIR / "tool_comparison_summary.csv"
+MAP_COMPARISON_FILE = DATA_DIR / "map_calculation_comparison.csv"
 OUT_DIR = DATA_DIR / "tool_performance_charts"
 OUT_DIR.mkdir(exist_ok=True, parents=True)
 
@@ -19,23 +20,64 @@ OUT_DIR.mkdir(exist_ok=True, parents=True)
 df = pd.read_csv(IN_FILE)
 print(f"Loaded {len(df)} rows from {IN_FILE}")
 
+# Load recalculated MAP values from comparison file
+if MAP_COMPARISON_FILE.exists():
+    print(f"Loading recalculated MAP values from {MAP_COMPARISON_FILE}")
+    map_comparison = pd.read_csv(MAP_COMPARISON_FILE)
+    
+    # Merge recalculated MAP values
+    # Use map_recalc_single_gt (MAP = MRR) as it's the most consistent
+    # Alternative: use map_recalc_with_gt if you want to account for multiple GT locations
+    merge_cols = ['project', 'bug_id', 'tool']
+    df = df.merge(
+        map_comparison[merge_cols + ['map_recalc_single_gt']],
+        on=merge_cols,
+        how='left',
+        suffixes=('', '_recalc')
+    )
+    
+    # Use recalculated MAP if available, otherwise fall back to original
+    df['map'] = df['map_recalc_single_gt'].fillna(df['map'])
+    print(f"  Updated MAP values using recalculated MAP (single GT assumption)")
+    print(f"  Rows with recalculated MAP: {df['map_recalc_single_gt'].notna().sum()}")
+else:
+    print(f"Warning: {MAP_COMPARISON_FILE} not found. Using original MAP values.")
+
 # ============================
 # 2. COMPUTE AGGREGATE STATISTICS
 # ============================
 
-# Calculate MRR: 1/rank if rank is not NaN, else 0
-df["mrr"] = np.where(df["rank"].notna(), 1.0 / df["rank"], 0.0)
+# Calculate MRR@5: 1/rank if rank <= 5 and rank is not NaN, else 0
+df["mrr_at5"] = np.where(
+    (df["rank"].notna()) & (df["rank"] <= 5), 
+    1.0 / df["rank"], 
+    0.0
+)
+
+# Calculate MAP@5: Use existing MAP value if rank <= 5, else 0
+# The existing 'map' column may account for multiple ground truth locations
+# MAP@5 only considers cases where the bug was found in top 5
+if "map" in df.columns:
+    df["map_at5"] = np.where(
+        (df["rank"].notna()) & (df["rank"] <= 5), 
+        df["map"], 
+        0.0
+    )
+else:
+    # Fallback: if no map column, use MRR@5 (for single ground truth, MAP = MRR)
+    df["map_at5"] = df["mrr_at5"]
 
 # Group by tool and compute statistics
 stats = df.groupby("tool").agg({
     "top@1": ["sum", "mean"],
     "top@5": ["sum", "mean"],
-    "mrr": "mean",
+    "mrr_at5": "mean",
+    "map_at5": "mean",
     "detected": lambda x: (x == "Yes").sum(),
 }).round(3)
 
 # Flatten column names
-stats.columns = ["top1_count", "top1_rate", "top5_count", "top5_rate", "mrr", "detected_count"]
+stats.columns = ["top1_count", "top1_rate", "top5_count", "top5_rate", "mrr_at5", "map_at5", "detected_count"]
 stats["not_detected_count"] = df.groupby("tool").size() - stats["detected_count"]
 stats["total"] = df.groupby("tool").size()
 
@@ -194,7 +236,8 @@ for bar, rate, detected, total in zip(bars, detection_rate,
                                        stats["detected_count"], stats["total"]):
     height = bar.get_height()
     ax.text(bar.get_x() + bar.get_width()/2., height,
-            f'{rate:.1f}%\n({int(detected)}/{int(total)})',
+            #f'{rate:.1f}%\n({int(detected)}/{int(total)})',
+            f'{rate:.1f}%',
             ha='center', va='bottom', fontsize=9, fontweight="bold")
 
 plt.tight_layout()
@@ -203,10 +246,46 @@ print(f"Saved: {OUT_DIR / 'detection_rate.png'}")
 plt.close()
 
 # ============================
-# Chart 5: Comprehensive Comparison (All Metrics)
+# Chart 5: MRR@5 and MAP@5
 # ============================
 
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+fig, ax = plt.subplots(figsize=(10, 6))
+x = np.arange(len(stats))
+width = 0.35
+
+bars1 = ax.bar(x - width/2, stats["mrr_at5"] * 100, width, 
+                label="MRR@5", color=colors[0], alpha=0.8)
+bars2 = ax.bar(x + width/2, stats["map_at5"] * 100, width, 
+                label="MAP@5", color=colors[1], alpha=0.8)
+
+ax.set_xlabel("Tool", fontsize=12, fontweight="bold")
+ax.set_ylabel("Score (%)", fontsize=12, fontweight="bold")
+ax.set_title("Tool Performance: MRR@5 and MAP@5", 
+             fontsize=14, fontweight="bold", pad=20)
+ax.set_xticks(x)
+ax.set_xticklabels(stats["tool"], fontsize=11)
+ax.legend(fontsize=11)
+ax.set_ylim(0, 100)
+ax.grid(axis="y", alpha=0.3)
+
+# Add value labels on bars
+for bars in [bars1, bars2]:
+    for bar in bars:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+                f'{height:.1f}%',
+                ha='center', va='bottom', fontsize=9, fontweight="bold")
+
+plt.tight_layout()
+plt.savefig(OUT_DIR / "mrr_map_at5.png", dpi=300, bbox_inches="tight")
+print(f"Saved: {OUT_DIR / 'mrr_map_at5.png'}")
+plt.close()
+
+# ============================
+# Chart 6: Comprehensive Comparison (All Metrics)
+# ============================
+
+fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 fig.suptitle("Comprehensive Tool Performance Comparison", 
              fontsize=16, fontweight="bold", y=0.995)
 
@@ -222,7 +301,7 @@ ax1.set_xlabel("Tool", fontweight="bold")
 ax1.set_ylabel("Success Rate (%)", fontweight="bold")
 ax1.set_title("Top@1 and Top@5 Performance", fontweight="bold")
 ax1.set_xticks(x)
-ax1.set_xticklabels(stats["tool"])
+ax1.set_xticklabels(stats["tool"], rotation=45, ha='right')
 ax1.legend()
 ax1.set_ylim(0, 100)
 ax1.grid(axis="y", alpha=0.3)
@@ -239,40 +318,81 @@ ax2.set_xlabel("Tool", fontweight="bold")
 ax2.set_ylabel("Number of Bugs", fontweight="bold")
 ax2.set_title("Detection Counts", fontweight="bold")
 ax2.set_xticks(x)
-ax2.set_xticklabels(stats["tool"])
+ax2.set_xticklabels(stats["tool"], rotation=45, ha='right')
 ax2.legend()
 ax2.grid(axis="y", alpha=0.3)
 
-# Subplot 3: Detection rate
-ax3 = axes[1, 0]
-detection_rate = (stats["detected_count"] / stats["total"] * 100).values
-ax3.bar(stats["tool"], detection_rate, color=colors, alpha=0.8)
+# Subplot 3: MRR@5 and MAP@5
+ax3 = axes[0, 2]
+x = np.arange(len(stats))
+width = 0.35
+ax3.bar(x - width/2, stats["mrr_at5"] * 100, width, label="MRR@5", 
+        color=colors[0], alpha=0.8)
+ax3.bar(x + width/2, stats["map_at5"] * 100, width, label="MAP@5", 
+        color=colors[1], alpha=0.8)
 ax3.set_xlabel("Tool", fontweight="bold")
-ax3.set_ylabel("Detection Rate (%)", fontweight="bold")
-ax3.set_title("Detection Rate", fontweight="bold")
+ax3.set_ylabel("Score (%)", fontweight="bold")
+ax3.set_title("MRR@5 and MAP@5", fontweight="bold")
+ax3.set_xticks(x)
+ax3.set_xticklabels(stats["tool"], rotation=45, ha='right')
+ax3.legend()
 ax3.set_ylim(0, 100)
 ax3.grid(axis="y", alpha=0.3)
+
+# Subplot 4: Detection rate
+ax4 = axes[1, 0]
+detection_rate = (stats["detected_count"] / stats["total"] * 100).values
+ax4.bar(stats["tool"], detection_rate, color=colors, alpha=0.8)
+ax4.set_xlabel("Tool", fontweight="bold")
+ax4.set_ylabel("Detection Rate (%)", fontweight="bold")
+ax4.set_title("Detection Rate", fontweight="bold")
+ax4.set_xticks(range(len(stats)))
+ax4.set_xticklabels(stats["tool"], rotation=45, ha='right')
+ax4.set_ylim(0, 100)
+ax4.grid(axis="y", alpha=0.3)
 for i, (rate, detected, total) in enumerate(zip(detection_rate, 
                                                    stats["detected_count"], 
                                                    stats["total"])):
-    ax3.text(i, rate + 2, f'{rate:.1f}%', ha='center', va='bottom', 
+    ax4.text(i, rate + 2, f'{rate:.1f}%', ha='center', va='bottom', 
              fontsize=9, fontweight="bold")
 
-# Subplot 4: Top@1 and Top@5 counts
-ax4 = axes[1, 1]
+# Subplot 5: Top@1 and Top@5 counts
+ax5 = axes[1, 1]
 x = np.arange(len(stats))
 width = 0.35
-ax4.bar(x - width/2, stats["top1_count"], width, label="Top@1", 
+ax5.bar(x - width/2, stats["top1_count"], width, label="Top@1", 
         color=colors[0], alpha=0.8)
-ax4.bar(x + width/2, stats["top5_count"], width, label="Top@5", 
+ax5.bar(x + width/2, stats["top5_count"], width, label="Top@5", 
         color=colors[1], alpha=0.8)
-ax4.set_xlabel("Tool", fontweight="bold")
-ax4.set_ylabel("Number of Bugs", fontweight="bold")
-ax4.set_title("Top@1 and Top@5 Counts", fontweight="bold")
-ax4.set_xticks(x)
-ax4.set_xticklabels(stats["tool"])
-ax4.legend()
-ax4.grid(axis="y", alpha=0.3)
+ax5.set_xlabel("Tool", fontweight="bold")
+ax5.set_ylabel("Number of Bugs", fontweight="bold")
+ax5.set_title("Top@1 and Top@5 Counts", fontweight="bold")
+ax5.set_xticks(x)
+ax5.set_xticklabels(stats["tool"], rotation=45, ha='right')
+ax5.legend()
+ax5.grid(axis="y", alpha=0.3)
+
+# Subplot 6: MRR@5 and MAP@5 values
+ax6 = axes[1, 2]
+x = np.arange(len(stats))
+width = 0.35
+ax6.bar(x - width/2, stats["mrr_at5"], width, label="MRR@5", 
+        color=colors[0], alpha=0.8)
+ax6.bar(x + width/2, stats["map_at5"], width, label="MAP@5", 
+        color=colors[1], alpha=0.8)
+ax6.set_xlabel("Tool", fontweight="bold")
+ax6.set_ylabel("Score (0-1)", fontweight="bold")
+ax6.set_title("MRR@5 and MAP@5 (Raw Values)", fontweight="bold")
+ax6.set_xticks(x)
+ax6.set_xticklabels(stats["tool"], rotation=45, ha='right')
+ax6.legend()
+ax6.set_ylim(0, 1)
+ax6.grid(axis="y", alpha=0.3)
+for i, (mrr, map_val) in enumerate(zip(stats["mrr_at5"], stats["map_at5"])):
+    ax6.text(i - width/2, mrr + 0.02, f'{mrr:.3f}', ha='center', va='bottom', 
+             fontsize=8, fontweight="bold")
+    ax6.text(i + width/2, map_val + 0.02, f'{map_val:.3f}', ha='center', va='bottom', 
+             fontsize=8, fontweight="bold")
 
 plt.tight_layout()
 plt.savefig(OUT_DIR / "comprehensive_comparison.png", dpi=300, bbox_inches="tight")

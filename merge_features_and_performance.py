@@ -305,7 +305,7 @@ print("\nComputing MRR from ranks...")
 perf_df = perf_df.copy()
 perf_df["mrr"] = np.where(perf_df["rank"].notna(), 1.0 / perf_df["rank"], 0.0)
 
-perf_subset = perf_df[["project", "bug_id", "tool", "mrr", "top@1", "top@5"]].copy()
+perf_subset = perf_df[["project", "bug_id", "tool", "rank", "mrr", "top@1", "top@5"]].copy()
 
 # -----------------------------
 # 4. Pivot performance wide
@@ -314,7 +314,7 @@ print("Pivoting performance metrics...")
 perf_wide = perf_subset.pivot_table(
     index=["project", "bug_id"],
     columns="tool",
-    values=["mrr", "top@1", "top@5"],
+    values=["rank", "mrr", "top@1", "top@5"],
     aggfunc="first"
 )
 perf_wide.columns = [f"{metric}_{tool}" for metric, tool in perf_wide.columns]

@@ -50,148 +50,6 @@ def parse_bug_json(path):
         rows.append({"id": bid, "summary": title, "description": desc})
     return rows
 
-# ============================================================================
-# IMPROVED S2R DETECTION (Based on Paper's Approach)
-# ============================================================================
-
-def identify_s2r_sentences(text: str):
-    """
-    Identify sentences that describe steps to reproduce.
-    
-    IMPROVEMENT: Uses multiple patterns and sentence-level analysis
-    instead of just checking if the phrase exists anywhere.
-    
-    Based on Euler's approach but simplified (without neural model).
-    """
-    doc = nlp(text)
-    sentences = [sent.text.strip() for sent in doc.sents]
-    
-    s2r_sentences = []
-    # Use list to preserve order (though order doesn't matter for matching)
-    s2r_indicators = [
-        # Direct S2R headers
-        r"(?i)^steps?\s+to\s+reproduce",
-        r"(?i)^reproduction\s+steps?",
-        r"(?i)^how\s+to\s+reproduce",
-        r"(?i)^repro\s+steps?",
-        
-        # Conditional patterns (like paper's examples)
-        r"(?i)^when\s+(I|you|one)",
-        r"(?i)^if\s+(I|you|one)",
-        r"(?i)^after\s+(I|you|one)",
-        
-        # Imperative patterns
-        r"(?i)^(open|click|tap|press|select|enter|type|run|start|go|navigate)",
-        
-        # Enumerated steps
-        r"^\d+[\.\)]\s+",  # 1. or 1)
-        r"^[-*]\s+\w",     # - or * 
-    ]
-    
-    in_s2r_section = False
-    
-    for i, sent in enumerate(sentences):
-        # Check if this starts a S2R section
-        for pattern in s2r_indicators:
-            if re.match(pattern, sent.strip()):
-                s2r_sentences.append(sent)
-                in_s2r_section = True
-                break
-        else:
-            # If we're in a S2R section and this looks like a continuation
-            if in_s2r_section:
-                # Check if it's still describing steps (imperative, enumerated, etc.)
-                if (re.match(r"^\d+[\.\)]", sent.strip()) or 
-                   re.match(r"^[-*]", sent.strip()) or
-                   re.match(r"(?i)^(then|next|after|finally)", sent.strip())):
-                    s2r_sentences.append(sent)
-                else:
-                    # Exit S2R section if we hit non-step content
-                    in_s2r_section = False
-    
-    return s2r_sentences
-
-
-def extract_individual_steps(text: str):
-    """
-    Extract individual steps from S2R sentences using dependency parsing.
-    
-    IMPROVEMENT: Actually extracts individual actions like the paper does,
-    following the [action] [object] [preposition] [object2] format.
-    """
-    s2r_sentences = identify_s2r_sentences(text)
-    
-    if not s2r_sentences:
-        return []
-    
-    individual_steps = []
-    
-    for sent in s2r_sentences:
-        doc = nlp(sent)
-        
-        # Find the main verb (action)
-        for token in doc:
-            if token.pos_ == "VERB":
-                action = token.lemma_
-                obj = None
-                obj2 = None
-                prep = None
-                
-                # Find direct object
-                for child in token.children:
-                    if child.dep_ == "dobj":
-                        obj = child.text
-                        
-                        # Find prepositional object
-                        for grandchild in child.children:
-                            if grandchild.dep_ == "prep":
-                                prep = grandchild.text
-                                for ggchild in grandchild.children:
-                                    if ggchild.dep_ == "pobj":
-                                        obj2 = ggchild.text
-                
-                # Only add if we found at least an action
-                if action:
-                    step = {
-                        "action": action,
-                        "object": obj,
-                        "preposition": prep,
-                        "object2": obj2,
-                        "raw_sentence": sent
-                    }
-                    individual_steps.append(step)
-                    break  # Only get first verb per sentence
-    
-    return individual_steps
-
-
-def count_individual_steps(text: str):
-    """Count the number of individual steps identified."""
-    steps = extract_individual_steps(text)
-    return len(steps)
-
-
-def has_reproduction_steps_advanced(text: str):
-    """
-    Advanced detection of reproduction steps.
-    
-    IMPROVEMENT: Not just checking for keyword, but actually identifying
-    S2R sentences. If we find S2R sentences (via headers, enumeration, or imperatives),
-    that's sufficient evidence of steps.
-    """
-    s2r_sentences = identify_s2r_sentences(text)
-    
-    # If we found any S2R sentences, that's evidence of steps
-    # This is less strict than requiring imperative verbs
-    if s2r_sentences:
-        return True
-    
-    # Also check for enumerated items anywhere in the text (not just sentence starts)
-    # This catches cases like "1. Do this\n2. Do that" even if not at sentence start
-    if re.search(r"(?:^|\n)\s*(?:\d+[\.\)]|[-*])\s+[A-Z\w]", text, re.MULTILINE):
-        return True
-    
-    return False
 
 
 # ============================================================================
@@ -214,13 +72,7 @@ def extract_structural_flags_v2(text: str):
             re.MULTILINE | re.IGNORECASE
         )),
         
-        # Steps: Use the advanced detection
-        "has_steps": has_reproduction_steps_advanced(text),
-        
-        # Number of individual steps identified
-        "num_steps": count_individual_steps(text),
-        
-        # Code: More specific patterns (fixed from original)
+        # Code: More specific patterns
         "has_code": bool(re.search(
             r"```|"  # Markdown code blocks
             r"(?:public|private|protected|static)\s+(?:class|void|int|String)|"  # Java
@@ -494,83 +346,6 @@ def compute_modality_features(text: str, n_sentences=None):
     }
 
 
-
-# ============================================================================
-# STEP QUALITY ASSESSMENT (Simplified version of Euler's approach)
-# ============================================================================
-
-def assess_step_quality(steps: list):
-    """
-    Assess the quality of individual steps.
-    
-    This is a SIMPLIFIED version of what Euler does (without app execution).
-    We check for common quality issues based on textual analysis.
-    
-    Returns quality metrics for the steps.
-    """
-    if not steps:
-        return {
-            "avg_step_length": 0,
-            "steps_with_objects": 0,
-            "steps_with_specific_actions": 0,
-            "potential_ambiguous_steps": 0,
-            "potential_vague_steps": 0
-        }
-    
-    specific_actions = {
-        "click", "tap", "press", "select", "enter", "type", "open",
-        "close", "navigate", "scroll", "swipe", "drag", "create",
-        "delete", "save", "load", "run", "execute", "build"
-    }
-    
-    generic_actions = {
-        "do", "make", "get", "see", "find", "fix", "check", "use", "try"
-    }
-    
-    generic_objects = {
-        "it", "this", "that", "thing", "button", "field", "item", "element"
-    }
-    
-    step_lengths = []
-    steps_with_objects = 0
-    steps_with_specific = 0
-    ambiguous = 0
-    vague = 0
-    
-    for step in steps:
-        raw = step.get("raw_sentence", "")
-        step_lengths.append(len(raw.split()))
-        
-        action = step.get("action", "").lower()
-        obj = step.get("object", "")
-        
-        # Check if step has an object
-        if obj:
-            steps_with_objects += 1
-            
-            # Check if object is generic
-            if obj.lower() in generic_objects:
-                ambiguous += 1
-        else:
-            vague += 1
-        
-        # Check if action is specific
-        if action in specific_actions:
-            steps_with_specific += 1
-        elif action in generic_actions:
-            vague += 1
-    
-    return {
-        "avg_step_length": np.mean(step_lengths) if step_lengths else 0,
-        "steps_with_objects": steps_with_objects,
-        "steps_with_specific_actions": steps_with_specific,
-        "potential_ambiguous_steps": ambiguous,
-        "potential_vague_steps": vague,
-        "completeness_score": steps_with_objects / len(steps) if steps else 0,
-        "specificity_score": steps_with_specific / len(steps) if steps else 0
-    }
-
-
 def compute_syntactic_features(text: str):
     """Token/sentence counts via spaCy + readability via textstat."""
     doc = nlp(text)
@@ -626,11 +401,6 @@ def main():
                 # Improved structural flags (use full text for consistency)
                 flags = extract_structural_flags_v2(text)
                 
-                # Extract individual steps (use full text for consistency)
-                individual_steps = extract_individual_steps(text)
-                
-                # Assess step quality
-                step_quality = assess_step_quality(individual_steps)
                 
                 # Semantic features (embedding + redundancy, ambiguity, S2R correctness)
                 # Use full text for consistency
@@ -665,7 +435,6 @@ def main():
                     "description_chars": len(bug["description"]),
                     **syn,
                     **flags,
-                    **step_quality,
                     **causal_feats,
                     **context_feats,
                     **stacktrace_feats,
@@ -689,8 +458,6 @@ def main():
     print("SUMMARY STATISTICS")
     print("="*80)
     print(f"  Average description length: {df['description_chars'].mean():.0f} chars")
-    print(f"  Reports with steps (advanced detection): {df['has_steps'].sum()} ({df['has_steps'].mean()*100:.1f}%)")
-    print(f"  Average number of individual steps: {df['num_steps'].mean():.2f}")
     print(f"  Reports with code: {df['has_code'].sum()} ({df['has_code'].mean()*100:.1f}%)")
     print(f"  Reports with stacktraces: {df['has_stacktrace'].sum()} ({df['has_stacktrace'].mean()*100:.1f}%)")
     print(f"\n  Average step completeness score: {df['completeness_score'].mean():.2f}")

@@ -104,7 +104,6 @@ Please evaluate this bug report on the following dimensions and return ONLY a va
   "hidden_s2r_present": <boolean>,  // Are there implicit steps to reproduce hidden in the description (not explicitly listed)?
   "causal_reasoning_quality": <integer 0-5>,  // How well does the reporter explain cause-and-effect relationships?
   "contradiction_present": <boolean>,  // Are there any contradictions or conflicting information in the report?
-  "bug_type_taxonomy": "<string>",  // One of: "UI bug", "logic error", "config error", "performance", "security", "data corruption", "API error", "integration error", "other"
   "repair_difficulty": <integer 0-5>,  // How difficult would it be to fix this bug based on the information provided? (0=very easy, 5=very difficult)
   "likely_impacted_code_concepts": ["<string>", ...]  // List of code concepts likely impacted (e.g., "JSON parsing", "UI rendering", "database queries", "authentication", etc.)
 }}
