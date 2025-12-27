@@ -276,7 +276,8 @@ def load_bee_results(jsonl_path: Path) -> pd.DataFrame:
 print("=" * 60)
 print("Loading data...")
 features_df = pd.read_csv(FEATURES_FILE)
-ratings_df  = pd.read_csv(RATINGS_FILE)
+# Ratings file uses semicolon delimiter
+ratings_df  = pd.read_csv(RATINGS_FILE, sep=';')
 categ_df    = pd.read_csv(CATEG_FILE)
 fine_grained_categ_df = pd.read_csv(FINE_GRAINED_CATEG_FILE) if FINE_GRAINED_CATEG_FILE.exists() else pd.DataFrame()
 perf_df     = pd.read_csv(PERF_FILE)
@@ -390,6 +391,51 @@ if not bee_df.empty:
     print(f"  Matched {matched_count} records with bee_results features")
 else:
     print("  No bee_results data to merge")
+
+# Convert all remaining boolean columns to int (1/0) for consistency
+print("\nConverting all boolean columns to binary (1/0)...")
+bool_cols_in_merged = merged.select_dtypes(include=['bool']).columns.tolist()
+if bool_cols_in_merged:
+    print(f"  Found {len(bool_cols_in_merged)} boolean columns to convert:")
+    for col in bool_cols_in_merged:
+        print(f"    • {col}")
+    merged[bool_cols_in_merged] = merged[bool_cols_in_merged].astype(int)
+    print(f"  Converted all boolean columns to int (1/0)")
+else:
+    print("  No boolean columns found")
+
+# Remove redundant ID and title columns
+print("\nRemoving redundant ID and title columns...")
+# These are duplicates created during merges with suffixes
+redundant_id_cols = ['id_ratings', 'id_categ', 'id_fine_grained']
+redundant_title_cols = ['title_categ', 'fine_grained_title']
+
+# Also check if there are duplicate 'title' columns (from ratings merge)
+# If 'title' exists and we have project/bug_id, we can keep title from ratings
+# But if there's also a 'title' from features, we might want to keep one
+cols_to_drop = []
+for col in redundant_id_cols + redundant_title_cols:
+    if col in merged.columns:
+        cols_to_drop.append(col)
+
+# Check for any other duplicate ID columns (if merge created duplicates)
+# We want to keep: 'id' (from features), 'project', 'bug_id' (parsed)
+# We want to drop: any suffixed ID columns from merges
+all_id_cols = [c for c in merged.columns if 'id' in c.lower() and c not in ['id', 'project', 'bug_id']]
+for col in all_id_cols:
+    if col.endswith('_ratings') or col.endswith('_categ') or col.endswith('_fine_grained'):
+        if col not in cols_to_drop:
+            cols_to_drop.append(col)
+
+if cols_to_drop:
+    print(f"  Dropping {len(cols_to_drop)} redundant columns:")
+    for col in sorted(cols_to_drop):
+        print(f"    • {col}")
+    merged = merged.drop(columns=cols_to_drop)
+    print(f"  Removed redundant columns")
+    print(f"  Kept: id, project, bug_id, title (if present)")
+else:
+    print("  No redundant columns found to drop")
 
 # Save full dataset
 print(f"\nFull merged shape: {merged.shape}")

@@ -460,8 +460,13 @@ def main():
     print(f"  Average description length: {df['description_chars'].mean():.0f} chars")
     print(f"  Reports with code: {df['has_code'].sum()} ({df['has_code'].mean()*100:.1f}%)")
     print(f"  Reports with stacktraces: {df['has_stacktrace'].sum()} ({df['has_stacktrace'].mean()*100:.1f}%)")
-    print(f"\n  Average step completeness score: {df['completeness_score'].mean():.2f}")
-    print(f"  Average step specificity score: {df['specificity_score'].mean():.2f}")
+    
+    # Only print these if the columns exist
+    if 'completeness_score' in df.columns:
+        print(f"\n  Average step completeness score: {df['completeness_score'].mean():.2f}")
+    if 'specificity_score' in df.columns:
+        print(f"  Average step specificity score: {df['specificity_score'].mean():.2f}")
+    
     print("="*80)
 
 if __name__ == "__main__":

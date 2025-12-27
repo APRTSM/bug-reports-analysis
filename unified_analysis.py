@@ -37,7 +37,7 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 DATA_DIR = Path(".")
 
 # Input files
-IN_FILE_PREPROCESSED = DATA_DIR / "full_feature_preproccessed/experimentA_full_dataset.csv"
+IN_FILE_PREPROCESSED = DATA_DIR / "full_feature_preproccessed/experimentA_preprocessed_rich.csv"
 IN_FILE_TOOL_COMPARISON = DATA_DIR / "tool_comparison_summary.csv"
 
 # Output directories
@@ -856,6 +856,169 @@ def make_heatmap(df_corr, title, filename, out_dir, top_n=15, mode="variance"):
     plt.close()
     print(f"Saved heatmap: {out_dir / filename}")
 
+def run_correlation_analysis_for_threshold(df, feature_cols, tools, threshold: int = None, suffix: str = ""):
+    """
+    Run correlation analysis for a specific rank threshold.
+    
+    Args:
+        df: Full DataFrame
+        feature_cols: List of feature column names
+        tools: List of tool names
+        threshold: Rank threshold (1, 5, 10, or None for all data)
+        suffix: Suffix for output files (e.g., "_top1", "_top5", "_top10")
+    """
+    print(f"\n--- Correlation Analysis for {'All Data' if threshold is None else f'Top@{threshold}'} ---")
+    
+    # Filter data by threshold if specified
+    if threshold is not None:
+        # Filter to only bugs where at least one tool found it within threshold
+        rank_cols = [f"rank_{t}" for t in tools if f"rank_{t}" in df.columns]
+        if not rank_cols:
+            print(f"[WARN] No rank columns found for threshold filtering. Skipping threshold {threshold}.")
+            return
+        
+        # Create mask: bug is included if ANY tool found it within threshold
+        threshold_mask = pd.Series(False, index=df.index)
+        for col in rank_cols:
+            threshold_mask |= (df[col].notna()) & (df[col] <= threshold)
+        
+        df_filtered = df[threshold_mask].copy()
+        print(f"  Filtered to {len(df_filtered)} bugs (from {len(df)} total)")
+        
+        if len(df_filtered) < 10:
+            print(f"[WARN] Too few bugs for threshold {threshold}. Skipping.")
+            return
+    else:
+        df_filtered = df.copy()
+    
+    # Compute MRR for the threshold if needed
+    if threshold is not None:
+        for tool in tools:
+            rank_col = f"rank_{tool}"
+            mrr_col = f"{BASE_PREFIX}_{tool}"
+            if rank_col in df_filtered.columns:
+                # Compute MRR@threshold: 1/rank if rank <= threshold, else 0
+                df_filtered[f"mrr{threshold}_{tool}"] = np.where(
+                    (df_filtered[rank_col].notna()) & (df_filtered[rank_col] <= threshold),
+                    1.0 / df_filtered[rank_col],
+                    0.0
+                )
+                # Also create rank column for this threshold
+                df_filtered[f"rank{threshold}_{tool}"] = np.where(
+                    (df_filtered[rank_col].notna()) & (df_filtered[rank_col] <= threshold),
+                    df_filtered[rank_col],
+                    np.nan
+                )
+    
+    # Use threshold-specific columns if available, otherwise use original
+    if threshold is not None:
+        prefix_to_use = f"mrr{threshold}"
+        rank_prefix_to_use = f"rank{threshold}"
+    else:
+        prefix_to_use = BASE_PREFIX
+        rank_prefix_to_use = "rank"
+    
+    # Standardize metrics if requested
+    if STANDARDIZE_METRICS:
+        print(f"\nStandardizing metrics for prefix '{prefix_to_use}'...")
+        scaler = StandardScaler()
+        tools_list, cols = tools_for_prefix(df_filtered, prefix_to_use)
+        if len(cols) > 0:
+            df_filtered[cols] = scaler.fit_transform(df_filtered[cols].fillna(0))
+            print(f"  Standardized {len(cols)} columns")
+
+    # Compute gaps and advantages
+    gap_targets = {}
+    adv_targets = {}
+    
+    tools_list, cols = tools_for_prefix(df_filtered, prefix_to_use)
+    if len(tools_list) < 2:
+        print(f"[WARN] Not enough tools found for prefix {prefix_to_use}. Skipping.")
+        return
+
+    for a, b in itertools.combinations(tools_list, 2):
+        col_a = f"{prefix_to_use}_{a}"
+        col_b = f"{prefix_to_use}_{b}"
+        if col_a in df_filtered.columns and col_b in df_filtered.columns:
+            name_ab = f"gap_{prefix_to_use}_{a}_minus_{b}"
+            name_ba = f"gap_{prefix_to_use}_{b}_minus_{a}"
+            gap_targets[name_ab] = df_filtered[col_a] - df_filtered[col_b]
+            gap_targets[name_ba] = df_filtered[col_b] - df_filtered[col_a]
+
+    mat = np.column_stack([df_filtered[f"{prefix_to_use}_{t}"].to_numpy(dtype=float) for t in tools_list])
+    for j, t in enumerate(tools_list):
+        others = np.delete(mat, j, axis=1)
+        if others.shape[1] > 0:
+            mean_other = np.nanmean(others, axis=1)
+            adv_targets[f"adv_{prefix_to_use}_{t}"] = mat[:, j] - mean_other
+
+    gap_df = pd.DataFrame(gap_targets)
+    adv_df = pd.DataFrame(adv_targets)
+
+    df_gap = pd.concat([df_filtered, gap_df, adv_df], axis=1)
+
+    # Compute correlations
+    print("\nComputing Spearman correlations...")
+    gap_corr = compute_spearman_table(df_gap, feature_cols, gap_df.columns.tolist())
+    gap_corr = apply_holm(gap_corr, alpha=ALPHA)
+    gap_corr["target"] = gap_corr["target"].apply(shorten_target)
+    gap_corr["practically_significant"] = gap_corr["corr"].abs() >= PRACTICAL_SIG_CORR
+    
+    gap_corr.to_csv(OUT_DIR_CORR / f"gap_corr_spearman{suffix}.csv", index=False)
+    print(f"Saved: {OUT_DIR_CORR / f'gap_corr_spearman{suffix}.csv'}")
+
+    adv_corr = compute_spearman_table(df_gap, feature_cols, adv_df.columns.tolist())
+    adv_corr = apply_holm(adv_corr, alpha=ALPHA)
+    adv_corr["target"] = adv_corr["target"].apply(shorten_target)
+    adv_corr["practically_significant"] = adv_corr["corr"].abs() >= PRACTICAL_SIG_CORR
+    adv_corr.to_csv(OUT_DIR_CORR / f"adv_corr_spearman{suffix}.csv", index=False)
+    print(f"Saved: {OUT_DIR_CORR / f'adv_corr_spearman{suffix}.csv'}")
+
+    # Heatmaps
+    make_heatmap(gap_corr, f"Feature × Gap Correlations{suffix.replace('_', ' ').title()}", 
+                 f"gap_corr_heatmap{suffix}.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
+    make_heatmap(adv_corr, f"Feature × Advantage Correlations{suffix.replace('_', ' ').title()}", 
+                 f"adv_corr_heatmap{suffix}.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
+
+    # Raw MRR correlations
+    print(f"\n--- Raw MRR Correlations for {'All Data' if threshold is None else f'Top@{threshold}'} ---")
+    raw_mrr_corr = compute_raw_mrr_correlations(
+        df_filtered, 
+        feature_cols, 
+        tools_list, 
+        prefix=prefix_to_use,
+        out_dir=None  # Don't save here, we'll save with suffix
+    )
+    
+    if not raw_mrr_corr.empty:
+        raw_mrr_corr.to_csv(OUT_DIR_CORR / f"raw_mrr_correlations{suffix}.csv", index=False)
+        print(f"Saved: {OUT_DIR_CORR / f'raw_mrr_correlations{suffix}.csv'}")
+        make_heatmap(raw_mrr_corr, f"Raw MRR Correlations{suffix.replace('_', ' ').title()}", 
+                     f"raw_mrr_corr_heatmap{suffix}.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
+    
+    # Two-part analysis
+    print(f"\n--- Two-Part Found/Rank Analysis for {'All Data' if threshold is None else f'Top@{threshold}'} ---")
+    found_corr, rank_corr = compute_two_part_analysis(
+        df_filtered,
+        feature_cols,
+        tools_list,
+        prefix=prefix_to_use,
+        rank_prefix=rank_prefix_to_use,
+        out_dir=None  # Don't save here, we'll save with suffix
+    )
+    
+    if not found_corr.empty:
+        found_corr.to_csv(OUT_DIR_CORR / f"two_part_found_correlations{suffix}.csv", index=False)
+        print(f"Saved: {OUT_DIR_CORR / f'two_part_found_correlations{suffix}.csv'}")
+        make_heatmap(found_corr, f"Found vs Not Found Correlations{suffix.replace('_', ' ').title()}", 
+                     f"found_rank_corr_heatmap{suffix}.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
+    
+    if not rank_corr.empty:
+        rank_corr.to_csv(OUT_DIR_CORR / f"two_part_rank_correlations{suffix}.csv", index=False)
+        print(f"Saved: {OUT_DIR_CORR / f'two_part_rank_correlations{suffix}.csv'}")
+        make_heatmap(rank_corr, f"Rank Quality Correlations{suffix.replace('_', ' ').title()}", 
+                     f"rank_corr_heatmap{suffix}.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
+
 def run_correlation_analysis():
     """Run correlation analysis between features and tool performance gaps/advantages."""
     print("\n" + "=" * 60)
@@ -865,145 +1028,29 @@ def run_correlation_analysis():
     OUT_DIR_CORR.mkdir(exist_ok=True, parents=True)
 
     df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE_PREPROCESSED)
+    tools = get_tools(df, BASE_PREFIX)
     
-    if STANDARDIZE_METRICS:
-        print("\n[CORRECTION] Standardizing metrics before computing gaps...")
-        scaler = StandardScaler()
-        for prefix in BASE_METRIC_PREFIXES:
-            tools, cols = tools_for_prefix(df, prefix)
-            if len(cols) > 0:
-                df[cols] = scaler.fit_transform(df[cols].fillna(0))
-                print(f"  Standardized {len(cols)} columns for prefix '{prefix}'")
-                
-                for col in cols:
-                    print(f"    {col}: mean={df[col].mean():.3f}, std={df[col].std():.3f}")
-
-    gap_targets = {}
-    adv_targets = {}
-
-    for prefix in BASE_METRIC_PREFIXES:
-        tools, cols = tools_for_prefix(df, prefix)
-        if len(tools) < 2:
-            print(f"[WARN] Not enough tools found for prefix {prefix}. Skipping.")
+    # Run for each threshold: top@1, top@5, top@10, and all data
+    thresholds = [1, 5, 10, None]
+    threshold_labels = ["Top@1", "Top@5", "Top@10", "All Data"]
+    
+    for threshold, label in zip(thresholds, threshold_labels):
+        suffix = f"_top{threshold}" if threshold is not None else ""
+        try:
+            run_correlation_analysis_for_threshold(df, feature_cols, tools, threshold=threshold, suffix=suffix)
+        except Exception as e:
+            print(f"[ERROR] Failed to run correlation analysis for {label}: {e}")
+            import traceback
+            traceback.print_exc()
             continue
-
-        for a, b in itertools.combinations(tools, 2):
-            col_a = f"{prefix}_{a}"
-            col_b = f"{prefix}_{b}"
-            name_ab = f"gap_{prefix}_{a}_minus_{b}"
-            name_ba = f"gap_{prefix}_{b}_minus_{a}"
-            gap_targets[name_ab] = df[col_a] - df[col_b]
-            gap_targets[name_ba] = df[col_b] - df[col_a]
-
-        mat = np.column_stack([df[f"{prefix}_{t}"].to_numpy(dtype=float) for t in tools])
-        for j, t in enumerate(tools):
-            others = np.delete(mat, j, axis=1)
-            if others.shape[1] > 0:
-                mean_other = np.nanmean(others, axis=1)
-                adv_targets[f"adv_{prefix}_{t}"] = mat[:, j] - mean_other
-                
-                adv_vals = adv_targets[f"adv_{prefix}_{t}"]
-                print(f"  Advantage {t}: mean={np.nanmean(adv_vals):.3f}, std={np.nanstd(adv_vals):.3f}")
-
-    gap_df = pd.DataFrame(gap_targets)
-    adv_df = pd.DataFrame(adv_targets)
-
-    print(f"\nGap targets: {gap_df.shape[1]}")
-    print(f"Adv targets: {adv_df.shape[1]}")
-
-    df_gap = pd.concat([df, gap_df, adv_df], axis=1)
-
-    print("\nComputing Spearman correlations...")
-    gap_corr = compute_spearman_table(df_gap, feature_cols, gap_df.columns.tolist())
-    gap_corr = apply_holm(gap_corr, alpha=ALPHA)
-    gap_corr["target"] = gap_corr["target"].apply(shorten_target)
-    gap_corr["practically_significant"] = gap_corr["corr"].abs() >= PRACTICAL_SIG_CORR
     
-    # NEW: Flag high missingness
-    high_miss_corr = gap_corr[gap_corr['missingness_pct'] > 0.5]
-    if not high_miss_corr.empty:
-        print(f"\n[WARNING] {len(high_miss_corr)} correlations have >50% missing data")
-        high_miss_corr.to_csv(OUT_DIR_CORR / "high_missingness_correlations.csv", index=False)
-
-    gap_corr.to_csv(OUT_DIR_CORR / "gap_corr_spearman.csv", index=False)
-    print(f"Saved: {OUT_DIR_CORR / 'gap_corr_spearman.csv'}")
-
-    adv_corr = compute_spearman_table(df_gap, feature_cols, adv_df.columns.tolist())
-    adv_corr = apply_holm(adv_corr, alpha=ALPHA)
-    adv_corr["target"] = adv_corr["target"].apply(shorten_target)
-    adv_corr["practically_significant"] = adv_corr["corr"].abs() >= PRACTICAL_SIG_CORR
-    adv_corr.to_csv(OUT_DIR_CORR / "adv_corr_spearman.csv", index=False)
-    print(f"Saved: {OUT_DIR_CORR / 'adv_corr_spearman.csv'}")
-
-    if BOOTSTRAP_CI:
-        gap_ci = bootstrap_correlation_ci(df_gap, feature_cols, gap_df.columns.tolist(), N_BOOTSTRAP)
-        if not gap_ci.empty:
-            gap_ci.to_csv(OUT_DIR_CORR / "gap_corr_bootstrap_ci.csv", index=False)
-            print(f"Saved: {OUT_DIR_CORR / 'gap_corr_bootstrap_ci.csv'}")
-
-        adv_ci = bootstrap_correlation_ci(df_gap, feature_cols, adv_df.columns.tolist(), N_BOOTSTRAP)
-        if not adv_ci.empty:
-            adv_ci.to_csv(OUT_DIR_CORR / "adv_corr_bootstrap_ci.csv", index=False)
-            print(f"Saved: {OUT_DIR_CORR / 'adv_corr_bootstrap_ci.csv'}")
-
-    make_heatmap(gap_corr, "Feature × Gap Correlations", 
-                 "gap_corr_heatmap.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
-    make_heatmap(adv_corr, "Feature × Advantage Correlations", 
-                 "adv_corr_heatmap.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
-
-    print(f"\nDone. Outputs in: {OUT_DIR_CORR}")
-
-    print("\n" + "="*60)
-    print("RAW MRR CORRELATION ANALYSIS")
-    print("="*60)
-    
-    raw_mrr_corr = compute_raw_mrr_correlations(
-        df, 
-        feature_cols, 
-        tools, 
-        prefix=BASE_PREFIX,
-        out_dir=OUT_DIR_CORR
-    )
-    
-    # NEW: Add two-part analysis
-    print("\n" + "="*60)
-    print("TWO-PART FOUND/RANK ANALYSIS")
-    print("="*60)
-    
-    found_corr, rank_corr = compute_two_part_analysis(
-        df,
-        feature_cols,
-        tools,
-        prefix=BASE_PREFIX,
-        rank_prefix="rank",
-        out_dir=OUT_DIR_CORR
-    )
-
-    if not raw_mrr_corr.empty and len(raw_mrr_corr) > 0:
-        make_heatmap(raw_mrr_corr, "Raw MRR Correlations", 
-                     "raw_mrr_corr_heatmap.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
-    else:
-        print("[WARN] Raw MRR correlations DataFrame is empty, skipping heatmap")
-    
-    if not found_corr.empty and len(found_corr) > 0:
-        make_heatmap(found_corr, "Found vs Not Found Correlations", 
-                     "found_rank_corr_heatmap.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
-    else:
-        print("[WARN] Found correlations DataFrame is empty, skipping heatmap")
-    
-    if not rank_corr.empty and len(rank_corr) > 0:
-        make_heatmap(rank_corr, "Rank Quality Correlations (Among Found)", 
-                     "rank_corr_heatmap.png", OUT_DIR_CORR, TOP_N_FEATURES_HEATMAP, SELECTION_MODE)
-    else:
-        print("[WARN] Rank correlations DataFrame is empty, skipping heatmap")
-    
-    print(f"\nAll outputs saved to: {OUT_DIR_CORR}")
+    print(f"\nAll correlation analysis outputs saved to: {OUT_DIR_CORR}")
 
 # ======================================
 # 2. SUCCESS/FAILURE ANALYSIS (ENHANCED WITH HEATMAP)
 # ======================================
 
-def create_success_failure_heatmap(combined_stats, out_dir, top_n=30, min_tools=2):
+def create_success_failure_heatmap(combined_stats, out_dir, top_n=30, min_tools=2, suffix=""):
     """
     Create heatmap showing features × tools for success/failure effects.
     
@@ -1121,7 +1168,7 @@ def create_success_failure_heatmap(combined_stats, out_dir, top_n=30, min_tools=
     plt.tight_layout()
     
     # Save full heatmap
-    heatmap_file = out_dir / "success_failure_heatmap_all_tools.png"
+    heatmap_file = out_dir / f"success_failure_heatmap_all_tools{suffix}.png"
     plt.savefig(heatmap_file, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"Saved: {heatmap_file}")
@@ -1148,8 +1195,9 @@ def create_success_failure_heatmap(combined_stats, out_dir, top_n=30, min_tools=
         mask=pivot_sig_only.isna()
     )
     
+    title_suffix = suffix.replace('_', ' ').title() if suffix else ""
     ax.set_title(
-        f"Success/Failure Feature Effects - Significant Only\n"
+        f"Success/Failure Feature Effects - Significant Only{title_suffix}\n"
         f"(Cliff's δ: Red = helps success, Blue = helps failure)",
         fontsize=13,
         fontweight='bold',
@@ -1162,7 +1210,7 @@ def create_success_failure_heatmap(combined_stats, out_dir, top_n=30, min_tools=
     
     plt.tight_layout()
     
-    heatmap_sig_file = out_dir / "success_failure_heatmap_significant_only.png"
+    heatmap_sig_file = out_dir / f"success_failure_heatmap_significant_only{suffix}.png"
     plt.savefig(heatmap_sig_file, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"Saved: {heatmap_sig_file}")
@@ -1192,8 +1240,13 @@ def create_success_failure_heatmap(combined_stats, out_dir, top_n=30, min_tools=
 
 # ======================================
 
-def build_labels(df, tools, prefix, mode="stratified", adv_eps=1e-12, rank_high=5, rank_low=6):
-    """Build binary labels for success/failure analysis."""
+def build_labels(df, tools, prefix, mode="stratified", adv_eps=1e-12, rank_high=5, rank_low=6, rank_prefix="rank"):
+    """
+    Build binary labels for success/failure analysis.
+    
+    Args:
+        rank_prefix: Prefix for rank columns (e.g., "rank" or "rank1" for threshold-specific)
+    """
     labels = {}
     
     for t in tools:
@@ -1230,12 +1283,15 @@ def build_labels(df, tools, prefix, mode="stratified", adv_eps=1e-12, rank_high=
                 labels[t] = np.zeros(len(df), dtype=int)
                 
         elif mode == "stratified":
-            rank_col = f"rank_{t}"
+            rank_col = f"{rank_prefix}_{t}"
             mrr_col = f"{prefix}_{t}"
             
-            # Try to get rank column directly
+            # Try to get rank column directly (with specified prefix)
             if rank_col in df.columns:
                 ranks = df[rank_col].to_numpy(dtype=float)
+            elif f"rank_{t}" in df.columns:
+                # Fallback to standard rank column
+                ranks = df[f"rank_{t}"].to_numpy(dtype=float)
             elif mrr_col in df.columns:
                 # Calculate rank from MRR: rank = 1/mrr (when mrr > 0)
                 mrr_vals = df[mrr_col].to_numpy(dtype=float)
@@ -1244,7 +1300,7 @@ def build_labels(df, tools, prefix, mode="stratified", adv_eps=1e-12, rank_high=
                 ranks[mask] = 1.0 / mrr_vals[mask]
                 # If MRR is 0, rank is undefined (NaN)
             else:
-                raise KeyError(f"Neither {rank_col} nor {mrr_col} found for stratified mode.")
+                raise KeyError(f"Neither {rank_col}, rank_{t}, nor {mrr_col} found for stratified mode.")
             
             label_arr = np.full(len(df), np.nan)
             label_arr[ranks <= rank_high] = 1
@@ -1273,32 +1329,92 @@ def build_labels(df, tools, prefix, mode="stratified", adv_eps=1e-12, rank_high=
 
     return labels
 
-def run_success_failure_analysis():
-    """Run success/failure analysis using Mann-Whitney U tests."""
-    print("\n" + "=" * 60)
-    print("SUCCESS/FAILURE ANALYSIS (CORRECTED)")
-    print("=" * 60)
+def run_success_failure_analysis_for_threshold(df, feature_cols, tools, threshold: int = None, suffix: str = ""):
+    """
+    Run success/failure analysis for a specific rank threshold.
+    
+    Args:
+        df: Full DataFrame
+        feature_cols: List of feature column names
+        tools: List of tool names
+        threshold: Rank threshold (1, 5, 10, or None for all data)
+        suffix: Suffix for output files (e.g., "_top1", "_top5", "_top10")
+    """
+    print(f"\n--- Success/Failure Analysis for {'All Data' if threshold is None else f'Top@{threshold}'} ---")
+    
+    # Filter data by threshold if specified
+    if threshold is not None:
+        # Filter to only bugs where at least one tool found it within threshold
+        rank_cols = [f"rank_{t}" for t in tools if f"rank_{t}" in df.columns]
+        if not rank_cols:
+            print(f"[WARN] No rank columns found for threshold filtering. Skipping threshold {threshold}.")
+            return
+        
+        # Create mask: bug is included if ANY tool found it within threshold
+        threshold_mask = pd.Series(False, index=df.index)
+        for col in rank_cols:
+            threshold_mask |= (df[col].notna()) & (df[col] <= threshold)
+        
+        df_filtered = df[threshold_mask].copy()
+        print(f"  Filtered to {len(df_filtered)} bugs (from {len(df)} total)")
+        
+        if len(df_filtered) < 10:
+            print(f"[WARN] Too few bugs for threshold {threshold}. Skipping.")
+            return
+        
+        # For threshold analysis, adjust rank thresholds to be relative to the threshold
+        # Success = rank <= threshold (i.e., rank <= 1 for top@1, rank <= 5 for top@5, etc.)
+        # Failure = rank > threshold (but still found, so rank <= some higher value)
+        rank_high = threshold  # Success: rank <= threshold
+        rank_low = threshold + 1  # Failure: rank > threshold (but we need to define what "failure" means)
+        # Actually, for threshold analysis, we might want:
+        # Success: rank <= threshold
+        # Failure: rank > threshold (but still found, so rank is not NaN)
+        # Or we could use: rank > threshold but rank <= threshold*2 (e.g., for top@1, failure = rank 2-2, for top@5, failure = rank 6-10)
+        rank_low = min(threshold * 2, 20)  # Failure: rank > threshold but <= threshold*2 (capped at 20)
+    else:
+        df_filtered = df.copy()
+        rank_high = RANK_THRESHOLD_HIGH
+        rank_low = RANK_THRESHOLD_LOW
+    
+    # Use threshold-specific MRR columns if available
+    if threshold is not None:
+        prefix_to_use = f"mrr{threshold}"
+        # Create MRR@threshold columns if they don't exist
+        for tool in tools:
+            rank_col = f"rank_{tool}"
+            if rank_col in df_filtered.columns:
+                df_filtered[f"mrr{threshold}_{tool}"] = np.where(
+                    (df_filtered[rank_col].notna()) & (df_filtered[rank_col] <= threshold),
+                    1.0 / df_filtered[rank_col],
+                    0.0
+                )
+                # Also create rank column for this threshold
+                df_filtered[f"rank{threshold}_{tool}"] = np.where(
+                    (df_filtered[rank_col].notna()) & (df_filtered[rank_col] <= threshold),
+                    df_filtered[rank_col],
+                    np.nan
+                )
+    else:
+        prefix_to_use = BASE_PREFIX
 
-    OUT_DIR_SUCCESS.mkdir(exist_ok=True, parents=True)
-
-    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE_PREPROCESSED)
-
-    tools = get_tools(df, BASE_PREFIX)
-    print(f"Tools: {tools}")
-
-    if len(tools) < 2:
-        raise RuntimeError(f"Need at least 2 tools for BASE_PREFIX={BASE_PREFIX}")
-
-    labels = build_labels(df, tools, BASE_PREFIX, LABEL_MODE, 
+    # Determine rank prefix to use
+    if threshold is not None:
+        rank_prefix_to_use = f"rank{threshold}"
+    else:
+        rank_prefix_to_use = "rank"
+    
+    labels = build_labels(df_filtered, tools, prefix_to_use, LABEL_MODE, 
                           adv_eps=ADV_EPS, 
-                          rank_high=RANK_THRESHOLD_HIGH,
-                          rank_low=RANK_THRESHOLD_LOW)
+                          rank_high=rank_high,
+                          rank_low=rank_low,
+                          rank_prefix=rank_prefix_to_use)
 
     all_tool_stats = []
 
     for tool in tools:
         label = labels[tool]
-        label_name = f"{LABEL_MODE}_{BASE_PREFIX}_{tool}"
+        label_name = f"{LABEL_MODE}_{prefix_to_use}_{tool}"
         
         valid_mask = ~np.isnan(label)
         df_valid = df[valid_mask].copy()
@@ -1316,11 +1432,11 @@ def run_success_failure_analysis():
         # Special handling for tools with no negative cases (excellent performance)
         use_other_tools_negative = False
         if n_neg == 0 and n_pos >= MIN_GROUP_N:
-            print(f"Note: {tool} has no negative cases (all detections rank <= {RANK_THRESHOLD_HIGH})")
+            print(f"Note: {tool} has no negative cases (all detections rank <= {rank_high})")
             print(f"  This indicates excellent performance.")
             # Use other tools' negative cases as comparison group
             other_tools = [t for t in tools if t != tool]
-            other_negative_mask = np.zeros(len(df), dtype=bool)
+            other_negative_mask = np.zeros(len(df_filtered), dtype=bool)
             for other_tool in other_tools:
                 other_label = labels.get(other_tool)
                 if other_label is not None:
@@ -1330,15 +1446,15 @@ def run_success_failure_analysis():
             if n_other_neg >= MIN_GROUP_N:
                 print(f"  Using other tools' negative cases ({n_other_neg} cases) as comparison group")
                 use_other_tools_negative = True
-                # Create combined dataset: FlexFL positives + other tools' negatives
+                # Create combined dataset: tool positives + other tools' negatives
                 combined_mask = valid_mask | other_negative_mask
-                df_valid = df[combined_mask].copy()
+                df_valid = df_filtered[combined_mask].copy()
                 
-                # Create combined labels: FlexFL positives = 1, other tools' negatives = 0
+                # Create combined labels: tool positives = 1, other tools' negatives = 0
                 label_valid = np.full(len(df_valid), np.nan)
-                # Set FlexFL positives (from original valid_mask)
-                flexfl_pos_in_combined = valid_mask[combined_mask]
-                label_valid[flexfl_pos_in_combined] = 1
+                # Set tool positives (from original valid_mask)
+                tool_pos_in_combined = valid_mask[combined_mask]
+                label_valid[tool_pos_in_combined] = 1
                 # Set other tools' negatives
                 other_neg_in_combined = other_negative_mask[combined_mask]
                 label_valid[other_neg_in_combined] = 0
@@ -1380,7 +1496,7 @@ def run_success_failure_analysis():
             records.append({
                 "tool": tool,
                 "label_mode": LABEL_MODE,
-                "base_prefix": BASE_PREFIX,
+                "base_prefix": prefix_to_use,
                 "feature": feat,
                 "n_pos": len(x),
                 "n_neg": len(y),
@@ -1399,12 +1515,12 @@ def run_success_failure_analysis():
         sig_df = stats_df[stats_df["reject"] & stats_df["practically_significant"]].copy()
         sig_df = sig_df.sort_values("abs_delta", ascending=False)
 
-        out_file = OUT_DIR_SUCCESS / f"{label_name}_stats.csv"
+        out_file = OUT_DIR_SUCCESS / f"{label_name}_stats{suffix}.csv"
         stats_df.to_csv(out_file, index=False)
         print(f"Saved: {out_file}")
 
         if not sig_df.empty:
-            sig_out = OUT_DIR_SUCCESS / f"{label_name}_significant.csv"
+            sig_out = OUT_DIR_SUCCESS / f"{label_name}_significant{suffix}.csv"
             sig_df.to_csv(sig_out, index=False)
             print(f"Saved: {sig_out}")
             print(f"  Significant features: {len(sig_df)}")
@@ -1431,29 +1547,61 @@ def run_success_failure_analysis():
                 ax.set_xticks(positions)
                 ax.set_xticklabels([f"Success (n={len(x)})", f"Failure (n={len(y)})"])
                 ax.set_ylabel(feat_name, fontsize=10)
-                ax.set_title(f"{tool} | {feat_name}\nδ={row['cliffs_delta']:.3f}, p_adj={row['pval_adj']:.4f}", 
+                title_suffix = f" (Top@{threshold})" if threshold is not None else ""
+                ax.set_title(f"{tool} | {feat_name}{title_suffix}\nδ={row['cliffs_delta']:.3f}, p_adj={row['pval_adj']:.4f}", 
                            fontsize=11, fontweight='bold')
                 ax.grid(axis='y', alpha=0.3)
                 
                 plt.tight_layout()
-                plot_file = OUT_DIR_SUCCESS / f"{label_name}_{safe_name(feat_name)}_boxplot.png"
+                plot_file = OUT_DIR_SUCCESS / f"{label_name}_{safe_name(feat_name)}_boxplot{suffix}.png"
                 plt.savefig(plot_file, dpi=300)
                 plt.close()
 
     if all_tool_stats:
         combined = pd.concat(all_tool_stats, ignore_index=True)
-        combined.to_csv(OUT_DIR_SUCCESS / "all_tools_combined_stats.csv", index=False)
-        print(f"\nSaved combined stats: {OUT_DIR_SUCCESS / 'all_tools_combined_stats.csv'}")
+        combined.to_csv(OUT_DIR_SUCCESS / f"all_tools_combined_stats{suffix}.csv", index=False)
+        print(f"\nSaved combined stats: {OUT_DIR_SUCCESS / f'all_tools_combined_stats{suffix}.csv'}")
         
-        # NEW: Create success/failure heatmap
+        # Create success/failure heatmap
         create_success_failure_heatmap(
             combined, 
             OUT_DIR_SUCCESS, 
             top_n=SUCCESS_HEATMAP_TOP_N,
-            min_tools=SUCCESS_HEATMAP_MIN_TOOLS
+            min_tools=SUCCESS_HEATMAP_MIN_TOOLS,
+            suffix=suffix
         )
 
-    print(f"\nDone. Outputs in: {OUT_DIR_SUCCESS}")
+def run_success_failure_analysis():
+    """Run success/failure analysis using Mann-Whitney U tests for top@1, top@5, top@10."""
+    print("\n" + "=" * 60)
+    print("SUCCESS/FAILURE ANALYSIS (CORRECTED)")
+    print("=" * 60)
+
+    OUT_DIR_SUCCESS.mkdir(exist_ok=True, parents=True)
+
+    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE_PREPROCESSED)
+
+    tools = get_tools(df, BASE_PREFIX)
+    print(f"Tools: {tools}")
+
+    if len(tools) < 2:
+        raise RuntimeError(f"Need at least 2 tools for BASE_PREFIX={BASE_PREFIX}")
+
+    # Run for each threshold: top@1, top@5, top@10, and all data
+    thresholds = [1, 5, 10, None]
+    threshold_labels = ["Top@1", "Top@5", "Top@10", "All Data"]
+    
+    for threshold, label in zip(thresholds, threshold_labels):
+        suffix = f"_top{threshold}" if threshold is not None else ""
+        try:
+            run_success_failure_analysis_for_threshold(df, feature_cols, tools, threshold=threshold, suffix=suffix)
+        except Exception as e:
+            print(f"[ERROR] Failed to run success/failure analysis for {label}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+
+    print(f"\nAll success/failure analysis outputs saved to: {OUT_DIR_SUCCESS}")
 
 # ======================================
 # 3. NEW: OUTLIER ANALYSIS
@@ -1875,8 +2023,17 @@ def run_clustered_heatmaps():
 # 5. VENN/UpSet DIAGRAMS (unchanged)
 # ======================================
 
-def pivot_success_long(perf_long: pd.DataFrame) -> pd.DataFrame:
-    """Convert long-format performance data to wide boolean format."""
+def pivot_success_long(perf_long: pd.DataFrame, threshold: int = None) -> pd.DataFrame:
+    """
+    Convert long-format performance data to wide boolean format.
+    
+    Args:
+        perf_long: Long format DataFrame with tool performance data
+        threshold: Rank threshold (1, 5, or 10). If None, uses FOUND_DEF setting.
+    
+    Returns:
+        Wide format DataFrame with boolean columns indicating if bug was found at threshold.
+    """
     df = perf_long.copy()
 
     if "project" not in df.columns or "bug_id" not in df.columns:
@@ -1884,7 +2041,13 @@ def pivot_success_long(perf_long: pd.DataFrame) -> pd.DataFrame:
     if "tool" not in df.columns:
         raise ValueError("Expected a 'tool' column (long format) in IN_FILE.")
 
-    if FOUND_DEF == "rank":
+    # Determine "found" based on threshold or FOUND_DEF
+    if threshold is not None:
+        # Use rank threshold (top@1, top@5, top@10)
+        if "rank" not in df.columns:
+            raise ValueError(f"threshold={threshold} specified but 'rank' column not found.")
+        df["found"] = (df["rank"].notna()) & (df["rank"] <= threshold)
+    elif FOUND_DEF == "rank":
         if "rank" not in df.columns:
             raise ValueError("FOUND_DEF='rank' but 'rank' column not found.")
         df["found"] = df["rank"].notna()
@@ -1924,7 +2087,7 @@ def compute_intersections(wide: pd.DataFrame, tool_cols: list) -> pd.DataFrame:
     out["label"] = out["pattern"].apply(label_from_pattern)
     return out
 
-def save_basic_summary(wide: pd.DataFrame, tool_cols: list) -> pd.DataFrame:
+def save_basic_summary(wide: pd.DataFrame, tool_cols: list, suffix: str = "") -> pd.DataFrame:
     """Save summary statistics for tool intersections."""
     tool_names = [c.replace("found_", "") for c in tool_cols]
     M = wide[tool_cols].astype(bool).to_numpy()
@@ -1942,34 +2105,37 @@ def save_basic_summary(wide: pd.DataFrame, tool_cols: list) -> pd.DataFrame:
     counts["found_none"] = int((~M.any(axis=1)).sum())
 
     summary = pd.DataFrame([counts])
-    summary.to_csv(OUT_DIR_VENN / "intersection_summary.csv", index=False)
+    summary.to_csv(OUT_DIR_VENN / f"intersection_summary{suffix}.csv", index=False)
     return summary
 
-def plot_venn(wide: pd.DataFrame, tool_cols: list):
+def plot_venn(wide: pd.DataFrame, tool_cols: list, threshold: int = None, suffix: str = ""):
     """Plot Venn diagram (2 or 3 tools only)."""
     tool_names = [c.replace("found_", "") for c in tool_cols]
     sets = [set(wide.loc[wide[c], ["project", "bug_id"]].apply(tuple, axis=1)) for c in tool_cols]
+
+    title_suffix = f" (Top@{threshold})" if threshold else ""
+    filename_suffix = f"_top{threshold}" if threshold else ""
 
     if len(tool_cols) == 2:
         from matplotlib_venn import venn2
         plt.figure(figsize=(6, 5))
         venn2(subsets=sets, set_labels=tool_names)
-        plt.title("Bug intersections (found by tool)")
+        plt.title(f"Bug intersections (found by tool){title_suffix}")
         plt.tight_layout()
-        plt.savefig(OUT_DIR_VENN / "venn2_tools.png", dpi=300)
+        plt.savefig(OUT_DIR_VENN / f"venn2_tools{suffix}{filename_suffix}.png", dpi=300)
         plt.close()
     elif len(tool_cols) == 3:
         from matplotlib_venn import venn3
         plt.figure(figsize=(7, 6))
         venn3(subsets=sets, set_labels=tool_names)
-        plt.title("Bug intersections (found by tool)")
+        plt.title(f"Bug intersections (found by tool){title_suffix}")
         plt.tight_layout()
-        plt.savefig(OUT_DIR_VENN / "venn3_tools.png", dpi=300)
+        plt.savefig(OUT_DIR_VENN / f"venn3_tools{suffix}{filename_suffix}.png", dpi=300)
         plt.close()
     else:
         raise ValueError("Venn plotting supports only 2 or 3 tools.")
 
-def plot_upset(wide: pd.DataFrame, tool_cols: list):
+def plot_upset(wide: pd.DataFrame, tool_cols: list, threshold: int = None, suffix: str = ""):
     """Plot UpSet diagram (for 4+ tools)."""
     try:
         from upsetplot import UpSet, from_indicators
@@ -1983,16 +2149,19 @@ def plot_upset(wide: pd.DataFrame, tool_cols: list):
     data = wide[tool_cols].copy()
     data.columns = tool_names
 
+    title_suffix = f" (Top@{threshold})" if threshold else ""
+    filename_suffix = f"_top{threshold}" if threshold else ""
+
     upset_data = from_indicators(tool_names, data=data)
     plt.figure(figsize=(10, 6))
     UpSet(upset_data, show_counts=True, sort_by="cardinality").plot()
-    plt.suptitle("Bug intersections (found by tool)")
+    plt.suptitle(f"Bug intersections (found by tool){title_suffix}")
     plt.tight_layout()
-    plt.savefig(OUT_DIR_VENN / "upset_tools.png", dpi=300)
+    plt.savefig(OUT_DIR_VENN / f"upset_tools{suffix}{filename_suffix}.png", dpi=300)
     plt.close()
 
 def run_venn_diagrams():
-    """Run Venn/UpSet diagram analysis."""
+    """Run Venn/UpSet diagram analysis for top@1, top@5, and top@10."""
     print("\n" + "=" * 60)
     print("VENN/UPSET DIAGRAMS")
     print("=" * 60)
@@ -2007,26 +2176,43 @@ def run_venn_diagrams():
     perf = pd.read_csv(IN_FILE_TOOL_COMPARISON)
     print(f"Loaded: {perf.shape} from {IN_FILE_TOOL_COMPARISON}")
 
-    wide = pivot_success_long(perf)
-    tool_cols = [c for c in wide.columns if c.startswith("found_")]
-    if len(tool_cols) < 2:
-        raise RuntimeError("Need at least 2 tools to compute intersections.")
-
-    print(f"Tools: {[c.replace('found_', '') for c in tool_cols]}")
-
-    intersections = compute_intersections(wide, tool_cols)
-    intersections.to_csv(OUT_DIR_VENN / "intersection_patterns.csv", index=False)
-    print(f"Saved: {OUT_DIR_VENN / 'intersection_patterns.csv'}")
-
-    summary = save_basic_summary(wide, tool_cols)
-    print(f"Saved: {OUT_DIR_VENN / 'intersection_summary.csv'}")
-
-    if len(tool_cols) <= 3:
-        plot_venn(wide, tool_cols)
+    # Check if rank column exists
+    if "rank" not in perf.columns:
+        print("[WARN] 'rank' column not found. Cannot generate top@1/5/10 diagrams.")
+        print("Falling back to default found/not found analysis.")
+        thresholds = [None]  # Use default FOUND_DEF
     else:
-        plot_upset(wide, tool_cols)
+        thresholds = [1, 5, 10]  # Generate for top@1, top@5, top@10
 
-    print(f"Done. Outputs in: {OUT_DIR_VENN}")
+    for threshold in thresholds:
+        threshold_label = f"Top@{threshold}" if threshold else "All Found"
+        print(f"\n--- Generating diagrams for {threshold_label} ---")
+        
+        wide = pivot_success_long(perf, threshold=threshold)
+        tool_cols = [c for c in wide.columns if c.startswith("found_")]
+        if len(tool_cols) < 2:
+            print(f"[WARN] Need at least 2 tools for {threshold_label}. Skipping.")
+            continue
+
+        print(f"Tools: {[c.replace('found_', '') for c in tool_cols]}")
+
+        # Compute intersections
+        intersections = compute_intersections(wide, tool_cols)
+        suffix = f"_top{threshold}" if threshold else ""
+        intersections.to_csv(OUT_DIR_VENN / f"intersection_patterns{suffix}.csv", index=False)
+        print(f"Saved: {OUT_DIR_VENN / f'intersection_patterns{suffix}.csv'}")
+
+        # Save summary
+        summary = save_basic_summary(wide, tool_cols, suffix=suffix)
+        print(f"Saved: {OUT_DIR_VENN / f'intersection_summary{suffix}.csv'}")
+
+        # Generate diagrams
+        if len(tool_cols) <= 3:
+            plot_venn(wide, tool_cols, threshold=threshold, suffix=suffix)
+        else:
+            plot_upset(wide, tool_cols, threshold=threshold, suffix=suffix)
+
+    print(f"\nDone. Outputs in: {OUT_DIR_VENN}")
 
 # ======================================
 # MAIN EXECUTION
