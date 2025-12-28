@@ -1,0 +1,68 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="61" opendate="2016-10-03 00:00:00" fixdate="2016-10-03 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>Problems deserializing primitive long field while using TypeResolverBuilder #1395New issueCopy linkNew issueCopy linkClosedClosedProblems deserializing primitive long field while using TypeResolverBuilder#1395Copy linkMilestone2.8.4Descriptionantantantanopened on Oct 3, 2016Issue body actionsWhen running the following test app
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.jsontype.impl.StdTypeResolverBuilder;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+public class Main {
+
+    public static void main(String[] args) throws IOException {
+        // Create test data
+        Data data = new Data();
+        data.key = 1;
+        Map&lt;String, Object&gt; mapData = new HashMap&lt;&gt;();
+        mapData.put("longInMap", 2L);
+        mapData.put("longAsField", data);
+
+        // Configure Jackson to preserve types
+        JsonFactory factory = new JsonFactory();
+        ObjectMapper mapper = new ObjectMapper(factory);
+        StdTypeResolverBuilder resolver = new StdTypeResolverBuilder();
+        resolver.init(JsonTypeInfo.Id.CLASS, null);
+        resolver.inclusion(JsonTypeInfo.As.PROPERTY);
+        resolver.typeProperty("__t");
+        mapper.setDefaultTyping(resolver);
+        mapper.enable(SerializationFeature.INDENT_OUTPUT);
+
+        // Serialize
+        String json = mapper.writeValueAsString(mapData);
+        System.out.println("json = " + json);
+
+        // Deserialize
+        Map deserializedData = mapper.readValue(json, Map.class);
+    }
+
+    static class Data {
+
+        public long key;
+    }
+}
+I get this output and exception
+json = {
+  "__t" : "java.util.HashMap",
+  "longInMap" : [ "java.lang.Long", 2 ],
+  "longAsField" : {
+    "__t" : "com.pinkmatter.bean.serialization.Main$Data",
+    "key" : [ "java.lang.Long", 1 ]
+  }
+}
+Exception in thread "main" com.fasterxml.jackson.databind.JsonMappingException: Class java.lang.Long not subtype of [simple type, class long] (through reference chain: java.util.HashMap["longAsField"]-&gt;com.pinkmatter.bean.serialization.Data["key"])
+  at com.fasterxml.jackson.databind.JsonMappingException.wrapWithPath(JsonMappingException.java:379)
+  at com.fasterxml.jackson.databind.JsonMappingException.wrapWithPath(JsonMappingException.java:339)
+  at com.fasterxml.jackson.databind.deser.BeanDeserializerBase.wrapAndThrow(BeanDeserializerBase.java:1591)
+  at com.fasterxml.jackson.databind.deser.BeanDeserializer.vanillaDeserialize(BeanDeserializer.java:278)
+  ...
+Caused by: java.lang.IllegalArgumentException: Class java.lang.Long not subtype of [simple type, class long]
+  at com.fasterxml.jackson.databind.type.TypeFactory.constructSpecializedType(TypeFactory.java:359)
+  at com.fasterxml.jackson.databind.jsontype.impl.ClassNameIdResolver._typeFromId(ClassNameIdResolver.java:72)
+  at com.fasterxml.jackson.databind.jsontype.impl.ClassNameIdResolver.typeFromId(ClassNameIdResolver.java:42)
+  ...
+I am trying to serialize a bunch of basic plain old java objects from libraries we are using (so we cannot modify the classes or add annotations), while also trying to preserve the types of values in collections ("longInMap" in the above example must stay a Long object).
+The problem is that Jackson throws the above exception when trying to deserialize the primitive public long key in the Data class. If I change the type to public int key then no exception is thrown and deserialization works.
+Also, since there are many different types of objects and I don't know at compile time exactly what will be serialized I don't think using mix-ins will work.
+I am using Jackson 2.8.3.MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file><file>source/c</file></fixedFiles></bug></bugRepository>

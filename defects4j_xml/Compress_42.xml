@@ -1,0 +1,213 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="42" opendate="2017-01-15 16:53:19" fixdate="2017-01-15 21:08:21" resolution="fixed"><buginformation><summary>[COMPRESS-379] isUnixSymlink returns true for Zip entries with Unix permissions 177777 - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Resolved 
+
+
+
+
+
+Priority:
+
+
+  Major                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+
+1.13 
+
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+1.14 
+
+
+
+
+
+
+Component/s:
+
+
+
+Archivers 
+
+
+
+
+
+
+Labels:
+
+
+None
+
+
+ 
+Description
+
+This issue was originally reported in MASSEMBLY-842, but it seems the root cause in inside Commons Compress.
+Consider the attached invalid-entry.jar, whose contents, as shown by the zipinfo utility, is:
+
+?rwsrwsrwt  2.0 unx        0 b- stor 17-Jan-15 16:06 META-INF/maven/
+drwxr-xr-x  2.0 unx        0 b- stor 17-Jan-15 16:06 META-INF/
+
+
+There are some JAR files created by the Maven Assembly Plugin with content similar to this, and the entry META-INF/maven/ has permissions 177777 (octal). Constructing a ZipFile from this file, the method isUnixSymlink incorrectly returns true for the entry META-INF/maven/ (and it correctly returns false for the entry META-INF/.
+Here is a sample Java code that can be used to see the behaviour:
+
+public static void main(String[] args) throws IOException {
+    try (ZipFile zipFile = new ZipFile(new File("invalid-entry.jar"))) {
+        printAttributes(zipFile, "META-INF/");
+        printAttributes(zipFile, "META-INF/maven/");
+    }
+}
+
+private static void printAttributes(ZipFile zipFile, String name) {
+    ZipArchiveEntry entry = zipFile.getEntriesInPhysicalOrder(name).iterator().next();
+    System.out.printf("%-17s: symlink:%-5s - unixMode:%s%n", name, entry.isUnixSymlink(), entry.getUnixMode());
+}
+
+
+This code outputs:
+
+META-INF/        : symlink:false - unixMode:16877
+META-INF/maven/  : symlink:true  - unixMode:65535
+
+
+The ?rwsrwsrwt permissions show that the Zip entry is broken in the first place, but I think isUnixSymlink should still return false in that case, and not consider this entry to be a symlink.
+It seems the fix would be to update isUnixSymlink and check whether the unix mode is equal to SHORT_MASK, and return false in that case as it would indicate a broken entry. This change does not break any existing tests, but I'm not sure if this is the proper fix.
+
+public boolean isUnixSymlink() {
+    int unixMode = getUnixMode();
+    return unixMode == SHORT_MASK ? false : (unixMode &amp; UnixStat.LINK_FLAG) == UnixStat.LINK_FLAG;
+}
+
+
+
+
+AttachmentsAttachmentsOptionsSort By NameSort By DateAscendingDescendinginvalid-entry.jar15/Jan/17 16:540.2 kBGuillaume BouéIssue Links
+
+
+is related to
+
+
+
+
+
+COMPRESS-214
+better support for unix symlinks
+
+
+
+
+
+
+Activity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+    Unassigned
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            Guillaume Boué
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+2
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+15/Jan/17 16:53 
+
+
+
+
+                                    Updated:
+                            
+
+
+15/Jan/17 22:23 
+
+
+
+
+                                    Resolved:
+                            
+
+
+15/Jan/17 21:08</description></buginformation><fixedFiles><file>source/o</file><file>source/o</file></fixedFiles></bug></bugRepository>

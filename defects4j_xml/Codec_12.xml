@@ -1,0 +1,170 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="12" opendate="2011-09-26 11:59:12" fixdate="2012-03-19 21:00:11" resolution="fixed"><buginformation><summary>[CODEC-130] Base64InputStream.skip skips underlying stream, not output - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Closed 
+
+
+
+
+
+Priority:
+
+
+  Minor                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+
+1.5 
+
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+1.7 
+
+
+
+
+
+
+Labels:
+
+
+None
+
+
+ 
+Description
+
+Base64InputStream.skip() skips within underlying stream, leading to unexpected behaviour.
+The following code will reproduce the issue:
+@Test
+public void testSkip() throws Throwable {
+    InputStream ins =
+            new ByteArrayInputStream("AAAA////".getBytes("ISO-8859-1"));//should decode to 
+{0, 0, 0, 255, 255, 255}
+    Base64InputStream instance = new Base64InputStream(ins);
+    assertEquals(3L, instance.skip(3L)); //should skip 3 decoded characters, or 4 encoded characters
+    assertEquals(255, instance.read()); //Currently returns 3, as it is decoding "A/", not "//" 
+}
+The following code, if added to Base64InputStream, or (BaseNCodecInputStream in the dev build) would resolve the issue:
+@Override
+public long skip(long n) throws IOException {
+    //delegate to read()
+    long bytesRead = 0;
+    while ((bytesRead &lt; n) &amp;&amp; (read() != -1)) 
+{
+        bytesRead++;
+    }
+    return bytesRead;
+}
+More efficient code may be possible.
+
+
+AttachmentsAttachmentsOptionsSort By NameSort By DateAscendingDescendingbase64snippet.java27/Sep/11 07:510.6 kBJames PickeringActivity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+    Unassigned
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            James Pickering
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+1
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+26/Sep/11 11:59 
+
+
+
+
+                                    Updated:
+                            
+
+
+14/Sep/12 20:21 
+
+
+
+
+                                    Resolved:
+                            
+
+
+19/Mar/12 21:00</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>

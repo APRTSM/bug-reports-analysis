@@ -1,0 +1,169 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="8" opendate="2012-09-06 17:47:39" fixdate="2012-09-27 12:58:07" resolution="fixed"><buginformation><summary>[LANG-818] FastDateFormat's "z" pattern does not respect timezone of Calendar instances passed to format() - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Closed 
+
+
+
+
+
+Priority:
+
+
+  Major                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+                                        None
+                    
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+3.2 
+
+
+
+
+
+
+Component/s:
+
+
+
+lang.time.* 
+
+
+
+
+
+
+Labels:
+
+
+None
+
+
+ 
+Description
+
+The work on LANG-462 has introduced a time zone formatting bug in FastDateFormat in commons-lang3.
+The problem can be seen by this snippet:
+
+// Always prints timezone name of machine's default timezone, ignoring TZ
+// set on calendar, even though the printed time itself respects calendar's TZ.
+Calendar myCal = Calendar.getInstance(TimeZone.getTimeZone("US/Central"));
+System.out.println(FastDateFormat.getInstance("h:mma z").format(myCal));
+
+
+If you happen to be in US/Central, this will print the right thing, but just try it with US/Eastern, US/Pacific, etc.  It will print the time in the correct timezone, but the timezone name at the end (the "z" pattern) will always be the system default timezone.  This is a regression against commons-lang 2.x.
+Basically, when the "forced time zone" code was removed, the TimeZoneNameRule class stopped respecting the Calendar instance's timezone, and instead now always uses the mTimeZone of the FastDateFormat instance itself (which is only supposed to be used when formatting timezone-less objects such as Date or long).
+The removal of the forced time zone stuff is surely the right thing to do (it was a mess).  I think the fix is to change the TimeZoneNameRule inner class to not take a TimeZone instance, but rather to use the TimeZone on the Calendar instance passed into appendTo(), just like TimeZoneNumberRule does.  Presumably then for efficiency, one would use the getTimeZoneDisplay() package-static method to quickly retrieve the required timezone's display name.
+
+
+AttachmentsAttachmentsOptionsSort By NameSort By DateAscendingDescendingcommons-lang3-LANG-818.patch17/Sep/12 14:544 kBDuncan JonesActivity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+    Unassigned
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            Dan Collens
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+2
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+06/Sep/12 17:47 
+
+
+
+
+                                    Updated:
+                            
+
+
+21/Oct/13 05:46 
+
+
+
+
+                                    Resolved:
+                            
+
+
+27/Sep/12 12:58</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>

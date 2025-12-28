@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="102" opendate="2018-06-12 00:00:00" fixdate="2018-06-12 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>Cannot set custom format for SqlDateSerializer globally #2064New issueCopy linkNew issueCopy linkClosedClosedCannot set custom format for SqlDateSerializer globally#2064Copy linkMilestone2.9.7Descriptionbkriegeropened on Jun 12, 2018Issue body actionsVersion: 2.9.5
+After #219 was fixed, the default format for java.sql.Date serialization switched from string to numeric, following the default value of WRITE_DATES_AS_TIMESTAMPS.
+In order to prevent breaks, I want java.sql.Date to serialize as a string, without changing behavior for java.util.Date (which has always serialized as a number by default).
+According to #219 (comment), I should be able to revert the behavior for java.sql.Date only with
+final ObjectMapper mapper = new ObjectMapper();
+mapper.configOverride(java.sql.Date.class).setFormat(JsonFormat.Value.forPattern("yyyy-MM-dd"));
+
+This doesn't seem to do anything, though. Looking at the code, it looks like it's because the custom format isn't actually added to SqlDateSerializer except in the createContextual method (https://github.com/FasterXML/jackson-databind/blob/master/src/main/java/com/fasterxml/jackson/databind/ser/std/DateTimeSerializerBase.java#L59).
+For now, I've reverted this behavior with
+mapper.registerModule(new SimpleModule() {
+            {
+                addSerializer(
+                        java.sql.Date.class,
+                        new SqlDateSerializer().withFormat(false, new SimpleDateFormat("yyyy-MM-dd"))
+                );
+            }
+        });
+
+but it seems pretty hacky so I'd prefer the other method if possible.MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file></fixedFiles></bug></bugRepository>

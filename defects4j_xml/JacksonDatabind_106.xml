@@ -1,0 +1,218 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="106" opendate="2018-11-21 00:00:00" fixdate="2018-11-21 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>TreeTraversingParser does not check int bounds #2189New issueCopy linkNew issueCopy linkClosedClosedTreeTraversingParser does not check int bounds#2189Copy linkMilestone2.10.0Descriptionsaitesopened on Nov 21, 2018Issue body actionsSimilar to #1729, TreeTraversingParser does not perform bounds checks on some JSON values bound to ints.
+Using Jackson version 2.9.7, here are several comparisons generated with the following code:
+  public static class IntClass {
+    public int x;
+
+    @Override
+    public String toString() {
+      return String.valueOf(x);
+    }
+  }
+
+  ObjectMapper mapper  = new ObjectMapper();
+  void readAndPrint(String _example) {
+    String fromTree;
+    try {
+      JsonNode tree = mapper.readTree(_example);
+      fromTree = mapper.readerFor(IntClass.class).readValue(tree).toString();
+    } catch (IOException _e) {
+      fromTree = _e.getClass().getSimpleName();
+    }
+
+    String fromString;
+    try {
+      fromString = mapper.readerFor(IntClass.class).readValue(_example).toString();
+    } catch (IOException _e) {
+      fromString = _e.getClass().getSimpleName();
+    }
+
+    System.out.printf("|%30s | %30s | %-30s|\n", _example, fromTree, fromString);
+  }
+
+  @Test
+  public void compareFromTree() {
+    System.out.printf("|%30s | %30s | %-30s|\n", "json input", "read from tree", "read from string");
+    System.out.println("|-------------------------------|--------------------------------|-------------------------------|");
+    readAndPrint("{\"x\": 0}");
+    // etc.
+  }
+
+
+
+json input
+read from tree
+read from string
+
+
+
+
+{"x": 0}
+0
+0
+
+
+{"x": 10}
+10
+10
+
+
+{"x": 1e4}
+10000
+10000
+
+
+{"x": 1e10}
+2147483647
+JsonMappingException
+
+
+{"x": 1e-1}
+0
+0
+
+
+{"x": 2147483648}
+-2147483648
+JsonMappingException
+
+
+{"x": 2147483649}
+-2147483647
+JsonMappingException
+
+
+{"x": -2147483649}
+2147483647
+JsonMappingException
+
+
+{"x": -4294967295}
+1
+JsonMappingException
+
+
+{"x": 0.1}
+0
+0
+
+
+{"x": 1.9}
+1
+1
+
+
+{"x": 1.9999999999999999}
+2
+2
+
+
+{"x": true}
+MismatchedInputException
+MismatchedInputException
+
+
+{"x": {}}
+MismatchedInputException
+MismatchedInputException
+
+
+{"x": []}
+MismatchedInputException
+MismatchedInputException
+
+
+{"x": [0]}
+MismatchedInputException
+MismatchedInputException
+
+
+{"x": "0"}
+0
+0
+
+
+{"x": "10"}
+10
+10
+
+
+{"x": "1e4"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "1e10"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "1e-1"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "2147483648"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "2147483649"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "-2147483649"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "-4294967295"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "0.1"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "1.9"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "1.9999999999999999"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "true"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "{}"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "[]"}
+InvalidFormatException
+InvalidFormatException
+
+
+{"x": "[0]"}
+InvalidFormatException
+InvalidFormatException
+
+
+
+Without digging further into the code, it appears if the JSON value is numeric, TreeTraversingParser silently overflows. Maybe this is expected behavior, but to me the inconsistency between reading from a non-tree (reader/string/file, etc) versus directly from a tree seems like a bug. At the very least, it makes it less convenient to do manipulations on a JSON document before binding.
+I would expect an exception thrown for the all but the first three examples above, but I do understand there are use-cases for coercing values. Even so, I would expect the coercion logic to be
+
+consistent between the parsers (or clearly documented otherwise)
+consistent between quoted and unquoted values
+
+I'm also curious about the expected behavior when converting non-integral values. Why is true MismatchedInput, but 0.1 is converted? Similarly, why are 0.1, 1e4, and 1e-1 acceptable, but not when in quotes, even though "10" and other quote integers are acceptable?
+Thanks for all your hard work on this. I hope this issue doesn't come off as condescending. For our specific use case, we read the value as a tree, validating it against a schema, then using Jackson to bind the tree to an object. While it's true that we can specify type, minimum, and maximum values in the schema, it is prone to mistakes, and there's not necessarily a reason to tie the schema to the language implementation, provided things like overflow consistently result in an exception. Thus, I'm trying to better understand the expectations and limits Jackson has when using the tree parser.MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file></fixedFiles></bug></bugRepository>

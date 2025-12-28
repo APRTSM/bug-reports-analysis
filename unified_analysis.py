@@ -299,6 +299,95 @@ def check_project_effects(df, perf_cols, out_dir):
                 ratio = between_var / (between_var + within_var) if (between_var + within_var) > 0 else 0
                 print(f"{col}: Between-project variance ratio = {ratio:.3f}")
 
+def generate_feature_summary_table(df, feature_cols, out_dir):
+    """
+    Generate a summary table with min, max, mean, and median for each feature.
+    
+    Args:
+        df: DataFrame with features
+        feature_cols: List of feature column names
+        out_dir: Output directory for saving the table
+    """
+    print("\n" + "=" * 60)
+    print("GENERATING FEATURE SUMMARY TABLE")
+    print("=" * 60)
+    
+    summary_records = []
+    
+    for feat in feature_cols:
+        if feat not in df.columns:
+            continue
+        
+        values = df[feat].dropna()
+        
+        if len(values) == 0:
+            summary_records.append({
+                'feature': feat,
+                'min': np.nan,
+                'max': np.nan,
+                'mean': np.nan,
+                'median': np.nan,
+                'std': np.nan,
+                'scale': "N/A (all missing)",
+                'n_valid': 0,
+                'n_missing': len(df),
+                'missing_pct': 100.0
+            })
+            continue
+        
+        min_val = float(values.min())
+        max_val = float(values.max())
+        
+        # Determine scale description
+        if min_val == 0.0 and max_val == 1.0:
+            scale = "0-1"
+        elif min_val == 0.0 and max_val == 0.0:
+            scale = "constant (0)"
+        elif min_val >= 0.0 and max_val <= 1.0:
+            scale = f"{min_val:.3f}-{max_val:.3f}"
+        elif min_val.is_integer() and max_val.is_integer() and min_val >= 0:
+            # Integer count/scale
+            if max_val <= 10:
+                scale = f"0-{int(max_val)} (integer)"
+            else:
+                scale = f"{int(min_val)}-{int(max_val)} (integer)"
+        else:
+            # Continuous scale - show range
+            if abs(min_val) < 0.001 and abs(max_val) < 0.001:
+                scale = f"{min_val:.3e}-{max_val:.3e}"
+            else:
+                scale = f"{min_val:.3f}-{max_val:.3f}"
+        
+        summary_records.append({
+            'feature': feat,
+            'min': min_val,
+            'max': max_val,
+            'mean': float(values.mean()),
+            'median': float(values.median()),
+            'std': float(values.std()),
+            'scale': scale,
+            'n_valid': int(len(values)),
+            'n_missing': int(df[feat].isna().sum()),
+            'missing_pct': float(df[feat].isna().sum() / len(df) * 100)
+        })
+    
+    summary_df = pd.DataFrame(summary_records)
+    summary_df = summary_df.sort_values('feature')
+    
+    # Save to CSV
+    output_file = out_dir / "feature_summary_statistics.csv"
+    summary_df.to_csv(output_file, index=False)
+    print(f"Saved: {output_file}")
+    print(f"  Total features: {len(summary_df)}")
+    print(f"  Features with no missing data: {len(summary_df[summary_df['n_missing'] == 0])}")
+    print(f"  Features with >50% missing: {len(summary_df[summary_df['missing_pct'] > 50])}")
+    
+    # Print sample
+    print("\nSample of summary table (first 10 features):")
+    print(summary_df.head(10).to_string(index=False))
+    
+    return summary_df
+
 def check_feature_types(df, feature_cols, perf_cols, out_dir):
     """NEW: Verify that features don't include performance metrics."""
     print("\n--- Diagnostic: Feature Type Validation ---")
@@ -354,6 +443,9 @@ def run_diagnostic_checks(df, feature_cols, perf_cols):
     print("=" * 60)
     
     OUT_DIR_DIAGNOSTICS.mkdir(exist_ok=True, parents=True)
+    
+    # Generate feature summary table first
+    generate_feature_summary_table(df, feature_cols, OUT_DIR_DIAGNOSTICS)
     
     check_feature_types(df, feature_cols, perf_cols, OUT_DIR_DIAGNOSTICS)  # NEW: Run first!
     check_metric_distributions(df, perf_cols, OUT_DIR_DIAGNOSTICS)

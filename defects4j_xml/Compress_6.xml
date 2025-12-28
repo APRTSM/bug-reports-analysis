@@ -1,0 +1,173 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="6" opendate="2010-01-06 22:33:15" fixdate="2010-01-26 05:25:02" resolution="fixed"><buginformation><summary>[COMPRESS-94] Creating zip files with many entries will ocassionally produce corrupted output - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Resolved 
+
+
+
+
+
+Priority:
+
+
+  Major                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+
+1.0 
+
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+1.1 
+
+
+
+
+
+
+Component/s:
+
+
+                                        None
+                    
+
+
+
+
+
+Labels:
+
+
+None
+
+
+ 
+
+
+Environment:
+
+
+Windows 2003 Server 64 bit, Java 6.0
+
+
+ 
+Description
+
+Our application produces large numbers of zip files, often with 1000's of similarly named files contained within the zip. 
+When we switched from the standard JDK zip classes to those in commons compress, we would ocassionally produce a zip file that had corrupted index entries and would fail to unzip successfully using 7-zip, winzip, etc.
+Debugging the zip creation showed that the the wrong offsets were being returned from the hashmap in ZipOutputStream for the entries that were being corrupted.  Further analysis revealed that this occurred when the filenames being added had a hash collision with another entry in the same output zip (which appears to happen quite frequently for us).
+The issue appears to stem from the fact that ZipArchiveEntry can store the entry name either in its superclass if passed in on the ctor or in its own member attribute if set later via setName().  Not sure whether this functionality is really required?  Regardless, the root cause of the bug is that the equals() and hashCode() methods in ZipArchiveEntry do not always use the same filename value in their comparisons.  In fact if the filename of the entry is set in the ctor it will always treat two ZipArchiveEntries as equal.  This will break the offset hashmap whenever there is a hash collision as it will overwrite the previous entry, believeing it to be equal.
+Patch to follow.
+
+
+AttachmentsAttachmentsOptionsSort By NameSort By DateAscendingDescendingCOMPRESS-94.patch06/Jan/10 22:422 kBAnon DevsActivity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+
+            Stefan Bodewig
+        
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            Anon Devs
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+0
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+06/Jan/10 22:33 
+
+
+
+
+                                    Updated:
+                            
+
+
+26/Jan/10 05:25 
+
+
+
+
+                                    Resolved:
+                            
+
+
+26/Jan/10 05:25</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>

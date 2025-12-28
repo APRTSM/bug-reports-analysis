@@ -1,0 +1,77 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="66" opendate="2016-11-02 00:00:00" fixdate="2016-11-02 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>Failure with custom Enum key deserializer, polymorphic types #1441New issueCopy linkNew issueCopy linkClosedClosedFailure with custom Enum key deserializer, polymorphic types#1441Copy linkMilestone2.8.5Descriptionofieshopened on Nov 2, 2016Issue body actionsNormally the JsonParser and the DeserializationContext is passed to a Module's JsonDeserializer.
+However, in the MapDeserializer, when deserializing a Map with an Enum key, the KeyDeserializer doesn't accept the JsonParser as an argument:
+https://github.com/FasterXML/jackson-databind/blob/master/src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java#L453
+Object key = keyDes.deserializeKey(keyStr, ctxt);
+and the StdKeyDeserializer.DelegatingKD uses the context's parser
+https://github.com/FasterXML/jackson-databind/blob/master/src/main/java/com/fasterxml/jackson/databind/deser/std/StdKeyDeserializer.java#L315
+Object result = _delegate.deserialize(ctxt.getParser(), ctxt);
+When the type info field is missing from the json, the DeserializationContext's JsonParser's token is END_OBJECT (presumably because it nextToken'd through the object to find type and whiffed).
+This makes the module fail since the JsonParser in the Module is wrong, i.e. not the same as the JsonParser in the MapDeserializer.
+Class:
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
+import java.util.Map;
+
+import static com.fasterxml.jackson.annotation.JsonTypeInfo.Id.NAME;
+
+@JsonTypeInfo(use = NAME, property = "@type", defaultImpl = SuperType.class)
+public class SuperType {
+    private Map&lt;SuperTypeEnum, String&gt; someMap;
+
+    public Map&lt;SuperTypeEnum, String&gt; getSomeMap() {
+        return someMap;
+    }
+
+    public void setSomeMap(Map&lt;SuperTypeEnum, String&gt; someMap) {
+        this.someMap = someMap;
+    }
+}
+
+Enum:
+public enum SuperTypeEnum {
+    FOO
+}
+
+Test:
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import org.junit.*;
+
+import java.io.IOException;
+
+import static org.junit.Assert.assertEquals;
+
+public class TestDeserializeType {
+
+    @Test
+    public void testNoTypeShouldDeserialize() throws IOException {
+        String json = "{\"someMap\": {\"FOO\": \"bar\"}}";
+        ObjectMapper mapper = new ObjectMapper();
+        SuperType superType = mapper.readValue(json, SuperType.class);
+        assertEquals("Deserialized someMap.FOO should equal bar", "bar", superType.getSomeMap().get(SuperTypeEnum.FOO));
+    }
+
+    @Test
+    public void testNoTypeWithModuleShouldDeserialize() throws IOException {
+        String json = "{\"someMap\": {\"FOO\": \"bar\"}}";
+        ObjectMapper mapper = new ObjectMapper();
+        SimpleModule simpleModule = new SimpleModule();
+        simpleModule.addDeserializer(SuperTypeEnum.class, new JsonDeserializer&lt;SuperTypeEnum&gt;() {
+            @Override
+            public SuperTypeEnum deserialize(JsonParser jsonParser, DeserializationContext deserializationContext)
+                    throws IOException {
+
+                return SuperTypeEnum.valueOf(jsonParser.getText());
+            }
+        });
+        mapper.registerModule(simpleModule);
+
+        SuperType superType = mapper.readValue(json, SuperType.class);
+        assertEquals("Deserialized someMap.FOO should equal bar", "bar", superType.getSomeMap().get(SuperTypeEnum.FOO));
+    }
+}
+👍React with 👍1jspatelMetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file></fixedFiles></bug></bugRepository>

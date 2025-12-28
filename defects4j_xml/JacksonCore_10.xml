@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="10" opendate="2015-07-30 00:00:00" fixdate="2015-07-30 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>ArrayIndexOutOfBoundsException in com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer #207New issueCopy linkNew issueCopy linkClosedClosedArrayIndexOutOfBoundsException in com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer#207Copy linkMilestone2.6.1Descriptionfschoppopened on Jul 30, 2015Issue body actionsThe following code demonstrates a bug in jackson-core, version 2.6.0, in the hash table implementation of com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer. From a quick glance, it looks to me as if the "primary hash information area" _hashArea has a spillover area that is not accounted for properly in the String array _names.
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.testng.annotations.Test;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+/**
+ * Simple test case for demonstrating bug in class {@link ByteQuadsCanonicalizer}.
+ *
+ * &lt;p&gt;In some cases, it is possible to work around this bug by disabling the
+ * {@link JsonFactory.Feature#CANONICALIZE_FIELD_NAMES} feature. In that case
+ * {@link com.fasterxml.jackson.core.json.ByteSourceJsonBootstrapper#constructParser(int, com.fasterxml.jackson.core.ObjectCodec, ByteQuadsCanonicalizer, com.fasterxml.jackson.core.sym.CharsToNameCanonicalizer, int)}
+ * creates a {@link com.fasterxml.jackson.core.json.ReaderBasedJsonParser} instead of a
+ * {@link com.fasterxml.jackson.core.json.UTF8StreamJsonParser}.
+ */
+public class UTF8ByteStreamTest {
+    private static final int SEED = -523743345;
+
+    private static void injectReproducibleSeed(ObjectMapper objectMapper) throws Exception {
+        JsonFactory jsonFactory = objectMapper.getFactory();
+        // As a workaround, uncomment the following line.
+        // jsonFactory.disable(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES);
+        Field byteSymbolCanonicalizerField = JsonFactory.class.getDeclaredField("_byteSymbolCanonicalizer");
+        byteSymbolCanonicalizerField.setAccessible(true);
+
+        Method factoryMethod = ByteQuadsCanonicalizer.class.getDeclaredMethod("createRoot", int.class);
+        factoryMethod.setAccessible(true);
+        byteSymbolCanonicalizerField.set(jsonFactory, factoryMethod.invoke(null, SEED));
+    }
+
+    @Test
+    public void testRead() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        injectReproducibleSeed(objectMapper);
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("{\n");
+        stringBuilder.append("    \"expectedGCperPosition\": null");
+        for (int i = 0; i &lt; 60; ++i) {
+            stringBuilder.append(",\n    \"").append(i + 1).append("\": null");
+        }
+        stringBuilder.append("\n}");
+        objectMapper.readValue(stringBuilder.toString().getBytes(StandardCharsets.UTF_8), Map.class);
+    }
+}MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestone2.6.1No due dateRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file></fixedFiles></bug></bugRepository>

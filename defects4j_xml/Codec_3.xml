@@ -1,0 +1,212 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="3" opendate="2009-08-02 00:09:31" fixdate="2009-08-03 00:38:21" resolution="fixed"><buginformation><summary>[CODEC-84] Double Metaphone bugs in alternative encoding - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Closed 
+
+
+
+
+
+Priority:
+
+
+  Minor                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+
+1.3 
+
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+1.4 
+
+
+
+
+
+
+Labels:
+
+
+None
+
+
+ 
+Description
+
+The new test case (CODEC-83) has highlighted a number of issues with the "alternative" encoding in the Double Metaphone implementation
+1) Bug in the handleG method when "G" is followed by "IER" 
+
+The alternative encoding of "Angier" results in "ANKR" rather than "ANJR"
+The alternative encoding of "rogier" results in "RKR" rather than "RJR"
+
+The problem is in the handleG() method and is caused by the wrong length (4 instead of 3) being used in the contains() method:
+
+ } else if (contains(value, index + 1, 4, "IER")) {
+
+
+...this should be
+
+ } else if (contains(value, index + 1, 3, "IER")) {
+
+
+2)  Bug in the handleL method
+
+The alternative encoding of "cabrillo" results in "KPRL " rather than "KPR"
+
+The problem is that the first thing this method does is append an "L" to both primary &amp; alternative encoding. When the conditionL0() method returns true then the "L" should not be appended for the alternative encoding
+
+result.append('L');
+if (charAt(value, index + 1) == 'L') {
+    if (conditionL0(value, index)) {
+        result.appendAlternate(' ');
+    }
+    index += 2;
+} else {
+    index++;
+}
+return index;
+
+
+Suggest refeactoring this to
+
+if (charAt(value, index + 1) == 'L') {
+    if (conditionL0(value, index)) {
+        result.appendPrimary('L');
+    } else {
+        result.append('L');
+    }
+    index += 2;
+} else {
+    result.append('L');
+    index++;
+}
+return index;
+
+
+3) Bug in the conditionL0() method for words ending in "AS" and "OS"
+
+The alternative encoding of "gallegos" results in "KLKS" rather than "KKS"
+
+The problem is caused by the wrong start position being used in the contains() method, which means its not checking the last two characters of the word but checks the previous &amp; current position instead:
+
+        } else if ((contains(value, index - 1, 2, "AS", "OS") || 
+
+
+...this should be
+
+        } else if ((contains(value, value.length() - 2, 2, "AS", "OS") || 
+
+
+I'll attach a patch for review
+
+
+AttachmentsAttachmentsOptionsSort By NameSort By DateAscendingDescendingCODEC-84-DoubleMetaphone-Alternate-bugs.patch02/Aug/09 00:224 kBNiall PembertonActivity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+    Unassigned
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            Niall Pemberton
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+0
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+02/Aug/09 00:09 
+
+
+
+
+                                    Updated:
+                            
+
+
+07/Aug/09 08:10 
+
+
+
+
+                                    Resolved:
+                            
+
+
+03/Aug/09 00:38</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>

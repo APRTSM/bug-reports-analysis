@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="30" opendate="2012-09-27 00:00:00" fixdate="2012-09-27 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>Jsoup.clean sometimes will throw execution exception:java.lang.StackOverflowError #246New issueCopy linkNew issueCopy linkClosedClosedJsoup.clean sometimes will throw execution exception:java.lang.StackOverflowError#246Copy linkDescriptionfivesmallqopened on Sep 27, 2012Issue body actions[ ERROR ]  throw execution exception:java.lang.StackOverflowError
+java.util.concurrent.ExecutionException: java.lang.StackOverflowError
+Caused by: java.lang.StackOverflowError
+at org.jsoup.safety.Whitelist.isSafeTag(Whitelist.java:323)
+at org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:115)
+at org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:127)
+at org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:127)
+at org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:127)
+at org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:127)
+clean the url:http://blog.sina.com.cn/s/blog_501a5b1f0102dx6z.html
+It's have to much wbr tags,when i search the page source ,found 24205.
+i look at  org.jsoup.safety.Cleaner source code and add code like this
+private int num = 1;
+    /**
+     * Iterates the input and copies trusted nodes (tags, attributes, text) into
+     * the destination.
+     * 
+     * @param source
+     *            source of HTML
+     * @param dest
+     *            destination element to copy into
+     * @return number of discarded elements (that were considered unsafe)
+     */
+    private int copySafeNodes(Element source, Element dest) {
+        List&lt;Node&gt; sourceChildren = source.childNodes();
+        int numDiscarded = 0;
+
+        for (Node sourceChild : sourceChildren) {
+            num++;
+            logger.info(num);
+            if (num &gt; 2000) {
+                //break this tag.
+                break;
+            }
+            if (sourceChild instanceof Element) {
+                Element sourceEl = (Element) sourceChild;
+
+                if (whitelist.isSafeTag(sourceEl.tagName())) { // safe, clone
+                                                                // and copy safe
+                                                                // attrs
+                    ElementMeta meta = createSafeElement(sourceEl);
+                    Element destChild = meta.el;
+                    dest.appendChild(destChild);
+                    numDiscarded += meta.numAttribsDiscarded;
+                    numDiscarded += copySafeNodes(sourceEl, destChild); // recurs
+                } else { // not a safe tag, but it may have children (els or
+                            // text) that are, so recurse
+                    numDiscarded++;
+                    numDiscarded += copySafeNodes(sourceEl, dest);
+                }
+            } else if (sourceChild instanceof TextNode) {
+                TextNode sourceText = (TextNode) sourceChild;
+                TextNode destText = new TextNode(sourceText.getWholeText(),
+                        sourceChild.baseUri());
+                dest.appendChild(destText);
+            } // else, we don't care about comments, xml proc instructions, etc
+        }
+        return numDiscarded;
+    }
+but the clean result will be wrong and The layout will be chaos.
+How can I solve this problem?MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsProjectsNo projectsMilestoneNo milestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>

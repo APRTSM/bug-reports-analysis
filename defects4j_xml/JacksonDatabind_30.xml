@@ -1,0 +1,70 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="30" opendate="2015-10-10 00:00:00" fixdate="2015-10-10 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>BigDecimal values via @JsonTypeInfo/@JsonSubTypes get rounded #965New issueCopy linkNew issueCopy linkClosedClosedBigDecimal values via @JsonTypeInfo/@JsonSubTypes get rounded#965Copy linkMilestone2.6.3Descriptiongmjabsopened on Oct 10, 2015Issue body actionsWhen using an ObjectMapper to serialize/deserialize a class with an Object field annotated with a @JsonSubTypes.Type that indicate BigDecimal, it looks like the value is getting rounded to a double.
+I tried configuring DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, but that didn't seem to help.
+What I think is a valid repro is below, but let me know if I'm actually doing something wrong here.
+Thanks!
+import org.junit.Test;
+import org.junit.Assert;
+
+import java.math.BigDecimal;
+
+import com.fasterxml.jackson.annotation.*;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+public class JacksonTest {
+
+    enum Type { BIG_DECIMAL }
+
+    static class Wrapper {
+
+        @JsonIgnore
+        Type typeEnum;
+
+        @JsonIgnore
+        Object value;
+
+        Wrapper() { }
+
+        @JsonGetter(value = "type")
+        String getTypeString() {
+            return typeEnum.name();
+        }
+
+        @JsonSetter(value = "type")
+        void setTypeString(String type) {
+            this.typeEnum = Type.valueOf(type);
+        }
+
+        @JsonGetter(value = "objectValue") 
+        Object getValue() {
+            return value;
+        }
+
+        @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXTERNAL_PROPERTY, property = "type")
+        @JsonSubTypes({ @JsonSubTypes.Type(name = "BIG_DECIMAL", value = BigDecimal.class) })
+        @JsonSetter(value = "objectValue") 
+        private void setValue(Object value) {
+            this.value = value;
+        }
+    }
+
+    @Test
+    public void test() throws Exception {
+
+        ObjectMapper m = new ObjectMapper();
+        m.configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, true);
+
+        Wrapper w = new Wrapper();
+        w.typeEnum = Type.BIG_DECIMAL;
+        w.value = new BigDecimal("-10000000000.0000000001");
+
+        String json = m.writeValueAsString(w);
+        Wrapper w2 = m.readValue(json, Wrapper.class);
+
+        Assert.assertEquals(w.typeEnum, w2.typeEnum);
+        Assert.assertTrue(String.format("Expected %s = %s; got back %s = %s",
+            w.value.getClass().getSimpleName(), w.value.toString(), w2.value.getClass().getSimpleName(), w2.value.toString()),
+            w.value.equals(w2.value));
+    }
+}MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file><file>source/c</file></fixedFiles></bug></bugRepository>

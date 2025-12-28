@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="14" opendate="2017-04-29 00:00:00" fixdate="2017-04-29 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>$Gson$Types.resolve() shall collapse chains of super/extends type bounds to avoid StackOverflowError #1074New issueCopy linkNew issueCopy linkClosedClosed$Gson$Types.resolve() shall collapse chains of super/extends type bounds to avoid StackOverflowError#1074Copy linkDescriptionamogilevopened on Apr 29, 2017Issue body actionsWhile resolving recursive generic types, $Gson$Types.resolve() sometimes starts to generate chains of type bounds like  "super ? extends ? .... ? extends A" , causing infinite recursion and thus StackOverflowError's like
+java.lang.StackOverflowError at com.google.gson.internal.$Gson$Types.resolveTypeVariable($Gson$Types.java:407) at com.google.gson.internal.$Gson$Types.resolve($Gson$Types.java:330) at com.google.gson.internal.$Gson$Types.resolve($Gson$Types.java:384) at com.google.gson.internal.$Gson$Types.resolve($Gson$Types.java:379) at com.google.gson.internal.$Gson$Types.resolve($Gson$Types.java:384) at com.google.gson.internal.$Gson$Types.resolve($Gson$Types.java:379) at com.google.gson.internal.$Gson$Types.resolve($Gson$Types.java:384) ... 
+This can be reproduced on the following simple ccde:
+  private static class Foo1&lt;A&gt; {
+    Foo2&lt;? extends A&gt; foo2;
+  }
+  private static class Foo2&lt;B&gt; {
+    Foo1&lt;? super B&gt; foo1;
+  }
+  public void testRecursiveResolveSimple() {
+    new Gson().getAdapter(Foo1.class);
+  }
+This is the root cause of StackOverflowError's described in Issue #440 and Issue #603.
+In order to fix them, such chains need to be collapsed using the following rules:
+
+supertypeOf(supertypeOf(X)) == supertypeOf(X)
+subtypeOf(subtypeOf(X)) == subtypeOf(X)
+supertypeOf(subtypeOf(X)) == subtypeOf(Object.class)
+subtypeOf(supertypeOf(X)) == subtypeOf(Object.class)
+MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneNo milestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file></fixedFiles></bug></bugRepository>

@@ -1,0 +1,194 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="30" opendate="2015-02-18 17:22:16" fixdate="2015-02-20 16:18:29" resolution="fixed"><buginformation><summary>[COMPRESS-309] BZip2CompressorInputStream return value wrong when told to read to a full buffer. - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Resolved 
+
+
+
+
+
+Priority:
+
+
+  Major                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+
+1.4.1,                                            1.9 
+
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+1.10 
+
+
+
+
+
+
+Component/s:
+
+
+
+Compressors 
+
+
+
+
+
+
+Labels:
+
+
+
+
+ 
+Description
+
+BZip2CompressorInputStream.read(buffer, offset, length) returns -1 when given an offset equal to the length of the buffer.
+This indicates, not that the buffer was full, but that the stream was finished.
+It seems like a pretty stupid thing to do - but I'm getting this when trying to use Kryo serialization (which is probably a bug on their part, too), so it does occur and has negative affects.
+Here's a JUnit test that shows the problem specifically:
+
+	@Test
+	public void testApacheCommonsBZipUncompression () throws Exception {
+		// Create a big random piece of data
+		byte[] rawData = new byte[1048576];
+		for (int i=0; i&lt;rawData.length; ++i) {
+			rawData[i] = (byte) Math.floor(Math.random()*256);
+		}
+
+		// Compress it
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		BZip2CompressorOutputStream bzipOut = new BZip2CompressorOutputStream(baos);
+		bzipOut.write(rawData);
+		bzipOut.flush();
+		bzipOut.close();
+		baos.flush();
+		baos.close();
+
+		// Try to read it back in
+		ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+		BZip2CompressorInputStream bzipIn = new BZip2CompressorInputStream(bais);
+		byte[] buffer = new byte[1024];
+		// Works fine
+		Assert.assertEquals(1024, bzipIn.read(buffer, 0, 1024));
+		// Fails, returns -1 (indicating the stream is complete rather than that the buffer 
+		// was full)
+		Assert.assertEquals(0, bzipIn.read(buffer, 1024, 0));
+		// But if you change the above expected value to -1, the following line still works
+		Assert.assertEquals(1024, bzipIn.read(buffer, 0, 1024));
+		bzipIn.close();
+	}
+
+
+
+
+AttachmentsActivity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+    Unassigned
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            Nathan Kronenfeld
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+2
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+18/Feb/15 17:22 
+
+
+
+
+                                    Updated:
+                            
+
+
+20/Feb/15 16:18 
+
+
+
+
+                                    Resolved:
+                            
+
+
+20/Feb/15 16:18</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>

@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="12" opendate="2012-11-05 00:00:00" fixdate="2012-11-05 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>JsonParser.getTokenLocation() doesn't update after field names. #37New issueCopy linkNew issueCopy linkClosedClosedJsonParser.getTokenLocation() doesn't update after field names.#37Copy linkMilestone2.7.0Descriptionmikelehenopened on Nov 5, 2012Issue body actionsThere's a unit test to repro the issue below.  Basically, when you're on a FIELD_NAME token, if you call getTokenLocation() and then nextToken() and then getTokenLocation() again, you'll get the same location for both calls to getTokenLocation(), even though you've advanced to a new token.
+The issue seems to be the _nextToken logic in ReaderBasedJsonParser and UTF8StreamJsonParser.  When calling nextToken() on a FIELD_NAME, it calls _nextAfterName(), which updates _currToken but doesn't update _tokenInputRow and _tokenInputCol for the new token's location.
+I started to try to fix it, but the _nextToken logic is spread across so much code that it looked like it'd be a pretty major surgery.  Not something I'm willing to do at this point. :-)
+public void testTokenLocationAfterFieldName() throws Exception
+{
+    _testTokenLocationAfterFieldName(false);
+    _testTokenLocationAfterFieldName(true);
+}
+
+private void _testTokenLocationAfterFieldName(Boolean useStream) throws Exception
+{
+    final String DOC = "{\"name\":123}";
+    JsonFactory jf = new JsonFactory();
+    JsonParser jp = useStream ?
+            jf.createJsonParser(new ByteArrayInputStream(DOC.getBytes("UTF-8")))
+            : jf.createJsonParser(new StringReader(DOC));
+
+    assertEquals(JsonToken.START_OBJECT, jp.nextToken());
+    assertEquals(JsonToken.FIELD_NAME, jp.nextToken());
+    assertEquals(JsonToken.VALUE_NUMBER_INT, jp.nextToken());
+    assertEquals(1, jp.getTokenLocation().getLineNr());
+    assertEquals(9, jp.getTokenLocation().getColumnNr());
+    jp.close();
+}
+MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestone2.7.0No due dateRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file><file>source/c</file></fixedFiles></bug></bugRepository>

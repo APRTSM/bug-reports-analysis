@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="110" opendate="2019-02-25 00:00:00" fixdate="2019-02-25 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>Inconsistent handling of Collections$UnmodifiableList VS Collections$UnmodifiableRandomAccessList #2265New issueCopy linkNew issueCopy linkClosedClosedInconsistent handling of Collections$UnmodifiableList VS Collections$UnmodifiableRandomAccessList#2265Copy linkMilestone2.9.9Descriptionjoffrey-bionopened on Feb 25, 2019Issue body actionsI'm sorry to bring that one up again, but I'm under the impression that the issue about unmodifiable collections (#1880) is still not solved completely.
+In fact, the way the CLASS_UNMODIFIABLE_LIST is retrieved here yields Collections$UnmodifiableRandomAccessList, and therefore only this type is currently supported by Jackson 2.9.8.
+However, using Collections.unmodifiableList() on a List implementation that doesn't implement RandomAccess will yield a Collections$UnmodifiableList instead, which is not deserialized properly and fails with:
+com.fasterxml.jackson.databind.exc.InvalidDefinitionException: Cannot construct instance of `java.util.Collections$UnmodifiableList` (no Creators, like default constructor, exist): no default no-arguments constructor found
+
+This can be reproduced by adding the following test case in TestDefaultForUtilCollections1868:
+public void testUnmodifiableNonRandomAccessList() throws Exception {
+   _verifyCollection(Collections.unmodifiableList(new LinkedList&lt;&gt;(Arrays.asList("first", "second"))));
+}
+Or more generally for outside the project:
+public void testUnmodifiableNonRandomAccessList() throws Exception {
+    Collection&lt;?&gt; exp = Collections.unmodifiableList(new LinkedList&lt;&gt;(Arrays.asList("first", "second")));
+    ObjectMapper mapper = new ObjectMapper();
+    mapper.enableDefaultTyping(DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
+    String json = mapper.writeValueAsString(exp);
+    Collection&lt;?&gt; act = mapper.readValue(json, Collection.class);
+
+    assertEquals(exp, act);
+    assertEquals(exp.getClass(), act.getClass());
+}
+Currently java.util.Collections.unmodifiableList() can only return these 2 types of unmodifiable lists, so I believe it is safe for now to just hardcode yet another special case for this class.
+This can currently be solved on user side by adding a mixin, but since Collections$UnmodifiableRandomAccessList is supported, I would find it natural to also support the non-random access variant.MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file></fixedFiles></bug></bugRepository>

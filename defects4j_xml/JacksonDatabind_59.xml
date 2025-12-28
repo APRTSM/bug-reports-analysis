@@ -1,0 +1,96 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="59" opendate="2016-09-24 00:00:00" fixdate="2016-09-24 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>@JsonDeserialize(keyUsing = ...) does not work correctly together with DefaultTyping.NON_FINAL #1384New issueCopy linkNew issueCopy linkClosedClosed@JsonDeserialize(keyUsing = ...) does not work correctly together with DefaultTyping.NON_FINAL#1384Copy linkMilestone2.8.4DescriptionOlegZhukovopened on Sep 24, 2016Issue body actionsVersion 2.8.3 seems to ignore @JsonDeserialize(keyUsing = ...) when used together with DefaultTyping.NON_FINAL setting and Map&lt;,&gt; argument type in constructor with concrete type (e.g. HashMap&lt;,&gt;) specified in JSON.
+In the code below testFails() fails and testSucceeds() passes fine. The only difference is testSucceeds() has a module with deserializer registered explicitly. Both tests pass on version 2.6.
+package com.test.testjackson.testjackson;
+
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.KeyDeserializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper.DefaultTyping;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.module.SimpleKeyDeserializers;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import java.io.IOException;
+import java.util.Map;
+import org.junit.Test;
+
+import static com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility.ANY;
+import static junit.framework.Assert.assertEquals;
+
+public class TestJackson 
+{
+    private static String TEST_INSTANCE_SERIALIZED = "{\"mapProperty\":[\"java.util.HashMap\",{\"Compound|Key\":\"Value\"}]}";
+
+    @Test
+    public void testFails() throws JsonParseException, JsonMappingException, IOException
+    {
+        ObjectMapper mapper = new ObjectMapper().enableDefaultTyping(DefaultTyping.NON_FINAL);
+        TestClass testInstance = mapper.readValue(TEST_INSTANCE_SERIALIZED, TestClass.class);
+        String testInstanceSerialized = mapper.writeValueAsString(testInstance);
+        assertEquals(TEST_INSTANCE_SERIALIZED, testInstanceSerialized);
+    }
+
+    @Test
+    public void testSucceeds() throws JsonParseException, JsonMappingException, IOException
+    {
+        ObjectMapper mapper = new ObjectMapper().enableDefaultTyping(DefaultTyping.NON_FINAL).registerModule(new SimpleModule() {
+            private static final long serialVersionUID = 1L;
+            @Override
+            public void setupModule(SetupContext context) {
+                context.addKeyDeserializers(new SimpleKeyDeserializers().addDeserializer(CompoundKey.class, new CompoundKeyDeserializer()));
+            }
+        });
+        TestClass testInstance = mapper.readValue(TEST_INSTANCE_SERIALIZED, TestClass.class);
+        String testInstanceSerialized = mapper.writeValueAsString(testInstance);
+        assertEquals(TEST_INSTANCE_SERIALIZED, testInstanceSerialized);
+    }
+
+    @JsonAutoDetect(fieldVisibility = ANY)
+    public static final class TestClass {
+        @JsonProperty("mapProperty")
+        @JsonSerialize(keyUsing = CompoundKeySerializer.class)
+        private final Map&lt;CompoundKey, String&gt; mapProperty;
+
+        @JsonCreator
+        private TestClass(@JsonDeserialize(keyUsing = CompoundKeyDeserializer.class) @JsonProperty("mapProperty") Map&lt;CompoundKey, String&gt; mapProperty) {
+            this.mapProperty = mapProperty;
+        }
+    }
+
+    public static final class CompoundKey {
+        private String part0;
+        private String part1;
+
+        public CompoundKey(String part0, String part1) {
+            this.part0 = part0;
+            this.part1 = part1;
+        }
+
+        public String getPart0() { return part0; }
+        public String getPart1() { return part1; }
+    }
+
+    public static class CompoundKeyDeserializer extends KeyDeserializer {
+        @Override
+        public Object deserializeKey(String s, DeserializationContext deserializationContext) {
+            String[] parts = s.split("\\|");
+            return new CompoundKey(parts[0], parts[1]);
+        }
+    }
+
+    public static class CompoundKeySerializer extends JsonSerializer&lt;CompoundKey&gt; {
+        @Override
+        public void serialize(CompoundKey compoundKey, JsonGenerator jsonGenerator, SerializerProvider serializerProvider) throws IOException {
+            jsonGenerator.writeFieldName(compoundKey.getPart0() + '|' + compoundKey.getPart1());
+        }
+    }
+}MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file><file>source/c</file><file>source/c</file><file>source/c</file></fixedFiles></bug></bugRepository>

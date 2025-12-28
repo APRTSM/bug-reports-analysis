@@ -1,0 +1,217 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="13" opendate="2012-02-11 12:36:48" fixdate="2012-02-29 14:39:49" resolution="fixed"><buginformation><summary>[LANG-788] SerializationUtils throws ClassNotFoundException when cloning primitive classes - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Closed 
+
+
+
+
+
+Priority:
+
+
+  Major                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+
+3.1 
+
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+3.2 
+
+
+
+
+
+
+Component/s:
+
+
+                                        None
+                    
+
+
+
+
+
+Labels:
+
+
+None
+
+
+ 
+Description
+
+If a serializable object contains a reference to a primitive class, e.g. int.class or int[].class, the SerializationUtils throw a ClassNotFoundException when trying to clone that object.
+
+import org.apache.commons.lang3.SerializationUtils;
+import org.junit.Test;
+
+
+public class SerializationUtilsTest {
+
+	
+	@Test
+	public void primitiveTypeClassSerialization(){
+		Class&lt;?&gt; primitiveType = int.class;
+		
+		Class&lt;?&gt; clone = SerializationUtils.clone(primitiveType);
+		assertEquals(primitiveType, clone);
+	}
+}
+
+
+The problem was already reported as a java bug http://bugs.sun.com/view_bug.do?bug_id=4171142 and ObjectInputStream is fixed since java version 1.4.
+The SerializationUtils problem arises because the SerializationUtils internally use the ClassLoaderAwareObjectInputStream that overrides the ObjectInputStream's
+resoleClass method without delegating to the super method in case of a ClassNotFoundException.
+I understand the intention of the ClassLoaderAwareObjectInputStream, but this implementation should also implement a fallback to the original implementation.
+For example:
+
+        protected Class&lt;?&gt; resolveClass(ObjectStreamClass desc) throws IOException, ClassNotFoundException {
+            String name = desc.getName();
+            try {
+                return Class.forName(name, false, classLoader);
+            } catch (ClassNotFoundException ex) {
+            	try {
+            	     return Class.forName(name, false, Thread.currentThread().getContextClassLoader());
+            	} catch (Exception e) {
+		     return super.resolveClass(desc);
+		}
+            }
+        }
+
+
+Here is the code in ObjectInputStream that fixed the java bug.
+
+    protected Class&lt;?&gt; resolveClass(ObjectStreamClass desc)
+	throws IOException, ClassNotFoundException
+    {
+	String name = desc.getName();
+	try {
+	    return Class.forName(name, false, latestUserDefinedLoader());
+	} catch (ClassNotFoundException ex) {
+	    Class cl = (Class) primClasses.get(name);
+	    if (cl != null) {
+		return cl;
+	    } else {
+		throw ex;
+	    }
+	}
+    }
+
+
+
+
+AttachmentsAttachmentsOptionsSort By NameSort By DateAscendingDescendingLANG-78829/Feb/12 00:293 kBMarcos Vinícius da SilvaActivity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+
+            Gary D. Gregory
+        
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            René Link
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+1
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+11/Feb/12 12:36 
+
+
+
+
+                                    Updated:
+                            
+
+
+22/Aug/12 09:25 
+
+
+
+
+                                    Resolved:
+                            
+
+
+29/Feb/12 14:39</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>

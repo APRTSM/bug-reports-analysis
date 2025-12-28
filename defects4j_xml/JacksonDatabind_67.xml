@@ -1,0 +1,62 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="67" opendate="2016-11-08 00:00:00" fixdate="2016-11-08 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>Map key deserializerModifiers ignored #1445New issueCopy linkNew issueCopy linkClosedClosedMap key deserializerModifiers ignored#1445Copy linkDescriptionalfonsobonsoopened on Nov 8, 2016Issue body actionsWe have a module that extends simple model to allow us to accept enum names in lower case in a fairly generic manner
+Inside that we add the modifyKeyDeserializer
+The incoming class (using immutables) is mapped to a guava immutable map.
+Walking through the code:
+
+com.fasterxml.jackson.datatype.guava.deser.ImmutableMapDeserializer.createContextual
+calls DeserializationContext.findKeyDeserializer
+calls DeserializerCache.findKeyDeserializer
+calls BasicDeserializerFactory.createKeyDeserializer
+
+which has the code:
+        // the only non-standard thing is this:
+        if (deser == null) {
+            if (type.isEnumType()) {
+                return _createEnumKeyDeserializer(ctxt, type);
+            }
+            deser = StdKeyDeserializers.findStringBasedKeyDeserializer(config, type);
+        }
+Since we are an enum type, it returns the value in the _createEnumKeyDeserializer, which is the standard enum deserializer.
+Below that block is the check for the hasDeserializerModifiers, but since we have returned already, it is never called, so we can't override the behaviour.
+Module fragment:
+    setDeserializerModifier(new BeanDeserializerModifier() {
+                @Override
+                @SuppressWarnings("unchecked")
+                public JsonDeserializer&lt;Enum&gt; modifyEnumDeserializer(
+                        DeserializationConfig config,
+                        final JavaType type,
+                        BeanDescription beanDesc,
+                        final JsonDeserializer&lt;?&gt; deserializer) {
+                    return new JsonDeserializer&lt;Enum&gt;() {
+                        @Override
+                        public Enum deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException {
+                            Class&lt;? extends Enum&gt; rawClass = (Class&lt;Enum&lt;?&gt;&gt;) type.getRawClass();
+                            return Enum.valueOf(rawClass, jp.getValueAsString().toUpperCase());
+                        }
+                    };
+                }
+
+                @Override
+                public KeyDeserializer modifyKeyDeserializer(
+                        DeserializationConfig config,
+                        JavaType type,
+                        KeyDeserializer deserializer) {
+                    if (!type.isEnumType()) {
+                        return super.modifyKeyDeserializer(config, type, deserializer);
+                    }
+                    return new KeyDeserializer() {
+                        @Override
+                        @SuppressWarnings("unchecked")
+                        public Object deserializeKey(String key, DeserializationContext ctxt)
+                                throws IOException, JsonProcessingException {
+                            Class&lt;? extends Enum&gt; rawClass = (Class&lt;Enum&lt;?&gt;&gt;) type.getRawClass();
+                            return Enum.valueOf(rawClass, key.toUpperCase());
+                        }
+                    };
+                }
+            });
+I appreciate the code around here is fairly complex.
+Related issues (possibly):
+#749
+#1313MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneNo milestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file></fixedFiles></bug></bugRepository>

@@ -1,0 +1,96 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="15" opendate="2015-03-24 00:00:00" fixdate="2015-03-24 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>XmlAdapter result marshaling error in case of ValueType=Object  #731New issueCopy linkNew issueCopy linkClosedClosedXmlAdapter result marshaling error in case of ValueType=Object #731Copy linkMilestone2.5.3DescriptionSpikhalskiyopened on Mar 24, 2015Issue body actionsHi,
+I have an error "com.fasterxml.jackson.databind.JsonMappingException: No serializer found for class java.lang.String and no properties discovered to create BeanSerializer" in case of using custom XmlAdapter with such declaration:
+public static class IntegerListXmlAdapter extends XmlAdapter&lt;Object, List&lt;Integer&gt;&gt; {
+        ...
+        @Override
+        public Object marshal(List&lt;Integer&gt; list) throws Exception {
+            return Joiner.on(",").join(list);
+        }
+}
+If change declaration of this class to "extends XmlAdapter&lt;String, List&gt;" it works good.
+Full example:
+public class IntegerListXmlAdapterTest {
+    @Test
+    public void testBasic() throws JsonProcessingException {
+        ObjectMapper mapper = (new ObjectMapper()).setAnnotationIntrospector(new JaxbAnnotationIntrospector());
+        SomeIntListHolder listHolder = new SomeIntListHolder();
+        listHolder.setListOne(asList(1, 2, 3));
+        System.out.println(mapper.writeValueAsString(listHolder));
+    }
+
+    public static class IntegerListXmlAdapter extends XmlAdapter&lt;Object, List&lt;Integer&gt;&gt; {
+        @Override
+        public List&lt;Integer&gt; unmarshal(Object value) throws Exception {return null;}
+
+        @Override
+        public Object marshal(List&lt;Integer&gt; list) throws Exception {
+            return Joiner.on(",").join(list);
+        }
+    }
+
+    public static class IntegerListToStringXmlAdapter extends XmlAdapter&lt;String, List&lt;Integer&gt;&gt; {
+        public List&lt;Integer&gt; unmarshal(String value) throws Exception {return null;}
+
+        public String marshal(List&lt;Integer&gt; list) throws Exception {
+            return Joiner.on(",").join(list);
+        }
+    }
+
+    @XmlRootElement
+    @XmlAccessorType(XmlAccessType.NONE)
+    public static class SomeIntListHolder {
+
+        @XmlAttribute
+        @XmlJavaTypeAdapter(IntegerListXmlAdapter.class)
+        private List&lt;Integer&gt; listOne;
+
+        public List&lt;Integer&gt; getListOne() {
+            return listOne;
+        }
+
+        public void setListOne(List&lt;Integer&gt; listOne) {
+            this.listOne = listOne;
+        }
+    }
+}
+In this state with last Jackson version we will get an error
+com.fasterxml.jackson.databind.JsonMappingException: No serializer found for class java.lang.String and no properties discovered to create BeanSerializer (to avoid exception, disable SerializationFeature.FAIL_ON_EMPTY_BEANS) ) (through reference chain: SomeIntListHolder["listOne"])
+    at com.fasterxml.jackson.databind.ser.impl.UnknownSerializer.failForEmpty(UnknownSerializer.java:59)
+    at com.fasterxml.jackson.databind.ser.impl.UnknownSerializer.serialize(UnknownSerializer.java:26)
+    at com.fasterxml.jackson.databind.ser.std.StdDelegatingSerializer.serialize(StdDelegatingSerializer.java:157)
+    at com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:575)
+    at com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:663)
+    at com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:156)
+    at com.fasterxml.jackson.databind.ser.DefaultSerializerProvider.serializeValue(DefaultSerializerProvider.java:129)
+    at com.fasterxml.jackson.databind.ObjectMapper._configAndWriteValue(ObjectMapper.java:3385)
+    at com.fasterxml.jackson.databind.ObjectMapper.writeValueAsString(ObjectMapper.java:2779)
+
+But if we change XmlJavaTypeAdapter to IntegerListToStringXmlAdapter error will be fixed and code will work fine.
+This error exists only in Jackson 2, we have this code with Object generic on Jackson 1 and get an issue only during migration to new major version.
+This concrete error can be fixed by hack in com.fasterxml.jackson.databind.ser.std.StdDelegatingSerializer:
+    @Override
+    public void serialize(Object value, JsonGenerator gen, SerializerProvider provider) throws IOException
+    {
+        Object delegateValue = convertValue(value);
+        // should we accept nulls?
+        if (delegateValue == null) {
+            provider.defaultSerializeNull(gen);
+            return;
+        }
+
+        //original code:
+        //_delegateSerializer.serialize(delegateValue, gen, provider);
+
+        JsonSerializer&lt;Object&gt; delegateSerializer;
+        if (_delegateSerializer instanceof UnknownSerializer) {
+            delegateSerializer =  provider.findValueSerializer(delegateValue.getClass());
+        } else {
+            delegateSerializer = _delegateSerializer;
+        }
+
+        delegateSerializer.serialize(delegateValue, gen, provider);
+    }
+You can find test class here: https://github.com/Spikhalskiy/jackson_xmladapter__bug/blob/master/src/test/java/IntegerListXmlAdapterTest.java
+and hacked serializer code here: https://github.com/Spikhalskiy/jackson_xmladapter__bug/blob/master/src/main/java/com/fasterxml/jackson/databind/ser/std/StdDelegatingSerializer.java
+Now test passing in this repo because of fake StdDelegatingSerializer in classpath - try to delete it to get an issue.MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file><file>source/c</file><file>source/c</file><file>source/c</file><file>source/c</file></fixedFiles></bug></bugRepository>

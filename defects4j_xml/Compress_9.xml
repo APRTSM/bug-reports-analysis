@@ -1,0 +1,248 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="9" opendate="2011-10-21 13:23:08" fixdate="2011-10-23 12:13:53" resolution="fixed"><buginformation><summary>[COMPRESS-160] TarArchiveOutputStream.getBytesWritten() returns invalid value - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Resolved 
+
+
+
+
+
+Priority:
+
+
+  Major                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+
+1.2 
+
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+1.3 
+
+
+
+
+
+
+Component/s:
+
+
+
+Archivers 
+
+
+
+
+
+
+Labels:
+
+
+None
+
+
+ 
+
+
+Environment:
+
+
+java.runtime.name=Java(TM) SE Runtime Environment
+java.runtime.version=1.6.0_27-b07
+os.arch=x86
+os.name=Windows 7
+os.version=6.1
+This issue may be unrelated to environment
+
+
+ 
+Description
+
+It appears the TarArchiveOutputStream.getBytesWritten()returns zero or invalid value when queried.
+In the code sample below, it returns zero, even after an sizeable file was processed.
+I've printed it twice, once before closing the output stream, and once after, just for the reference.
+It is also demonstrable on multiple processed files.
+Within the TarArchiveOutputStream.getBytesWritten() implementation, it appears the call for count(numToWrite) is made after the numToWrite is depleted in the process of actual byte writing. When call for count(numToWrite); is moved up, the returned values for TarArchiveOutputStream.getBytesWritten() are getting equal to the sum of the sizes of processed files. This is much closer to expected value ("Returns the current number of bytes written to this stream.") but still not correct, for that number should include the tar header sizes as well.
+At any rate, please find the proposed patch below, merely moving count(numToWrite); up a few lines. This makes TarArchiveOutputStream.getBytesWritten() closer to true value.
+Test code:
+
+@Test
+	public void tartest() throws Exception {
+		
+		FileOutputStream myOutputStream = new FileOutputStream("C:/temp/tartest.tar");
+		
+		ArchiveOutputStream sTarOut = new ArchiveStreamFactory().createArchiveOutputStream(ArchiveStreamFactory.TAR, myOutputStream);
+		
+		File sSource = new File("C:/share/od_l.txt");
+		TarArchiveEntry sEntry = new TarArchiveEntry(sSource);
+		sTarOut.putArchiveEntry(sEntry);
+		
+		FileInputStream sInput = new FileInputStream(sSource);
+		byte[] cpRead = new byte[8192];
+		
+		int iRead = 0;
+		while ((iRead = sInput.read(cpRead)) &gt; 0) {
+			sTarOut.write(cpRead, 0, iRead);
+		}
+		
+		sLog.info("Processed: "+sTarOut.getBytesWritten()+" bytes. File Len: "+sSource.length());
+		
+		sInput.close();
+		sTarOut.closeArchiveEntry();
+		sTarOut.close();
+
+		sLog.info("Processed: "+sTarOut.getBytesWritten()+" bytes. File Len: "+sSource.length());
+
+		
+		return;
+			
+	}
+
+
+Test Output:
+
+Oct 21, 2011 9:09:28 AM com.cronsult.jndmpd.test.Backup tartest
+INFO: Processed: 0 bytes. File Len: 186974208
+Oct 21, 2011 9:09:28 AM com.cronsult.jndmpd.test.Backup tartest
+INFO: Processed: 0 bytes. File Len: 186974208
+
+
+Proposed Patch:
+
+Index: src/main/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java
+===================================================================
+--- src/main/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java	(revision 1187150)
++++ src/main/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java	(working copy)
+@@ -276,6 +276,8 @@
+             // eliminate some of the buffer copying.
+             //
+         }
++        
++        count(numToWrite);
+ 
+         if (assemLen &gt; 0) {
+             if ((assemLen + numToWrite) &gt;= recordBuf.length) {
+@@ -325,7 +327,7 @@
+             wOffset += num;
+         }
+         
+-        count(numToWrite);
++        
+     }
+ 
+     /**
+
+
+
+
+
+AttachmentsActivity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+    Unassigned
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            Robert Simac
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+0
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+21/Oct/11 13:23 
+
+
+
+
+                                    Updated:
+                            
+
+
+23/Oct/11 12:13 
+
+
+
+
+                                    Resolved:
+                            
+
+
+23/Oct/11 12:13</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>

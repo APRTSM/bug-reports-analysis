@@ -1,0 +1,222 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="18" opendate="2012-07-24 22:04:01" fixdate="2015-01-27 15:06:21" resolution="fixed"><buginformation><summary>[COLLECTIONS-426] performance problem in ListOrderedSet.retainAll() - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Closed 
+
+
+
+
+
+Priority:
+
+
+  Major                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+
+3.2.1 
+
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+4.0-alpha1,                                            4.0,                                            4.1 
+
+
+
+
+
+
+Component/s:
+
+
+                                        None
+                    
+
+
+
+
+
+Labels:
+
+
+None
+
+
+ 
+
+
+Environment:
+
+
+java 1.6.0_24
+Ubuntu 11.10
+
+
+ 
+Description
+
+Hi,
+I am encountering a performance problem in ListOrderedSet.retainAll().
+It appears in version 3.2.1 and also in revision 1365132.  I attached
+a test that exposes this problem and a patch that fixes it.  On my
+machine, for this test, the patch provides a 263X speedup.
+To run the test, just do:
+$ java Test
+The output for the un-patched version is:
+Time is 3682
+The output for the patched version is:
+Time is 14
+The problem is that the code for method
+"ListOrderedSet.retainAll(Collection&lt;?&gt; coll)" is:
+
+public boolean retainAll(Collection&lt;?&gt; coll) {
+    boolean result = collection.retainAll(coll);
+....
+}
+
+
+because "collection.retainAll(coll)" has quadratic complexity if
+parameter "coll" is a List.  Conceptually, the solution is to call
+"coll.retainAll(collection)" which has linear complexity (not
+quadratic), because "collection" is always a HashSet (we know this,
+because "collection" is an inherited field of ListOrderedSet, and thus
+cannot have another type).  See the
+"java.util.AbstractCollection.retainAll()" code inlined below for why
+one call has quadratic complexity, and the other has linear
+complexity.
+Directly calling "coll.retainAll(collection)" would change the
+behavior of ListOrderedSet.retainAll(), which is why the patch seems a
+bit involved.  In reality, the patch simulates the behavior of
+"coll.retainAll(collection)" (which is just the intersection of two
+collections).  You can easily see this by looking at the patch and at
+the "java.util.AbstractCollection.retainAll()" code inlined below.
+"collection.retainAll(coll)" is "java.util.HashSet.retainAll()", which
+is "java.util.AbstractCollection.retainAll()", which has the code:
+
+public boolean retainAll(Collection&lt;?&gt; c) {
+    boolean modified = false;
+    Iterator&lt;E&gt; e = iterator();
+    while (e.hasNext()) {
+        if (!c.contains(e.next())) {
+            e.remove();
+            modified = true;
+        }
+    }
+    return modified;
+}
+
+
+Is this a bug, or am I misunderstanding the intended behavior?  If so,
+can you please confirm if the patch is correct?
+Thanks,
+Adrian
+
+
+AttachmentsAttachmentsOptionsSort By NameSort By DateAscendingDescendingpatch.diff24/Jul/12 22:041 kBAdrian NistorTest.java24/Jul/12 22:040.6 kBAdrian NistorActivity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+    Unassigned
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            Adrian Nistor
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+1
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+24/Jul/12 22:04 
+
+
+
+
+                                    Updated:
+                            
+
+
+27/Nov/15 21:11 
+
+
+
+
+                                    Resolved:
+                            
+
+
+27/Jan/15 15:06</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>

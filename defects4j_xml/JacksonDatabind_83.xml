@@ -1,0 +1,65 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="83" opendate="2017-05-18 00:00:00" fixdate="2017-05-18 00:00:00" resolution="fixed"><buginformation><summary>Issue Report</summary><description>FromStringDeserializer ignores registered DeserializationProblemHandler for java.util.UUID #1629New issueCopy linkNew issueCopy linkClosedClosedFromStringDeserializer ignores registered DeserializationProblemHandler for java.util.UUID#1629Copy linkMilestone2.8.9Descriptionapjosephopened on May 18, 2017Issue body actionsCulprit appears to be lines 155-161 of FromStringDeserializer:
+            // 05-May-2016, tatu: Unlike most usage, this seems legit, so...
+            JsonMappingException e = ctxt.weirdStringException(text, _valueClass, msg);
+            if (cause != null) {
+                e.initCause(cause);
+            }
+            throw e;
+            // nothing to do here, yet? We'll fail anyway
+
+The above lines appear to show that the exception will be thrown regardless of any problem handling logic.
+Test Case:
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.deser.DeserializationProblemHandler;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.util.UUID;
+
+public class UUIDDeserializerTest {
+
+
+  @Test
+  public void itUsesDeserializationProblemHandlerProperly() throws IOException {
+    ObjectMapper mapper = new ObjectMapper().addHandler(new DeserializationProblemHandler() {
+      @Override
+      public Object handleWeirdStringValue(final DeserializationContext ctxt, final Class&lt;?&gt; targetType, final String valueToConvert, final String failureMsg) throws IOException {
+        return null;
+      }
+    });
+
+    mapper.readValue("{\"id\" : \"I am not a UUID\"}", IdBean.class);
+
+
+
+  }
+
+  public static class IdBean {
+    private UUID id;
+
+    public UUID getId() {
+      return id;
+    }
+
+    public void setId(final UUID id) {
+      this.id = id;
+    }
+  }
+}
+
+The handler handles the issue properly; but an exception is thrown anyway:
+an not deserialize value of type java.util.UUID from String "I am not a UUID": not a valid textual representation
+ at [Source: (String)"{"id" : "I am not a UUID"}"; line: 1, column: 9] (through reference chain: com.company.test.UUIDDeserializerTest$IdBean["id"])
+com.fasterxml.jackson.databind.exc.InvalidFormatException: Can not deserialize value of type java.util.UUID from String "I am not a UUID": not a valid textual representation
+ at [Source: (String)"{"id" : "I am not a UUID"}"; line: 1, column: 9] (through reference chain: com.company.test.UUIDDeserializerTest$IdBean["id"])
+	at com.fasterxml.jackson.databind.exc.InvalidFormatException.from(InvalidFormatException.java:67)
+	at com.fasterxml.jackson.databind.DeserializationContext.weirdStringException(DeserializationContext.java:1504)
+	at com.fasterxml.jackson.databind.deser.std.FromStringDeserializer.deserialize(FromStringDeserializer.java:156)
+	at com.fasterxml.jackson.databind.deser.impl.MethodProperty.deserializeAndSet(MethodProperty.java:127)
+	at com.fasterxml.jackson.databind.deser.BeanDeserializer.vanillaDeserialize(BeanDeserializer.java:287)
+	at com.fasterxml.jackson.databind.deser.BeanDeserializer.deserialize(BeanDeserializer.java:151)
+	at com.fasterxml.jackson.databind.ObjectMapper._readMapAndClose(ObjectMapper.java:3999)
+	at com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:2980)
+MetadataMetadataAssigneesNo one assignedLabelsNo labelsNo labelsTypeNo typeProjectsNo projectsMilestoneRelationshipsNone yetDevelopmentNo branches or pull requestsIssue actions</description></buginformation><fixedFiles><file>source/c</file></fixedFiles></bug></bugRepository>

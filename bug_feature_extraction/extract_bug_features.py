@@ -1,6 +1,8 @@
 import os, re, glob, json
+import xml.etree.ElementTree as ET
 import pandas as pd
 import numpy as np
+# Note: 're' is already imported above
 
 # ---- NLP libs ----
 import spacy
@@ -13,9 +15,10 @@ import nltk
 nltk.download("punkt", quiet=True)
 
 # ----------------- CONFIG -------------------
-DATA_DIR = "bug_reports/Defects4J"
+DATA_DIR = "defects4j_xml"  # Changed from "bug_reports/Defects4J" to use XML files
 OUTPUT_FILE = "bug_features_v2.csv"
 EMBED_MODEL = "all-MiniLM-L6-v2"
+USE_XML = True  # Set to True to use XML files, False to use JSON files
 
 # Minimum text length for reliable readability metrics
 MIN_TEXT_LENGTH = 100
@@ -38,16 +41,113 @@ def read_json(path):
         obj = json.loads(text)
         return [obj] if isinstance(obj, dict) else obj
 
-def parse_bug_json(path):
+def read_xml(path):
+    """Load XML bug report; return a list of dicts with bug information."""
+    try:
+        # Read file content first to handle encoding issues
+        with open(path, 'rb') as f:
+            raw_content = f.read()
+        
+        # Try to decode with UTF-8, fallback to latin-1 for special characters
+        try:
+            content = raw_content.decode('utf-8')
+        except UnicodeDecodeError:
+            content = raw_content.decode('latin-1', errors='replace')
+        
+        # Replace problematic characters that might break XML parsing
+        # Replace control characters (except newlines, tabs, carriage returns)
+        content = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F]', '', content)
+        
+        # Parse from string instead of file
+        root = ET.fromstring(content)
+        
+        bugs = []
+        # Handle both <bugRepository><bug> and direct <bug> structures
+        # If root is bugRepository, find all bugs; otherwise check if root is a bug
+        if root.tag == 'bugRepository':
+            bug_elements = root.findall('.//bug')
+        elif root.tag == 'bug':
+            bug_elements = [root]
+        else:
+            bug_elements = []
+        
+        for bug_elem in bug_elements:
+            bug_id = bug_elem.get('id', '')
+            bug_info = bug_elem.find('buginformation')
+            
+            if bug_info is not None:
+                summary_elem = bug_info.find('summary')
+                desc_elem = bug_info.find('description')
+                
+                # Extract text and handle HTML entities
+                title = ""
+                if summary_elem is not None and summary_elem.text:
+                    title = summary_elem.text.strip()
+                    # Decode HTML entities
+                    title = title.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+                
+                desc = ""
+                if desc_elem is not None and desc_elem.text:
+                    desc = desc_elem.text.strip()
+                    # Decode HTML entities
+                    desc = desc.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+                
+                # Extract bug ID from filename - always use filename format for clarity
+                # Format: "Lang_19" -> "Lang-19", "Time_4" -> "Time-4"
+                name = os.path.splitext(os.path.basename(path))[0]
+                if '_' in name:
+                    # Convert "Lang_19" to "Lang-19"
+                    project, num = name.rsplit('_', 1)
+                    bug_id = f"{project}-{num}"
+                elif bug_id:
+                    # If XML has ID but filename doesn't have underscore, use project from filename
+                    project = name
+                    bug_id = f"{project}-{bug_id}"
+                else:
+                    # Fallback to just the filename
+                    bug_id = name
+                
+                bugs.append({
+                    "id": bug_id,
+                    "title": title,
+                    "description": desc,
+                    "opendate": bug_elem.get('opendate', ''),
+                    "fixdate": bug_elem.get('fixdate', ''),
+                    "resolution": bug_elem.get('resolution', '')
+                })
+        
+        return bugs if bugs else []
+    except ET.ParseError as e:
+        print(f"Error parsing XML file {path}: {e}")
+        return []
+    except Exception as e:
+        print(f"Error reading XML file {path}: {e}")
+        return []
+
+def parse_bug_file(path):
+    """Parse bug report from either JSON or XML file."""
     rows = []
     name = os.path.splitext(os.path.basename(path))[0]
-    for obj in read_json(path):
-        title = (obj.get("title") or obj.get("summary") or "").strip()
-        desc  = (obj.get("description") or "").strip()
-        if not (title or desc):
-            continue
-        bid = str(obj.get("id") or obj.get("bug_id") or name)
-        rows.append({"id": bid, "summary": title, "description": desc})
+    
+    if USE_XML and path.endswith('.xml'):
+        bugs = read_xml(path)
+        for bug in bugs:
+            title = bug.get("title", "").strip()
+            desc = bug.get("description", "").strip()
+            if not (title or desc):
+                continue
+            bid = bug.get("id", name)
+            rows.append({"id": str(bid), "summary": title, "description": desc})
+    else:
+        # Original JSON parsing
+        for obj in read_json(path):
+            title = (obj.get("title") or obj.get("summary") or "").strip()
+            desc  = (obj.get("description") or "").strip()
+            if not (title or desc):
+                continue
+            bid = str(obj.get("id") or obj.get("bug_id") or name)
+            rows.append({"id": bid, "summary": title, "description": desc})
+    
     return rows
 
 
@@ -379,20 +479,25 @@ def compute_syntactic_features(text: str):
 
 # ----------------- MAIN ---------------------
 def main():
-    json_files = glob.glob(os.path.join(DATA_DIR, "**/*.json"), recursive=True)
-    print(f"Found {len(json_files)} JSON files under {DATA_DIR!r}")
+    # Find files based on USE_XML flag
+    if USE_XML:
+        files = glob.glob(os.path.join(DATA_DIR, "*.xml"))
+        print(f"Found {len(files)} XML files under {DATA_DIR!r}")
+    else:
+        files = glob.glob(os.path.join(DATA_DIR, "**/*.json"), recursive=True)
+        print(f"Found {len(files)} JSON files under {DATA_DIR!r}")
     
     try:
         from tqdm import tqdm
-        json_files = tqdm(json_files, desc="Processing files")
+        files = tqdm(files, desc="Processing files")
     except ImportError:
         pass
     
     rows = []
 
-    for path in json_files:
+    for path in files:
         try:
-            for bug in parse_bug_json(path):
+            for bug in parse_bug_file(path):
                 text = (bug["summary"] + " " + bug["description"]).strip()
 
                                # Syntactic features

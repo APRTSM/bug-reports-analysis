@@ -1,0 +1,200 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bugRepository><bug id="22" opendate="2012-01-18 10:52:35" fixdate="2012-01-20 18:10:22" resolution="fixed"><buginformation><summary>[JXPATH-154] Resetting the default namespace causes a serious endless loop when requesting .asPath() on a node. - ASF JIRA</summary><description>Details
+
+
+
+
+Type:
+
+
+ Bug
+        
+
+ 
+
+Status:
+
+Resolved 
+
+
+
+
+
+Priority:
+
+
+  Major                     
+
+
+
+
+Resolution:
+
+                             Fixed
+                    
+
+
+
+
+
+Affects Version/s:
+
+
+
+1.3 
+
+
+
+
+
+
+
+                Fix Version/s:
+            
+
+
+
+1.4.0 
+
+
+
+
+
+
+Labels:
+
+
+None
+
+
+ 
+
+
+Environment:
+
+
+jxpath eclipse plugin from orbit
+
+
+ 
+Description
+
+sample smaller case:
+
+&lt;...&gt;
+ &lt;b:foo xmlns:b="bla" xmlns="test111"&gt;    &lt;!--  No nodes are placed in the tree within ns "test111" but the attribute is still there.--&gt;
+  &lt;b:bar&gt;a&lt;/b:bar&gt;                         &lt;!-- is in ns 'bla' --&gt;
+  &lt;test xmlns=""&gt;&lt;/test&gt;                   &lt;!-- does not have a namespace --&gt;
+ &lt;/b:foo&gt;
+&lt;/...&gt;
+
+
+when requesting .asPath() on the 'test' node, it loops in org.apache.commons.jxpath.ri.NamespaceResolver.getPrefix(NodePointer, String), 
+and if it didn't loop it would create a wrong xpath '//b:fo/null:test' DOMNodePointer.asPath().
+So I think that the fix should be in org.apache.commons.jxpath.ri.model.dom.DOMNodePointer.asPath()
+
+....
+                    String ln = DOMNodePointer.getLocalName(node);
+                    String nsURI = getNamespaceURI();
+                    if (nsURI == null) {
+                        buffer.append(ln);
+                        buffer.append('[');
+                        buffer.append(getRelativePositionByName()).append(']');
+                    }
+                    else {
+                        String prefix = getNamespaceResolver().getPrefix(nsURI);
+                        if (prefix != null) {
+...
+
+
+should become
+
+...
+                    String ln = DOMNodePointer.getLocalName(node);
+                    String nsURI = getNamespaceURI();
+                    if (nsURI == null || nsURI.length() == 0) { // check for empty string which means that the node doesn't have a namespace.
+                        buffer.append(ln);
+                        buffer.append('[');
+                        buffer.append(getRelativePositionByName()).append(']');
+                    }
+                    else {
+                        String prefix = getNamespaceResolver().getPrefix(nsURI);
+                        if (prefix != null) {
+...
+
+
+
+
+AttachmentsActivity
+
+
+
+People
+
+
+
+Assignee:
+
+
+
+
+    Unassigned
+
+
+
+
+
+Reporter:
+
+
+
+
+
+            Hugo de Almeida Cocharro
+        
+
+
+ 
+
+
+Votes:
+
+0
+Vote for this issue
+
+
+
+Watchers:
+
+1
+Start watching this issue
+
+
+
+Dates
+
+
+
+                                    Created:
+                            
+
+
+18/Jan/12 10:52 
+
+
+
+
+                                    Updated:
+                            
+
+
+24/Jan/12 12:23 
+
+
+
+
+                                    Resolved:
+                            
+
+
+20/Jan/12 18:10</description></buginformation><fixedFiles><file>source/o</file></fixedFiles></bug></bugRepository>
