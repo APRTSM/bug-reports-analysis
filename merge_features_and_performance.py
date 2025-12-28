@@ -26,6 +26,14 @@ from sklearn.preprocessing import StandardScaler
 
 DATA_DIR = Path(".")
 
+# Configuration: Set to False to skip standardization (useful if only doing rank-based analyses)
+# Note: Standardization is NOT required for Spearman correlation, Mann-Whitney U, or Cliff's Delta
+#       (these are all rank-based and scale-invariant). However, standardization is useful for:
+#       - Visualization (heatmaps are easier to read)
+#       - Future analyses (PCA, clustering, ML models)
+#       - Consistency across the pipeline
+ENABLE_STANDARDIZATION = True  # Set to False to skip standardization
+
 FEATURES_FILE = DATA_DIR / "bug_features_v2.csv"
 RATINGS_FILE  = DATA_DIR / "gemini_ratings/gemini_bug_ratings.csv"
 CATEG_FILE    = DATA_DIR / "gemini_ratings/gemini_bug_categorization.csv"
@@ -439,6 +447,8 @@ else:
 
 # Save full dataset
 print(f"\nFull merged shape: {merged.shape}")
+# Create output directory if it doesn't exist
+OUT_FULL.parent.mkdir(parents=True, exist_ok=True)
 merged.to_csv(OUT_FULL, index=False)
 print(f"Saved full dataset: {OUT_FULL}")
 
@@ -535,14 +545,24 @@ print(f"  Total numeric columns: {len(numeric_cols)}")
 print(f"  Columns to scale: {len(cols_to_scale)}")
 print(f"  Excluded from scaling: {len(exclude_from_scaling)}")
 
-if cols_to_scale:
+if ENABLE_STANDARDIZATION and cols_to_scale:
+    print(f"\n  Standardization: ENABLED")
+    print(f"  Note: Standardization is optional for rank-based analyses (Spearman, Mann-Whitney U, Cliff's Delta)")
+    print(f"        but useful for visualization and future ML/clustering analyses.")
     scaler = StandardScaler()
     df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
     
     # Save scaler for potential future use
+    SCALER_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SCALER_FILE, "wb") as f:
         pickle.dump({'scaler': scaler, 'columns': cols_to_scale}, f)
     print(f"  Saved scaler to: {SCALER_FILE}")
+elif not ENABLE_STANDARDIZATION:
+    print(f"\n  Standardization: DISABLED (ENABLE_STANDARDIZATION = False)")
+    print(f"  Using raw feature values. This is fine for rank-based analyses.")
+    print(f"  Note: If you plan to use PCA, clustering, or ML models, consider enabling standardization.")
+else:
+    print(f"\n  Standardization: SKIPPED (no columns to scale)")
 
 # 6.8 Final cleanup: fill any remaining NaNs from derived features
 print("\n6.8 Final NaN handling...")
@@ -567,6 +587,8 @@ if remaining_nan_cols:
 
 # Save preprocessed dataset
 print(f"\nPreprocessed (rich) shape: {df.shape}")
+# Ensure output directory exists
+OUT_PREP.parent.mkdir(parents=True, exist_ok=True)
 df.to_csv(OUT_PREP, index=False)
 print(f"Saved preprocessed dataset: {OUT_PREP}")
 
@@ -589,8 +611,12 @@ print(f"  Other features: {len([c for c in df.columns if not any(c.startswith(p)
 
 print("\nFiles created:")
 print(f"  1. {OUT_FULL} - Full dataset with all original columns")
-print(f"  2. {OUT_PREP} - Preprocessed dataset ready for modeling")
-print(f"  3. {SCALER_FILE} - StandardScaler for feature scaling")
+if ENABLE_STANDARDIZATION:
+    print(f"  2. {OUT_PREP} - Preprocessed dataset with standardized features")
+    print(f"  3. {SCALER_FILE} - StandardScaler for feature scaling")
+else:
+    print(f"  2. {OUT_PREP} - Preprocessed dataset with raw (unscaled) features")
+    print(f"  3. Standardization: DISABLED (no scaler saved)")
 
 print("\n" + "=" * 60)
 print("Preprocessing complete!")

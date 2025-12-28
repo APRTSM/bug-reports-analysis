@@ -37,14 +37,24 @@ warnings.filterwarnings('ignore', category=RuntimeWarning)
 DATA_DIR = Path(".")
 
 # Input files
+# Choose which dataset to use for analysis:
+# - IN_FILE_PREPROCESSED: Has standardized features + derived features (text stats, one-hot encodings, etc.)
+# - IN_FILE_FULL: Has raw (unscaled) features only (fewer columns, but no standardization)
+# Note: For rank-based analyses (Spearman, Mann-Whitney U, Cliff's Delta), both work identically
+#       since these methods are scale-invariant. Use IN_FILE_FULL if you want raw values.
+USE_RAW_DATASET = True  # Set to True to use experimentA_full_dataset.csv instead of preprocessed
 IN_FILE_PREPROCESSED = DATA_DIR / "full_feature_preproccessed/experimentA_preprocessed_rich.csv"
+IN_FILE_FULL = DATA_DIR / "full_feature_preproccessed/experimentA_full_dataset.csv"  # For raw feature statistics
 IN_FILE_TOOL_COMPARISON = DATA_DIR / "tool_comparison_summary.csv"
 
+# Select the input file based on configuration
+IN_FILE = IN_FILE_FULL if USE_RAW_DATASET else IN_FILE_PREPROCESSED
+
 # Output directories
-OUT_DIR_CORR = DATA_DIR / "experimentA_gap_corr_results_corrected"
-OUT_DIR_SUCCESS = DATA_DIR / "experimentA_success_failure_corrected"
-OUT_DIR_OUTLIER = DATA_DIR / "experimentA_outlier_analysis"  # NEW
-OUT_DIR_CLUSTERED = DATA_DIR / "clustered_heatmaps_gap_corrected"
+OUT_DIR_CORR = DATA_DIR / "experimentA_gap_corr_results_unprocessed"
+OUT_DIR_SUCCESS = DATA_DIR / "experimentA_success_failure_unprocessed"
+OUT_DIR_OUTLIER = DATA_DIR / "experimentA_outlier_analysis_unprocessed"  # NEW
+OUT_DIR_CLUSTERED = DATA_DIR / "clustered_heatmaps_gap_unprocessed"
 OUT_DIR_VENN = DATA_DIR / "tool_intersections"
 OUT_DIR_DIAGNOSTICS = DATA_DIR / "analysis_diagnostics"
 
@@ -111,12 +121,16 @@ def safe_name(s: str) -> str:
 def get_tools(df, prefix):
     """Extract tool names from columns with given prefix."""
     cols = [c for c in df.columns if c.startswith(prefix + "_")]
+    # Filter out missingness indicators (columns ending with __is_missing or _is_missing)
+    cols = [c for c in cols if not (c.endswith("__is_missing") or c.endswith("_is_missing"))]
     tools = sorted({c.split("_", 1)[1] for c in cols})
     return tools
 
 def tools_for_prefix(df, prefix: str):
     """Get tools and columns for a given prefix."""
     cols = [c for c in df.columns if c.startswith(prefix + "_")]
+    # Filter out missingness indicators (columns ending with __is_missing or _is_missing)
+    cols = [c for c in cols if not (c.endswith("__is_missing") or c.endswith("_is_missing"))]
     tools = sorted({c.split("_", 1)[1] for c in cols})
     return tools, cols
 
@@ -299,26 +313,45 @@ def check_project_effects(df, perf_cols, out_dir):
                 ratio = between_var / (between_var + within_var) if (between_var + within_var) > 0 else 0
                 print(f"{col}: Between-project variance ratio = {ratio:.3f}")
 
-def generate_feature_summary_table(df, feature_cols, out_dir):
+def generate_feature_summary_table(df, feature_cols, out_dir, use_raw_values=True):
     """
     Generate a summary table with min, max, mean, and median for each feature.
     
     Args:
-        df: DataFrame with features
+        df: DataFrame with features (may be preprocessed/scaled)
         feature_cols: List of feature column names
         out_dir: Output directory for saving the table
+        use_raw_values: If True, load raw values from full dataset instead of scaled values
     """
     print("\n" + "=" * 60)
     print("GENERATING FEATURE SUMMARY TABLE")
     print("=" * 60)
     
+    # If use_raw_values is True, load the full dataset for raw feature values
+    if use_raw_values and IN_FILE_FULL.exists():
+        print(f"Loading raw feature values from: {IN_FILE_FULL}")
+        df_raw = pd.read_csv(IN_FILE_FULL)
+        print(f"  Loaded {df_raw.shape} rows")
+        # Use raw dataset for statistics, but keep same feature column names
+        df_for_stats = df_raw
+    else:
+        df_for_stats = df
+    
     summary_records = []
     
     for feat in feature_cols:
-        if feat not in df.columns:
-            continue
+        # Check if feature exists in the dataset we're using for statistics
+        if feat not in df_for_stats.columns:
+            # Try to find it in the original df (for missingness info)
+            if feat not in df.columns:
+                continue
+            # Feature exists in df but not in df_for_stats - use df for stats
+            values = df[feat].dropna()
+        else:
+            values = df_for_stats[feat].dropna()
         
-        values = df[feat].dropna()
+        # For missingness, use the original df
+        n_missing = df[feat].isna().sum() if feat in df.columns else len(df_for_stats) - len(values)
         
         if len(values) == 0:
             summary_records.append({
@@ -339,13 +372,13 @@ def generate_feature_summary_table(df, feature_cols, out_dir):
         max_val = float(values.max())
         
         # Determine scale description
-        if min_val == 0.0 and max_val == 1.0:
-            scale = "0-1"
+        if min_val == 0.0 and max_val == 1.0 and len(values.unique()) <= 2:
+            scale = "0-1 (binary)"
         elif min_val == 0.0 and max_val == 0.0:
-            scale = "constant (0)"
-        elif min_val >= 0.0 and max_val <= 1.0:
-            scale = f"{min_val:.3f}-{max_val:.3f}"
-        elif min_val.is_integer() and max_val.is_integer() and min_val >= 0:
+            scale = f"constant ({min_val:.3g})"
+        elif min_val >= 0.0 and max_val <= 1.0 and len(values.unique()) <= 2:
+            scale = "0-1 (binary)"
+        elif isinstance(min_val, (int, np.integer)) and isinstance(max_val, (int, np.integer)) and min_val >= 0:
             # Integer count/scale
             if max_val <= 10:
                 scale = f"0-{int(max_val)} (integer)"
@@ -356,7 +389,13 @@ def generate_feature_summary_table(df, feature_cols, out_dir):
             if abs(min_val) < 0.001 and abs(max_val) < 0.001:
                 scale = f"{min_val:.3e}-{max_val:.3e}"
             else:
-                scale = f"{min_val:.3f}-{max_val:.3f}"
+                # Format based on magnitude
+                if max_val < 1.0:
+                    scale = f"{min_val:.3f}-{max_val:.3f}"
+                elif max_val < 1000:
+                    scale = f"{min_val:.1f}-{max_val:.1f}"
+                else:
+                    scale = f"{min_val:.0f}-{max_val:.0f}"
         
         summary_records.append({
             'feature': feat,
@@ -367,8 +406,8 @@ def generate_feature_summary_table(df, feature_cols, out_dir):
             'std': float(values.std()),
             'scale': scale,
             'n_valid': int(len(values)),
-            'n_missing': int(df[feat].isna().sum()),
-            'missing_pct': float(df[feat].isna().sum() / len(df) * 100)
+            'n_missing': int(n_missing),
+            'missing_pct': float(n_missing / len(df) * 100)
         })
     
     summary_df = pd.DataFrame(summary_records)
@@ -1119,7 +1158,7 @@ def run_correlation_analysis():
 
     OUT_DIR_CORR.mkdir(exist_ok=True, parents=True)
 
-    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE_PREPROCESSED)
+    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE)
     tools = get_tools(df, BASE_PREFIX)
     
     # Run for each threshold: top@1, top@5, top@10, and all data
@@ -1456,14 +1495,9 @@ def run_success_failure_analysis_for_threshold(df, feature_cols, tools, threshol
         
         # For threshold analysis, adjust rank thresholds to be relative to the threshold
         # Success = rank <= threshold (i.e., rank <= 1 for top@1, rank <= 5 for top@5, etc.)
-        # Failure = rank > threshold (but still found, so rank <= some higher value)
+        # Failure = rank > threshold (but still found, so rank is not NaN)
         rank_high = threshold  # Success: rank <= threshold
-        rank_low = threshold + 1  # Failure: rank > threshold (but we need to define what "failure" means)
-        # Actually, for threshold analysis, we might want:
-        # Success: rank <= threshold
-        # Failure: rank > threshold (but still found, so rank is not NaN)
-        # Or we could use: rank > threshold but rank <= threshold*2 (e.g., for top@1, failure = rank 2-2, for top@5, failure = rank 6-10)
-        rank_low = min(threshold * 2, 20)  # Failure: rank > threshold but <= threshold*2 (capped at 20)
+        rank_low = threshold + 1  # Failure: rank > threshold (i.e., rank >= threshold + 1)
     else:
         df_filtered = df.copy()
         rank_high = RANK_THRESHOLD_HIGH
@@ -1521,11 +1555,16 @@ def run_success_failure_analysis_for_threshold(df, feature_cols, tools, threshol
         print(f"\n=== {tool} | label={label_name} ===")
         print(f"Pos: {n_pos}, Neg: {n_neg}, Excluded: {n_excluded}")
 
-        # Special handling for tools with no negative cases (excellent performance)
+        # Special handling for tools with insufficient negative cases
+        # Use other tools' negative cases as comparison group if needed
         use_other_tools_negative = False
-        if n_neg == 0 and n_pos >= MIN_GROUP_N:
-            print(f"Note: {tool} has no negative cases (all detections rank <= {rank_high})")
-            print(f"  This indicates excellent performance.")
+        if n_neg < MIN_GROUP_N and n_pos >= MIN_GROUP_N:
+            if n_neg == 0:
+                print(f"Note: {tool} has no negative cases (all detections rank <= {rank_high})")
+                print(f"  This indicates excellent performance.")
+            else:
+                print(f"Note: {tool} has only {n_neg} negative cases (need {MIN_GROUP_N} for valid comparison)")
+            
             # Use other tools' negative cases as comparison group
             other_tools = [t for t in tools if t != tool]
             other_negative_mask = np.zeros(len(df_filtered), dtype=bool)
@@ -1535,7 +1574,41 @@ def run_success_failure_analysis_for_threshold(df, feature_cols, tools, threshol
                     other_negative_mask |= (~np.isnan(other_label)) & (other_label == 0)
             
             n_other_neg = int(other_negative_mask.sum())
-            if n_other_neg >= MIN_GROUP_N:
+            
+            # If other tools' negatives are insufficient, try using ALL tools' combined negatives
+            if n_other_neg < MIN_GROUP_N:
+                # Get combined negatives from ALL tools (including current tool)
+                all_negative_mask = np.zeros(len(df_filtered), dtype=bool)
+                for all_tool in tools:
+                    all_label = labels.get(all_tool)
+                    if all_label is not None:
+                        all_negative_mask |= (~np.isnan(all_label)) & (all_label == 0)
+                
+                n_all_neg = int(all_negative_mask.sum())
+                if n_all_neg >= MIN_GROUP_N:
+                    print(f"  Other tools' negatives insufficient ({n_other_neg} < {MIN_GROUP_N})")
+                    print(f"  Using ALL tools' combined negative cases ({n_all_neg} cases) as comparison group")
+                    use_other_tools_negative = True
+                    # Create combined dataset: tool positives + all tools' negatives
+                    combined_mask = valid_mask | all_negative_mask
+                    df_valid = df_filtered[combined_mask].copy()
+                    
+                    # Create combined labels: tool positives = 1, all tools' negatives = 0
+                    label_valid = np.full(len(df_valid), np.nan)
+                    # Set tool positives (from original valid_mask)
+                    tool_pos_in_combined = valid_mask[combined_mask]
+                    label_valid[tool_pos_in_combined] = 1
+                    # Set all tools' negatives
+                    all_neg_in_combined = all_negative_mask[combined_mask]
+                    label_valid[all_neg_in_combined] = 0
+                    
+                    df_valid[label_name] = label_valid.astype(int)
+                    n_neg = int((label_valid == 0).sum())
+                    print(f"  Updated: Pos: {n_pos}, Neg: {n_neg} (using all tools' combined failures)")
+                else:
+                    print(f"  Skipping {tool}: insufficient comparison cases (other tools: {n_other_neg}, all tools: {n_all_neg}, min={MIN_GROUP_N})")
+                    continue
+            else:
                 print(f"  Using other tools' negative cases ({n_other_neg} cases) as comparison group")
                 use_other_tools_negative = True
                 # Create combined dataset: tool positives + other tools' negatives
@@ -1554,9 +1627,6 @@ def run_success_failure_analysis_for_threshold(df, feature_cols, tools, threshol
                 df_valid[label_name] = label_valid.astype(int)
                 n_neg = int((label_valid == 0).sum())
                 print(f"  Updated: Pos: {n_pos}, Neg: {n_neg} (using other tools' failures)")
-            else:
-                print(f"  Skipping {tool}: insufficient comparison cases from other tools (min={MIN_GROUP_N})")
-                continue
         elif n_pos < MIN_GROUP_N or n_neg < MIN_GROUP_N:
             print(f"Skipping {tool}: insufficient group sizes (min={MIN_GROUP_N})")
             continue
@@ -1671,7 +1741,7 @@ def run_success_failure_analysis():
 
     OUT_DIR_SUCCESS.mkdir(exist_ok=True, parents=True)
 
-    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE_PREPROCESSED)
+    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE)
 
     tools = get_tools(df, BASE_PREFIX)
     print(f"Tools: {tools}")
@@ -1855,7 +1925,7 @@ def run_outlier_analysis():
     
     OUT_DIR_OUTLIER.mkdir(exist_ok=True, parents=True)
     
-    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE_PREPROCESSED)
+    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE)
     
     tools = get_tools(df, BASE_PREFIX)
     print(f"Tools: {tools}")
@@ -2332,7 +2402,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     if RUN_DIAGNOSTICS:
-        df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE_PREPROCESSED)
+        df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE)
         run_diagnostic_checks(df, feature_cols, perf_cols)
 
     if RUN_CORRELATION_ANALYSIS:
