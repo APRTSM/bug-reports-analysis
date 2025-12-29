@@ -1,11 +1,15 @@
 """
-Merge and preprocess bug report datasets.
+Enhanced Merge and Preprocess Script with LLM Feature Engineering
 
 This script:
 1. Loads multiple data sources (features, ratings, categories, performance metrics, bee_results)
 2. Merges them into a unified dataset
 3. Performs rich preprocessing including:
    - Text feature extraction
+   - LLM interaction features (NEW)
+   - Ambiguity type encoding (NEW)
+   - Exception category features (NEW - from enhanced extraction)
+   - Concept network features (NEW)
    - Category encoding
    - Concept multi-hot encoding
    - Feature standardization
@@ -21,26 +25,23 @@ import pickle
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 from sklearn.preprocessing import StandardScaler
 
 DATA_DIR = Path(".")
 
-# Configuration: Set to False to skip standardization (useful if only doing rank-based analyses)
-# Note: Standardization is NOT required for Spearman correlation, Mann-Whitney U, or Cliff's Delta
-#       (these are all rank-based and scale-invariant). However, standardization is useful for:
-#       - Visualization (heatmaps are easier to read)
-#       - Future analyses (PCA, clustering, ML models)
-#       - Consistency across the pipeline
+# Configuration
 ENABLE_STANDARDIZATION = True  # Set to False to skip standardization
 
-FEATURES_FILE = DATA_DIR / "bug_features_v2.csv"
+# Input files - UPDATED to use enhanced features
+FEATURES_FILE = DATA_DIR / "bug_features_enhanced.csv" 
 RATINGS_FILE  = DATA_DIR / "gemini_ratings/gemini_bug_ratings.csv"
 CATEG_FILE    = DATA_DIR / "gemini_ratings/gemini_bug_categorization.csv"
 FINE_GRAINED_CATEG_FILE = DATA_DIR / "gemini_ratings/fine_grained_gemini_categorization.csv"
 PERF_FILE     = DATA_DIR / "tool_comparison_summary.csv"
 BEE_RESULTS_FILE = DATA_DIR / "bee_results.jsonl"
 
+# Output files
 OUT_FULL = DATA_DIR / "full_feature_preproccessed/experimentA_full_dataset.csv"
 OUT_PREP = DATA_DIR / "full_feature_preproccessed/experimentA_preprocessed_rich.csv"
 SCALER_FILE = DATA_DIR / "feature_scaler.pkl"
@@ -66,22 +67,16 @@ def safe_str(x) -> str:
 _word_re = re.compile(r"[A-Za-z0-9_]+")
 
 def text_stats(series: pd.Series, prefix: str) -> pd.DataFrame:
-    """
-    Extract lightweight numeric features from free text with normalization.
-    Keeps signal for outlier mining without requiring embeddings.
-    """
+    """Extract lightweight numeric features from free text with normalization."""
     s = series.fillna("").astype(str)
 
-    # basic lengths
     char_len = s.str.len()
     word_counts = s.apply(lambda t: len(_word_re.findall(t)))
     line_counts = s.apply(lambda t: t.count("\n") + (1 if t else 0))
 
-    # Normalized features (avoid division by zero)
     avg_word_len = char_len / word_counts.replace(0, np.nan)
     avg_words_per_line = word_counts / line_counts.replace(0, np.nan)
 
-    # simple uncertainty / hedging markers - with normalization
     lower = s.str.lower()
     hedge_markers = [
         "maybe", "might", "likely", "possibly", "unclear", "unsure",
@@ -91,7 +86,6 @@ def text_stats(series: pd.Series, prefix: str) -> pd.DataFrame:
     hedge_count = sum(lower.str.count(re.escape(m)) for m in hedge_markers)
     hedge_density = hedge_count / word_counts.replace(0, np.nan)
 
-    # structural cues - normalized by length
     has_code_like = lower.str.contains(
         r"\b(stack trace|exception|nullpointer|assert|traceback|line \d+)\b", 
         regex=True
@@ -100,16 +94,14 @@ def text_stats(series: pd.Series, prefix: str) -> pd.DataFrame:
     exclaim_density = s.str.count(r"!") / word_counts.replace(0, np.nan)
     digit_density = s.str.count(r"\d") / char_len.replace(0, np.nan)
 
-    # diversity proxy: unique word ratio
     def uniq_ratio(t: str) -> float:
         toks = _word_re.findall(t.lower())
         if not toks:
-            return np.nan  # Properly indicate missing instead of 0.0
+            return np.nan
         return len(set(toks)) / len(toks)
 
     uniq_word_ratio = s.apply(uniq_ratio)
 
-    # Sentence complexity: average words per sentence
     def avg_sent_len(t: str) -> float:
         sentences = re.split(r'[.!?]+', t)
         sentences = [sent.strip() for sent in sentences if sent.strip()]
@@ -138,14 +130,7 @@ def text_stats(series: pd.Series, prefix: str) -> pd.DataFrame:
     })
 
 def parse_concepts_to_list(val: str) -> List[str]:
-    """
-    Parse a 'concepts' field that may be:
-    - comma separated
-    - semicolon separated
-    - JSON list
-    - free text
-    Returns a clean list of concept tokens.
-    """
+    """Parse a 'concepts' field that may be comma/semicolon/JSON list."""
     raw = safe_str(val).strip()
     if not raw:
         return []
@@ -165,48 +150,38 @@ def parse_concepts_to_list(val: str) -> List[str]:
         except Exception:
             pass
 
-    # split on common delimiters
     parts = re.split(r"[;,|\n]+", raw)
     parts = [re.sub(r"\s+", " ", p.strip().lower()) for p in parts]
     parts = [p for p in parts if p]
     return parts
 
 def multi_hot_from_concepts(df: pd.DataFrame, col: str, prefix: str, min_freq: int = 30) -> pd.DataFrame:
-    """
-    Create multi-hot concept flags, keeping only concepts that appear at least min_freq times.
-    Also keep a 'num_concepts' and 'concepts_is_missing' feature.
-    Increased min_freq to reduce sparsity and improve generalization.
-    """
+    """Create multi-hot concept flags, keeping only concepts that appear at least min_freq times."""
     concepts_lists = df[col].apply(parse_concepts_to_list) if col in df.columns else pd.Series([[]] * len(df))
 
-    # counts for vocab
     vocab_counts: Dict[str, int] = {}
     for lst in concepts_lists:
         for c in set(lst):
             vocab_counts[c] = vocab_counts.get(c, 0) + 1
 
-    vocab = sorted([c for c, cnt in vocab_counts.items() if cnt >= min_freq])
+    keep_concepts = {c for c, cnt in vocab_counts.items() if cnt >= min_freq}
     
-    print(f"Concept vocabulary: {len(vocab)} concepts (min_freq={min_freq})")
-    if len(vocab) > 0:
-        print(f"  Most common: {sorted(vocab_counts.items(), key=lambda x: -x[1])[:5]}")
-    
+    print(f"  Concept encoding: {len(keep_concepts)} concepts kept (min_freq={min_freq})")
+    if len(keep_concepts) > 0:
+        print(f"    Top concepts: {sorted(keep_concepts)[:10]}")
+
     out = pd.DataFrame(index=df.index)
     out[f"{prefix}_num_concepts"] = concepts_lists.apply(len)
-    out[f"{prefix}_is_missing"] = concepts_lists.apply(lambda x: 1 if len(x) == 0 else 0)
+    out[f"{prefix}_is_missing"] = concepts_lists.apply(lambda x: int(len(x) == 0))
 
-    # multi-hot
-    for c in vocab:
+    for c in keep_concepts:
         clean_name = re.sub(r'[^a-z0-9_]+', '_', c)[:60]
         out[f"{prefix}__{clean_name}"] = concepts_lists.apply(lambda lst: int(c in set(lst)))
 
     return out
 
 def one_hot_topk_categories(df: pd.DataFrame, col: str, prefix: str, min_freq: int = 20) -> pd.DataFrame:
-    """
-    One-hot categories but keep rare categories grouped as 'other' instead of dropping them.
-    Also keep missingness. Increased min_freq to reduce noise from rare categories.
-    """
+    """One-hot categories but keep rare categories grouped as 'other'."""
     if col not in df.columns:
         return pd.DataFrame(index=df.index)
 
@@ -234,10 +209,7 @@ def add_missingness_indicators(df: pd.DataFrame, cols: List[str]) -> pd.DataFram
     return out
 
 def load_bee_results(jsonl_path: Path) -> pd.DataFrame:
-    """
-    Load bee_results.jsonl and extract the 9 stats features.
-    Returns a DataFrame with 'id' column and the 9 bee_results features.
-    """
+    """Load bee_results.jsonl and extract the 9 stats features."""
     bee_records = []
     
     if not jsonl_path.exists():
@@ -278,13 +250,269 @@ def load_bee_results(jsonl_path: Path) -> pd.DataFrame:
     else:
         return pd.DataFrame()
 
+
+# ============================================================================
+# NEW: LLM FEATURE ENGINEERING
+# ============================================================================
+
+def create_llm_interaction_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Create interaction terms between LLM ratings.
+    These capture relationships between different quality dimensions.
+    """
+    print("\nCreating LLM interaction features...")
+    
+    out = pd.DataFrame(index=df.index)
+    
+    # Check which LLM rating columns are available
+    required_cols = ['actionability', 'clarity', 'specificity', 'technical_depth',
+                     'expected_observed_alignment', 'causal_reasoning_quality']
+    
+    available = [c for c in required_cols if c in df.columns]
+    
+    if len(available) < 3:
+        print(f"  Warning: Not enough LLM rating columns found. Skipping interaction features.")
+        return out
+    
+    print(f"  Found {len(available)} LLM rating columns")
+    
+    # Clarity-Specificity gap (clear but not specific = vague)
+    if 'clarity' in df.columns and 'specificity' in df.columns:
+        out['clarity_specificity_gap'] = df['clarity'] - df['specificity']
+        out['clarity_specificity_ratio'] = df['clarity'] / (df['specificity'] + 0.1)  # Avoid div by 0
+    
+    # Actionability-Technical depth interaction
+    if 'actionability' in df.columns and 'technical_depth' in df.columns:
+        out['actionability_depth_product'] = df['actionability'] * df['technical_depth']
+        out['actionability_depth_ratio'] = df['actionability'] / (df['technical_depth'] + 0.1)
+    
+    # Quality composite score (average of actionability, clarity, specificity)
+    quality_cols = [c for c in ['actionability', 'clarity', 'specificity'] if c in df.columns]
+    if len(quality_cols) >= 2:
+        out['quality_composite'] = df[quality_cols].mean(axis=1)
+        out['quality_std'] = df[quality_cols].std(axis=1)
+    
+    # Technical completeness (depth + alignment)
+    if 'technical_depth' in df.columns and 'expected_observed_alignment' in df.columns:
+        out['technical_completeness'] = (df['technical_depth'] + df['expected_observed_alignment']) / 2
+    
+    # Reasoning quality composite
+    if 'causal_reasoning_quality' in df.columns:
+        reasoning_score = df['causal_reasoning_quality'].copy()
+        if 'hidden_s2r_present' in df.columns:
+            # Bonus points for hidden S2R
+            reasoning_score = reasoning_score + df['hidden_s2r_present'].astype(float) * 2
+        out['reasoning_composite'] = reasoning_score / 7.0  # Normalize to 0-1
+    
+    # Contradiction penalty
+    if 'contradiction_present' in df.columns and 'clarity' in df.columns:
+        # Contradiction reduces effective clarity
+        out['clarity_minus_contradiction'] = df['clarity'] - df['contradiction_present'].astype(float) * 2
+    
+    print(f"  Created {len(out.columns)} interaction features")
+    return out
+
+
+def encode_ambiguity_types(df: pd.DataFrame, col: str = 'ambiguity_types') -> pd.DataFrame:
+    """
+    Convert ambiguity types list into structured binary features.
+    """
+    print("\nEncoding ambiguity types...")
+    
+    out = pd.DataFrame(index=df.index)
+    
+    if col not in df.columns:
+        print(f"  Warning: Column '{col}' not found. Skipping ambiguity encoding.")
+        return out
+    
+    # Define ambiguity categories
+    ambiguity_categories = {
+        'reproduction_ambiguity': ['missing steps', 'unclear reproduction', 'ambiguous steps', 'unclear steps'],
+        'input_ambiguity': ['vague inputs', 'missing inputs', 'unclear parameters', 'unclear input'],
+        'error_ambiguity': ['unclear error messages', 'missing error details', 'vague error'],
+        'context_ambiguity': ['missing context', 'missing environment info', 'unclear setup', 'missing environment'],
+        'behavior_ambiguity': ['unclear expected behavior', 'vague description', 'unclear behavior']
+    }
+    
+    # Parse ambiguity_types column (could be JSON list or comma-separated)
+    def parse_ambiguity_list(val):
+        if pd.isna(val):
+            return []
+        
+        val_str = str(val).strip()
+        if not val_str or val_str == '[]':
+            return []
+        
+        # Try JSON
+        if val_str.startswith('['):
+            try:
+                return json.loads(val_str)
+            except:
+                pass
+        
+        # Try comma-separated
+        return [item.strip().lower() for item in val_str.split(',') if item.strip()]
+    
+    ambiguity_lists = df[col].apply(parse_ambiguity_list)
+    
+    # Create binary features for each category
+    for category, keywords in ambiguity_categories.items():
+        out[f'has_{category}'] = ambiguity_lists.apply(
+            lambda lst: int(any(kw in item.lower() for item in lst for kw in keywords))
+        )
+    
+    # Count total ambiguity types
+    out['ambiguity_type_count'] = ambiguity_lists.apply(len)
+    
+    # Ambiguity coverage (how many categories are hit)
+    out['ambiguity_category_coverage'] = out[[f'has_{cat}' for cat in ambiguity_categories.keys()]].sum(axis=1)
+    
+    print(f"  Created {len(out.columns)} ambiguity features")
+    print(f"  Ambiguity category distribution:")
+    for category in ambiguity_categories.keys():
+        count = out[f'has_{category}'].sum()
+        pct = (count / len(df)) * 100
+        print(f"    {category}: {count} ({pct:.1f}%)")
+    
+    return out
+
+
+def create_concept_network_features(df: pd.DataFrame, col: str = 'likely_impacted_code_concepts') -> pd.DataFrame:
+    """
+    Analyze concept co-occurrence and cross-layer patterns.
+    """
+    print("\nCreating concept network features...")
+    
+    out = pd.DataFrame(index=df.index)
+    
+    if col not in df.columns:
+        print(f"  Warning: Column '{col}' not found. Skipping concept network features.")
+        return out
+    
+    # Define code layers
+    layers = {
+        'ui': ['ui', 'gui', 'rendering', 'display', 'view', 'frontend', 'button', 'screen'],
+        'business_logic': ['validation', 'calculation', 'processing', 'algorithm', 'logic', 'rule'],
+        'data': ['database', 'query', 'storage', 'persistence', 'sql', 'data', 'cache'],
+        'network': ['http', 'api', 'request', 'connection', 'rest', 'socket', 'network'],
+        'infrastructure': ['configuration', 'deployment', 'logging', 'security', 'authentication']
+    }
+    
+    # Parse concepts
+    concepts_lists = df[col].apply(parse_concepts_to_list)
+    
+    def analyze_concepts(concept_list):
+        if not concept_list:
+            return {
+                'concept_diversity': 0,
+                'has_cross_layer_concepts': 0,
+                'concept_breadth': 0,
+                'ui_concepts': 0,
+                'logic_concepts': 0,
+                'data_concepts': 0,
+                'network_concepts': 0,
+                'infra_concepts': 0
+            }
+        
+        # Identify which layers are touched
+        concept_layers = set()
+        layer_counts = {layer: 0 for layer in layers.keys()}
+        
+        for concept in concept_list:
+            concept_lower = concept.lower()
+            for layer, keywords in layers.items():
+                if any(kw in concept_lower for kw in keywords):
+                    concept_layers.add(layer)
+                    layer_counts[layer] += 1
+        
+        return {
+            'concept_diversity': len(concept_layers),
+            'has_cross_layer_concepts': int(len(concept_layers) > 1),
+            'concept_breadth': len(set(concept_list)),
+            'ui_concepts': layer_counts['ui'],
+            'logic_concepts': layer_counts['business_logic'],
+            'data_concepts': layer_counts['data'],
+            'network_concepts': layer_counts['network'],
+            'infra_concepts': layer_counts['infrastructure']
+        }
+    
+    # Apply analysis
+    concept_features = concepts_lists.apply(analyze_concepts).apply(pd.Series)
+    
+    for col_name in concept_features.columns:
+        out[f'concept_network_{col_name}'] = concept_features[col_name]
+    
+    print(f"  Created {len(out.columns)} concept network features")
+    print(f"  Cross-layer concepts: {out['concept_network_has_cross_layer_concepts'].sum()} "
+          f"({out['concept_network_has_cross_layer_concepts'].mean()*100:.1f}%)")
+    
+    return out
+
+
+def create_semantic_consistency_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Check consistency between syntactic features and LLM assessments.
+    This helps identify when LLM ratings match/mismatch actual content.
+    """
+    print("\nCreating semantic consistency features...")
+    
+    out = pd.DataFrame(index=df.index)
+    
+    # Technical depth consistency
+    if 'technical_depth' in df.columns:
+        # Check if technical depth matches presence of technical indicators
+        technical_indicators = 0
+        
+        if 'has_code' in df.columns:
+            technical_indicators += df['has_code'].astype(float)
+        if 'has_stacktrace' in df.columns:
+            technical_indicators += df['has_stacktrace'].astype(float)
+        if 'has_version_info' in df.columns:
+            technical_indicators += df['has_version_info'].astype(float)
+        
+        if technical_indicators is not 0:  # At least one indicator present
+            # Normalize both to 0-1 scale
+            indicators_norm = technical_indicators / 3.0
+            depth_norm = df['technical_depth'] / 5.0
+            
+            # Consistency: 1 - absolute difference
+            out['technical_depth_consistency'] = 1.0 - np.abs(indicators_norm - depth_norm)
+    
+    # Causal reasoning consistency
+    if 'causal_reasoning_quality' in df.columns and 'num_causal_markers' in df.columns:
+        # Does causal rating match actual causal markers?
+        causal_markers_norm = np.minimum(df['num_causal_markers'] / 5.0, 1.0)
+        causal_rating_norm = df['causal_reasoning_quality'] / 5.0
+        
+        out['causal_reasoning_consistency'] = 1.0 - np.abs(causal_markers_norm - causal_rating_norm)
+    
+    # Overall consistency composite
+    consistency_cols = [c for c in out.columns if 'consistency' in c]
+    if len(consistency_cols) > 0:
+        out['consistency_composite'] = out[consistency_cols].mean(axis=1)
+    
+    if len(out.columns) > 0:
+        print(f"  Created {len(out.columns)} consistency features")
+    else:
+        print(f"  No consistency features created (missing required columns)")
+    
+    return out
+
+
+# -----------------------------
+# MAIN EXECUTION
+# -----------------------------
+print("=" * 60)
+print("ENHANCED MERGE AND PREPROCESSING")
+print("=" * 60)
+print(f"Using enhanced features: {FEATURES_FILE}")
+print("=" * 60)
+
 # -----------------------------
 # 1. Load
 # -----------------------------
-print("=" * 60)
-print("Loading data...")
+print("\nLoading data...")
 features_df = pd.read_csv(FEATURES_FILE)
-# Ratings file uses semicolon delimiter
 ratings_df  = pd.read_csv(RATINGS_FILE, sep=';')
 categ_df    = pd.read_csv(CATEG_FILE)
 fine_grained_categ_df = pd.read_csv(FINE_GRAINED_CATEG_FILE) if FINE_GRAINED_CATEG_FILE.exists() else pd.DataFrame()
@@ -295,7 +523,16 @@ print(f"  Ratings:  {ratings_df.shape}")
 print(f"  Categories: {categ_df.shape}")
 print(f"  Fine-grained categories: {fine_grained_categ_df.shape if not fine_grained_categ_df.empty else 'Not found'}")
 print(f"  Performance: {perf_df.shape}")
-print(f"  Bee results: {BEE_RESULTS_FILE} (will be loaded during merge)")
+
+# Check for new enhanced features
+enhanced_cols = [c for c in features_df.columns if any(x in c for x in [
+    'semantic_', 'embedding_', 'exc_cat_', 'has_exc_', 'exception_user'
+])]
+if enhanced_cols:
+    print(f"\n  ✓ Enhanced features detected: {len(enhanced_cols)} new columns")
+    print(f"    Sample: {enhanced_cols[:5]}")
+else:
+    print(f"\n  ⚠ Warning: No enhanced features detected. Using basic features.")
 
 # -----------------------------
 # 2. Parse IDs
@@ -335,8 +572,7 @@ perf_wide = perf_wide.reset_index()
 print("\nMerging all data sources...")
 merged = features_df.merge(perf_wide, on=["project", "bug_id"], how="left")
 
-# Keep raw text columns (do NOT drop them here)
-drop_from_ratings = ["description_length"]  # keep title if present, it may be useful
+drop_from_ratings = ["description_length"]
 ratings_for_merge = ratings_df.drop(columns=drop_from_ratings, errors="ignore")
 
 merged = merged.merge(
@@ -354,144 +590,97 @@ merged = merged.merge(
     suffixes=("", "_categ")
 )
 
-# Merge fine-grained categorization
 if not fine_grained_categ_df.empty:
-    print("\nMerging fine-grained categorization...")
-    # Rename columns to avoid conflicts with regular categorization
-    fine_grained_for_merge = fine_grained_categ_df.rename(columns={
-        "category": "fine_grained_category",
-        "confidence": "fine_grained_confidence",
-        "reasoning": "fine_grained_reasoning",
-        "title": "fine_grained_title",
-        "description_length": "fine_grained_description_length"
-    })
+    fine_grained_for_merge = fine_grained_categ_df.copy()
     merged = merged.merge(
         fine_grained_for_merge,
         on=["project", "bug_id"],
         how="left",
         suffixes=("", "_fine_grained")
     )
-    matched_count = merged["fine_grained_category"].notna().sum()
-    print(f"  Matched {matched_count} records with fine-grained categorization")
-else:
-    print("\n  Fine-grained categorization file not found, skipping merge")
 
-# -----------------------------
-# 5.5 Merge bee_results features
-# -----------------------------
-print("\nMerging bee_results features...")
+# Load and merge bee_results
 bee_df = load_bee_results(BEE_RESULTS_FILE)
 if not bee_df.empty:
-    # Merge on 'id' column (e.g., "Chart-1" matches "Chart-1")
-    merged = merged.merge(
-        bee_df,
-        on="id",
-        how="left",
-        suffixes=("", "_bee")
-    )
-    # Convert boolean columns to int for consistency
-    bool_cols = ['has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R']
-    for col in bool_cols:
-        if col in merged.columns:
-            merged[col] = merged[col].astype('Int64')  # Nullable integer type
-    
-    matched_count = merged[['has_OB', 'has_EB', 'has_S2R']].notna().any(axis=1).sum()
-    print(f"  Matched {matched_count} records with bee_results features")
-else:
-    print("  No bee_results data to merge")
+    merged = merged.merge(bee_df, on="id", how="left", suffixes=("", "_bee"))
 
-# Convert all remaining boolean columns to int (1/0) for consistency
-print("\nConverting all boolean columns to binary (1/0)...")
-bool_cols_in_merged = merged.select_dtypes(include=['bool']).columns.tolist()
-if bool_cols_in_merged:
-    print(f"  Found {len(bool_cols_in_merged)} boolean columns to convert:")
-    for col in bool_cols_in_merged:
-        print(f"    • {col}")
-    merged[bool_cols_in_merged] = merged[bool_cols_in_merged].astype(int)
-    print(f"  Converted all boolean columns to int (1/0)")
-else:
-    print("  No boolean columns found")
+print(f"\nMerged shape: {merged.shape}")
 
-# Remove redundant ID and title columns
-print("\nRemoving redundant ID and title columns...")
-# These are duplicates created during merges with suffixes
-redundant_id_cols = ['id_ratings', 'id_categ', 'id_fine_grained']
-redundant_title_cols = ['title_categ', 'fine_grained_title']
-# fine_grained_description_length is identical to description_length
-redundant_length_cols = ['fine_grained_description_length']
-
-# Also check if there are duplicate 'title' columns (from ratings merge)
-# If 'title' exists and we have project/bug_id, we can keep title from ratings
-# But if there's also a 'title' from features, we might want to keep one
+# Handle duplicate columns from merging
+print("\nHandling duplicate columns...")
 cols_to_drop = []
-for col in redundant_id_cols + redundant_title_cols + redundant_length_cols:
-    if col in merged.columns:
-        cols_to_drop.append(col)
-
-# Check for any other duplicate ID columns (if merge created duplicates)
-# We want to keep: 'id' (from features), 'project', 'bug_id' (parsed)
-# We want to drop: any suffixed ID columns from merges
-all_id_cols = [c for c in merged.columns if 'id' in c.lower() and c not in ['id', 'project', 'bug_id']]
-for col in all_id_cols:
-    if col.endswith('_ratings') or col.endswith('_categ') or col.endswith('_fine_grained'):
-        if col not in cols_to_drop:
+for col in merged.columns:
+    if col.endswith("_ratings") or col.endswith("_categ") or col.endswith("_fine_grained") or col.endswith("_bee"):
+        base_col = col.rsplit("_", 1)[0]
+        if base_col in merged.columns and base_col not in ["project", "bug_id", "id"]:
             cols_to_drop.append(col)
 
 if cols_to_drop:
-    print(f"  Dropping {len(cols_to_drop)} redundant columns:")
-    for col in sorted(cols_to_drop):
-        print(f"    • {col}")
+    print(f"  Dropping {len(cols_to_drop)} redundant columns")
     merged = merged.drop(columns=cols_to_drop)
-    print(f"  Removed redundant columns")
-    print(f"  Kept: id, project, bug_id, title (if present)")
-else:
-    print("  No redundant columns found to drop")
 
 # Save full dataset
 print(f"\nFull merged shape: {merged.shape}")
-# Create output directory if it doesn't exist
 OUT_FULL.parent.mkdir(parents=True, exist_ok=True)
 merged.to_csv(OUT_FULL, index=False)
 print(f"Saved full dataset: {OUT_FULL}")
 
 # -----------------------------
-# 6. Rich preprocessing for outlier discovery
+# 6. Rich preprocessing with LLM feature engineering
 # -----------------------------
 print("\n" + "=" * 60)
-print("Starting rich preprocessing...")
+print("Starting rich preprocessing with LLM feature engineering...")
+print("=" * 60)
 df = merged.copy()
 
-# 6.1 Treat missing performance as failure, but keep missingness flags too
+# 6.1 Process performance metrics
 print("\n6.1 Processing performance metrics...")
 perf_cols = [c for c in df.columns if c.startswith("mrr_") or c.startswith("top@")]
 df = add_missingness_indicators(df, perf_cols)
 df[perf_cols] = df[perf_cols].fillna(0.0)
 print(f"  Performance columns: {len(perf_cols)}")
 
-# 6.2 Encode category in a way that preserves rare signals
-print("\n6.2 Encoding categories...")
+# 6.2 NEW: Create LLM interaction features
+llm_interaction_feats = create_llm_interaction_features(df)
+if not llm_interaction_feats.empty:
+    df = pd.concat([df, llm_interaction_feats], axis=1)
+
+# 6.3 NEW: Encode ambiguity types
+ambiguity_feats = encode_ambiguity_types(df, col='ambiguity_types')
+if not ambiguity_feats.empty:
+    df = pd.concat([df, ambiguity_feats], axis=1)
+
+# 6.4 NEW: Create concept network features
+concept_network_feats = create_concept_network_features(df, col='likely_impacted_code_concepts')
+if not concept_network_feats.empty:
+    df = pd.concat([df, concept_network_feats], axis=1)
+
+# 6.5 NEW: Create semantic consistency features
+consistency_feats = create_semantic_consistency_features(df)
+if not consistency_feats.empty:
+    df = pd.concat([df, consistency_feats], axis=1)
+
+# 6.6 Encode categories
+print("\n6.6 Encoding categories...")
 for cat_col in ["category", "category_categ", "bug_category", "bug_category_categ"]:
     if cat_col in df.columns:
         cat_oh = one_hot_topk_categories(df, cat_col, prefix="cat", min_freq=20)
         df = pd.concat([df, cat_oh], axis=1)
-        # keep raw category too in OUT_FULL, but drop from modeling view
         df.drop(columns=[cat_col], inplace=True)
         break
 
-# Also encode fine-grained category if present
 if "fine_grained_category" in df.columns:
-    print("\n6.2.1 Encoding fine-grained categories...")
+    print("\n6.6.1 Encoding fine-grained categories...")
     fine_grained_oh = one_hot_topk_categories(df, "fine_grained_category", prefix="fg_cat", min_freq=10)
     df = pd.concat([df, fine_grained_oh], axis=1)
-    # keep raw fine_grained_category in OUT_FULL, but drop from modeling view
     df.drop(columns=["fine_grained_category"], inplace=True)
 
-# 6.3 Extract numeric features from text instead of dropping it
-print("\n6.3 Extracting text statistics...")
+# 6.7 Extract text statistics
+print("\n6.7 Extracting text statistics...")
 text_candidates = [
     "title", "description", "reasoning", "reasoning_ratings",
     "fine_grained_reasoning", "fine_grained_title",
-    "likely_impacted_code_concepts"
+    "likely_impacted_code_concepts", "root_cause_guess"
 ]
 for col in text_candidates:
     if col in df.columns:
@@ -499,46 +688,44 @@ for col in text_candidates:
         stats = text_stats(df[col], prefix=f"txt_{col}")
         df = pd.concat([df, stats], axis=1)
 
-# 6.4 Convert "likely_impacted_code_concepts" into multi-hot flags
-print("\n6.4 Creating concept multi-hot encoding...")
+# 6.8 Convert concepts into multi-hot flags
+print("\n6.8 Creating concept multi-hot encoding...")
 if "likely_impacted_code_concepts" in df.columns:
     concept_feats = multi_hot_from_concepts(
         df,
         col="likely_impacted_code_concepts",
         prefix="concept",
-        min_freq=30  # Increased from 5 to reduce sparsity
+        min_freq=30
     )
     df = pd.concat([df, concept_feats], axis=1)
 
-# 6.5 Keep original text columns in OUT_FULL, but drop them from OUT_PREP modeling view
-print("\n6.5 Dropping raw text columns from preprocessed dataset...")
+# 6.9 Drop raw text columns from preprocessed dataset
+print("\n6.9 Dropping raw text columns from preprocessed dataset...")
 drop_raw_text_cols = [
     "title", "description", "reasoning", "reasoning_ratings", 
     "fine_grained_reasoning", "fine_grained_title",
-    "likely_impacted_code_concepts"
+    "likely_impacted_code_concepts", "ambiguity_types",
+    "root_cause_guess"
 ]
 df.drop(columns=drop_raw_text_cols, inplace=True, errors="ignore")
 
-# 6.6 Make sure key columns exist and are first
-print("\n6.6 Reordering columns...")
+# 6.10 Reorder columns
+print("\n6.10 Reordering columns...")
 key_cols = [c for c in ["project", "bug_id", "id"] if c in df.columns]
 other_cols = [c for c in df.columns if c not in key_cols]
 df = df[key_cols + other_cols]
 
-# 6.7 Standardize numeric features for outlier detection
-print("\n6.7 Standardizing numeric features...")
+# 6.11 Standardize numeric features
+print("\n6.11 Standardizing numeric features...")
 numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
 
-# Exclude from scaling:
-# - IDs and keys
-# - Binary flags (one-hot, multi-hot, missingness indicators)
-# - Performance targets (we want to keep these interpretable)
+# Exclude from scaling
 exclude_from_scaling = (
     key_cols + 
-    [c for c in numeric_cols if c.startswith(("mrr_", "top@", "cat_", "cat__", "fg_cat_", "fg_cat__", "concept__"))] +
+    [c for c in numeric_cols if c.startswith(("mrr_", "top@", "rank_", "cat_", "cat__", "fg_cat_", "fg_cat__", "concept__"))] +
     [c for c in numeric_cols if c.endswith("_is_missing") or c.endswith("__is_missing")] +
-    [c for c in numeric_cols if "_has_" in c] +  # Binary indicators
-    [c for c in numeric_cols if c == "fine_grained_confidence"]  # Keep confidence interpretable
+    [c for c in numeric_cols if "_has_" in c or c.startswith("has_")] +
+    [c for c in numeric_cols if c in ["fine_grained_confidence", "embedding_cluster"]]
 )
 
 cols_to_scale = [c for c in numeric_cols if c not in exclude_from_scaling]
@@ -549,47 +736,36 @@ print(f"  Excluded from scaling: {len(exclude_from_scaling)}")
 
 if ENABLE_STANDARDIZATION and cols_to_scale:
     print(f"\n  Standardization: ENABLED")
-    print(f"  Note: Standardization is optional for rank-based analyses (Spearman, Mann-Whitney U, Cliff's Delta)")
-    print(f"        but useful for visualization and future ML/clustering analyses.")
     scaler = StandardScaler()
     df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
     
-    # Save scaler for potential future use
     SCALER_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SCALER_FILE, "wb") as f:
         pickle.dump({'scaler': scaler, 'columns': cols_to_scale}, f)
     print(f"  Saved scaler to: {SCALER_FILE}")
 elif not ENABLE_STANDARDIZATION:
-    print(f"\n  Standardization: DISABLED (ENABLE_STANDARDIZATION = False)")
-    print(f"  Using raw feature values. This is fine for rank-based analyses.")
-    print(f"  Note: If you plan to use PCA, clustering, or ML models, consider enabling standardization.")
+    print(f"\n  Standardization: DISABLED")
 else:
     print(f"\n  Standardization: SKIPPED (no columns to scale)")
 
-# 6.8 Final cleanup: fill any remaining NaNs from derived features
-print("\n6.8 Final NaN handling...")
-# For derived features (ratios, densities), NaN means the denominator was 0
-# Fill these with 0 or median depending on the feature type
-derived_feature_patterns = ['_density', '_avg_', '_ratio']
+# 6.12 Final NaN handling
+print("\n6.12 Final NaN handling...")
+derived_feature_patterns = ['_density', '_avg_', '_ratio', '_gap', '_product', '_composite']
 for col in df.columns:
     if any(pattern in col for pattern in derived_feature_patterns):
         if df[col].isna().any():
-            # Use median for derived features (more robust than 0)
             median_val = df[col].median()
             if pd.isna(median_val):
                 median_val = 0.0
             df[col] = df[col].fillna(median_val)
-            print(f"  Filled NaNs in {col} with median: {median_val:.4f}")
 
-# Any remaining NaNs in numeric columns -> fill with 0
 remaining_nan_cols = df.select_dtypes(include=[np.number]).columns[df.select_dtypes(include=[np.number]).isna().any()].tolist()
 if remaining_nan_cols:
-    print(f"  Filling remaining NaNs with 0 in: {remaining_nan_cols}")
+    print(f"  Filling remaining NaNs with 0 in {len(remaining_nan_cols)} columns")
     df[remaining_nan_cols] = df[remaining_nan_cols].fillna(0.0)
 
 # Save preprocessed dataset
 print(f"\nPreprocessed (rich) shape: {df.shape}")
-# Ensure output directory exists
 OUT_PREP.parent.mkdir(parents=True, exist_ok=True)
 df.to_csv(OUT_PREP, index=False)
 print(f"Saved preprocessed dataset: {OUT_PREP}")
@@ -609,7 +785,13 @@ print(f"  Fine-grained category features: {len([c for c in df.columns if c.start
 print(f"  Text-derived features: {len([c for c in df.columns if c.startswith('txt_')])}")
 print(f"  Concept features: {len([c for c in df.columns if c.startswith('concept')])}")
 print(f"  Bee results features: {len([c for c in df.columns if c in ['has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R', 'num_OB', 'num_EB', 'num_S2R']])}")
-print(f"  Other features: {len([c for c in df.columns if not any(c.startswith(p) for p in ['mrr_', 'top@', 'cat', 'fg_cat', 'txt_', 'concept']) and c not in key_cols and c not in ['has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R', 'num_OB', 'num_EB', 'num_S2R']])}")
+
+# NEW: Enhanced feature statistics
+print(f"\n  Enhanced semantic features: {len([c for c in df.columns if 'semantic_' in c or 'embedding_' in c])}")
+print(f"  Enhanced exception features: {len([c for c in df.columns if 'exc_cat_' in c or 'has_exc_' in c or 'exception_user' in c])}")
+print(f"  LLM interaction features: {len([c for c in df.columns if any(x in c for x in ['_gap', '_product', '_composite', 'consistency'])])}")
+print(f"  Ambiguity encoding features: {len([c for c in df.columns if 'ambiguity' in c])}")
+print(f"  Concept network features: {len([c for c in df.columns if 'concept_network_' in c])}")
 
 print("\nFiles created:")
 print(f"  1. {OUT_FULL} - Full dataset with all original columns")
@@ -618,8 +800,16 @@ if ENABLE_STANDARDIZATION:
     print(f"  3. {SCALER_FILE} - StandardScaler for feature scaling")
 else:
     print(f"  2. {OUT_PREP} - Preprocessed dataset with raw (unscaled) features")
-    print(f"  3. Standardization: DISABLED (no scaler saved)")
 
 print("\n" + "=" * 60)
-print("Preprocessing complete!")
+print("Enhanced preprocessing complete!")
+print("=" * 60)
+print("\nNew features added:")
+print("  ✓ LLM interaction features (quality composites, consistency)")
+print("  ✓ Ambiguity type encoding (5 categories)")
+print("  ✓ Concept network features (cross-layer analysis)")
+print("  ✓ Semantic consistency features (LLM vs syntactic alignment)")
+print("  ✓ Enhanced exception categories (8 types)")
+print("  ✓ Semantic diversity metrics (entropy, coherence, spread)")
+print("  ✓ Embedding clustering (10 clusters)")
 print("=" * 60)
