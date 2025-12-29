@@ -8,6 +8,7 @@ Usage:
 
 import pandas as pd
 import numpy as np
+import re
 from pathlib import Path
 
 # Configuration
@@ -44,7 +45,105 @@ def load_data_and_features(in_file):
     print(f"Feature columns: {len(feature_cols)}")
     print(f"Performance columns (excluded): {len(perf_cols)}")
     
+    # Exclude redundant columns that are identical to other features
+    redundant_features = ['fine_grained_description_length']  # Identical to description_length
+    feature_cols = [c for c in feature_cols if c not in redundant_features]
+    
     return df, feature_cols
+
+def _compute_text_stats_feature(df_raw, feat_name):
+    """
+    Compute a single text stats feature from raw text column.
+    Handles txt_* features that are derived from text columns.
+    """
+    # Extract the source column name from feature name
+    # e.g., "txt_fine_grained_reasoning_char_len" -> "fine_grained_reasoning"
+    if not feat_name.startswith("txt_"):
+        return None
+    
+    # Find the source text column by matching prefix
+    text_cols = ["title", "description", "reasoning", "reasoning_ratings", 
+                 "fine_grained_reasoning", "fine_grained_title", 
+                 "likely_impacted_code_concepts"]
+    
+    source_col = None
+    for col in text_cols:
+        if feat_name.startswith(f"txt_{col}_"):
+            source_col = col
+            break
+    
+    if source_col is None or source_col not in df_raw.columns:
+        return None
+    
+    # Extract the stat type from feature name
+    stat_type = feat_name.replace(f"txt_{source_col}_", "")
+    
+    # Compute the feature using the same logic as text_stats
+    s = df_raw[source_col].fillna("").astype(str)
+    _word_re = re.compile(r"[A-Za-z0-9_]+")
+    
+    if stat_type == "char_len":
+        return s.str.len()
+    elif stat_type == "word_count":
+        return s.apply(lambda t: len(_word_re.findall(t)))
+    elif stat_type == "line_count":
+        return s.apply(lambda t: t.count("\n") + (1 if t else 0))
+    elif stat_type == "avg_word_len":
+        char_len = s.str.len()
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        return char_len / word_counts.replace(0, np.nan)
+    elif stat_type == "avg_words_per_line":
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        line_counts = s.apply(lambda t: t.count("\n") + (1 if t else 0))
+        return word_counts / line_counts.replace(0, np.nan)
+    elif stat_type == "avg_sentence_len":
+        def avg_sent_len(t: str) -> float:
+            sentences = re.split(r'[.!?]+', t)
+            sentences = [sent.strip() for sent in sentences if sent.strip()]
+            if not sentences:
+                return np.nan
+            return len(_word_re.findall(t)) / len(sentences)
+        return s.apply(avg_sent_len)
+    elif stat_type == "hedge_count":
+        lower = s.str.lower()
+        hedge_markers = ["maybe", "might", "likely", "possibly", "unclear", "unsure",
+                        "seems", "appears", "probably", "could", "cannot", "can't",
+                        "unknown", "approximately", "guess"]
+        return sum(lower.str.count(re.escape(m)) for m in hedge_markers)
+    elif stat_type == "hedge_density":
+        lower = s.str.lower()
+        hedge_markers = ["maybe", "might", "likely", "possibly", "unclear", "unsure",
+                        "seems", "appears", "probably", "could", "cannot", "can't",
+                        "unknown", "approximately", "guess"]
+        hedge_count = sum(lower.str.count(re.escape(m)) for m in hedge_markers)
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        return hedge_count / word_counts.replace(0, np.nan)
+    elif stat_type == "has_code_like":
+        lower = s.str.lower()
+        return lower.str.contains(
+            r"\b(stack trace|exception|nullpointer|assert|traceback|line \d+)\b", 
+            regex=True
+        ).astype(int)
+    elif stat_type == "question_density":
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        return s.str.count(r"\?") / word_counts.replace(0, np.nan)
+    elif stat_type == "exclaim_density":
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        return s.str.count(r"!") / word_counts.replace(0, np.nan)
+    elif stat_type == "digit_density":
+        char_len = s.str.len()
+        return s.str.count(r"\d") / char_len.replace(0, np.nan)
+    elif stat_type == "uniq_word_ratio":
+        def uniq_ratio(t: str) -> float:
+            toks = _word_re.findall(t.lower())
+            if not toks:
+                return np.nan
+            return len(set(toks)) / len(toks)
+        return s.apply(uniq_ratio)
+    elif stat_type == "is_missing":
+        return df_raw[source_col].isna().astype(int)
+    else:
+        return None
 
 def generate_feature_summary_table(df, feature_cols, out_file, use_raw_values=True):
     """
@@ -66,7 +165,21 @@ def generate_feature_summary_table(df, feature_cols, out_file, use_raw_values=Tr
         df_raw = pd.read_csv(IN_FILE_FULL)
         print(f"  Loaded {df_raw.shape} rows")
         # Use raw dataset for statistics, but keep same feature column names
-        df_for_stats = df_raw
+        df_for_stats = df_raw.copy()
+        
+        # Compute missing txt_* features from raw text columns
+        missing_txt_features = [f for f in feature_cols if f.startswith("txt_") and f not in df_for_stats.columns]
+        if missing_txt_features:
+            print(f"  Computing {len(missing_txt_features)} text-derived features from raw text columns...")
+            computed_count = 0
+            for feat in missing_txt_features:
+                computed = _compute_text_stats_feature(df_raw, feat)
+                if computed is not None:
+                    df_for_stats[feat] = computed
+                    computed_count += 1
+                    if computed_count <= 5:  # Print first 5
+                        print(f"    ✓ Computed {feat} (min={computed.min():.2f}, max={computed.max():.2f})")
+            print(f"  Successfully computed {computed_count}/{len(missing_txt_features)} text features")
     else:
         if use_raw_values:
             print(f"Warning: {IN_FILE_FULL} not found. Using preprocessed values (may be scaled).")
@@ -81,6 +194,9 @@ def generate_feature_summary_table(df, feature_cols, out_file, use_raw_values=Tr
             if feat not in df.columns:
                 continue
             # Feature exists in df but not in df_for_stats - use df for stats
+            # This means it's a derived feature that couldn't be computed from raw data
+            # Use the preprocessed version but warn
+            print(f"  [WARN] Using preprocessed values for {feat} (may be standardized)")
             values = df[feat].dropna()
         else:
             values = df_for_stats[feat].dropna()

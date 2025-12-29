@@ -417,12 +417,14 @@ print("\nRemoving redundant ID and title columns...")
 # These are duplicates created during merges with suffixes
 redundant_id_cols = ['id_ratings', 'id_categ', 'id_fine_grained']
 redundant_title_cols = ['title_categ', 'fine_grained_title']
+# fine_grained_description_length is identical to description_length
+redundant_length_cols = ['fine_grained_description_length']
 
 # Also check if there are duplicate 'title' columns (from ratings merge)
 # If 'title' exists and we have project/bug_id, we can keep title from ratings
 # But if there's also a 'title' from features, we might want to keep one
 cols_to_drop = []
-for col in redundant_id_cols + redundant_title_cols:
+for col in redundant_id_cols + redundant_title_cols + redundant_length_cols:
     if col in merged.columns:
         cols_to_drop.append(col)
 

@@ -64,6 +64,8 @@ RUN_SUCCESS_FAILURE_ANALYSIS = True
 RUN_OUTLIER_ANALYSIS = True  # NEW: Unique success and extreme advantage analysis
 RUN_CLUSTERED_HEATMAPS = True
 RUN_VENN_DIAGRAMS = True
+RUN_INTERSECTION_FEATURE_ANALYSIS = True  # NEW: Feature analysis based on tool intersections
+RUN_UNIQUE_TOOL_SUCCESS_ANALYSIS = True  # NEW: Analysis of bugs uniquely found by each tool
 RUN_DIAGNOSTICS = True
 
 # Shared settings
@@ -165,6 +167,10 @@ def load_data_and_features(in_file):
 
     if not INCLUDE_MISSINGNESS_FEATURES:
         feature_cols = [c for c in feature_cols if not (c.endswith("_is_missing") or "__is_missing" in c)]
+    
+    # Exclude redundant columns that are identical to other features
+    redundant_features = ['fine_grained_description_length']  # Identical to description_length
+    feature_cols = [c for c in feature_cols if c not in redundant_features]
 
     # Sanity check: verify no performance metrics in features
     suspicious = [f for f in feature_cols if any(x in f.lower() for x in ['rank_', 'mrr_', 'top@'])]
@@ -313,6 +319,102 @@ def check_project_effects(df, perf_cols, out_dir):
                 ratio = between_var / (between_var + within_var) if (between_var + within_var) > 0 else 0
                 print(f"{col}: Between-project variance ratio = {ratio:.3f}")
 
+def _compute_text_stats_feature(df_raw, feat_name):
+    """
+    Compute a single text stats feature from raw text column.
+    Handles txt_* features that are derived from text columns.
+    """
+    # Extract the source column name from feature name
+    # e.g., "txt_fine_grained_reasoning_char_len" -> "fine_grained_reasoning"
+    if not feat_name.startswith("txt_"):
+        return None
+    
+    parts = feat_name.replace("txt_", "").split("_")
+    # Find the source text column by matching prefix
+    # Try common text column names
+    text_cols = ["title", "description", "reasoning", "reasoning_ratings", 
+                 "fine_grained_reasoning", "fine_grained_title", 
+                 "likely_impacted_code_concepts"]
+    
+    source_col = None
+    for col in text_cols:
+        if feat_name.startswith(f"txt_{col}_"):
+            source_col = col
+            break
+    
+    if source_col is None or source_col not in df_raw.columns:
+        return None
+    
+    # Extract the stat type from feature name
+    stat_type = feat_name.replace(f"txt_{source_col}_", "")
+    
+    # Compute the feature using the same logic as text_stats
+    s = df_raw[source_col].fillna("").astype(str)
+    _word_re = re.compile(r"[A-Za-z0-9_]+")
+    
+    if stat_type == "char_len":
+        return s.str.len()
+    elif stat_type == "word_count":
+        return s.apply(lambda t: len(_word_re.findall(t)))
+    elif stat_type == "line_count":
+        return s.apply(lambda t: t.count("\n") + (1 if t else 0))
+    elif stat_type == "avg_word_len":
+        char_len = s.str.len()
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        return char_len / word_counts.replace(0, np.nan)
+    elif stat_type == "avg_words_per_line":
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        line_counts = s.apply(lambda t: t.count("\n") + (1 if t else 0))
+        return word_counts / line_counts.replace(0, np.nan)
+    elif stat_type == "avg_sentence_len":
+        def avg_sent_len(t: str) -> float:
+            sentences = re.split(r'[.!?]+', t)
+            sentences = [sent.strip() for sent in sentences if sent.strip()]
+            if not sentences:
+                return np.nan
+            return len(_word_re.findall(t)) / len(sentences)
+        return s.apply(avg_sent_len)
+    elif stat_type == "hedge_count":
+        lower = s.str.lower()
+        hedge_markers = ["maybe", "might", "likely", "possibly", "unclear", "unsure",
+                        "seems", "appears", "probably", "could", "cannot", "can't",
+                        "unknown", "approximately", "guess"]
+        return sum(lower.str.count(re.escape(m)) for m in hedge_markers)
+    elif stat_type == "hedge_density":
+        lower = s.str.lower()
+        hedge_markers = ["maybe", "might", "likely", "possibly", "unclear", "unsure",
+                        "seems", "appears", "probably", "could", "cannot", "can't",
+                        "unknown", "approximately", "guess"]
+        hedge_count = sum(lower.str.count(re.escape(m)) for m in hedge_markers)
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        return hedge_count / word_counts.replace(0, np.nan)
+    elif stat_type == "has_code_like":
+        lower = s.str.lower()
+        return lower.str.contains(
+            r"\b(stack trace|exception|nullpointer|assert|traceback|line \d+)\b", 
+            regex=True
+        ).astype(int)
+    elif stat_type == "question_density":
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        return s.str.count(r"\?") / word_counts.replace(0, np.nan)
+    elif stat_type == "exclaim_density":
+        word_counts = s.apply(lambda t: len(_word_re.findall(t)))
+        return s.str.count(r"!") / word_counts.replace(0, np.nan)
+    elif stat_type == "digit_density":
+        char_len = s.str.len()
+        return s.str.count(r"\d") / char_len.replace(0, np.nan)
+    elif stat_type == "uniq_word_ratio":
+        def uniq_ratio(t: str) -> float:
+            toks = _word_re.findall(t.lower())
+            if not toks:
+                return np.nan
+            return len(set(toks)) / len(toks)
+        return s.apply(uniq_ratio)
+    elif stat_type == "is_missing":
+        return df_raw[source_col].isna().astype(int)
+    else:
+        return None
+
 def generate_feature_summary_table(df, feature_cols, out_dir, use_raw_values=True):
     """
     Generate a summary table with min, max, mean, and median for each feature.
@@ -333,7 +435,21 @@ def generate_feature_summary_table(df, feature_cols, out_dir, use_raw_values=Tru
         df_raw = pd.read_csv(IN_FILE_FULL)
         print(f"  Loaded {df_raw.shape} rows")
         # Use raw dataset for statistics, but keep same feature column names
-        df_for_stats = df_raw
+        df_for_stats = df_raw.copy()
+        
+        # Compute missing txt_* features from raw text columns
+        missing_txt_features = [f for f in feature_cols if f.startswith("txt_") and f not in df_for_stats.columns]
+        if missing_txt_features:
+            print(f"  Computing {len(missing_txt_features)} text-derived features from raw text columns...")
+            computed_count = 0
+            for feat in missing_txt_features:
+                computed = _compute_text_stats_feature(df_raw, feat)
+                if computed is not None:
+                    df_for_stats[feat] = computed
+                    computed_count += 1
+                    if computed_count <= 5:  # Print first 5
+                        print(f"    ✓ Computed {feat} (min={computed.min():.2f}, max={computed.max():.2f})")
+            print(f"  Successfully computed {computed_count}/{len(missing_txt_features)} text features")
     else:
         df_for_stats = df
     
@@ -346,6 +462,9 @@ def generate_feature_summary_table(df, feature_cols, out_dir, use_raw_values=Tru
             if feat not in df.columns:
                 continue
             # Feature exists in df but not in df_for_stats - use df for stats
+            # This means it's a derived feature that couldn't be computed from raw data
+            # Use the preprocessed version but warn
+            print(f"  [WARN] Using preprocessed values for {feat} (may be standardized)")
             values = df[feat].dropna()
         else:
             values = df_for_stats[feat].dropna()
@@ -2377,6 +2496,713 @@ def run_venn_diagrams():
     print(f"\nDone. Outputs in: {OUT_DIR_VENN}")
 
 # ======================================
+# 6. INTERSECTION-BASED FEATURE ANALYSIS
+# ======================================
+
+def analyze_intersection_features(df, feature_cols, tools, threshold=None, suffix=""):
+    """
+    Analyze features of bugs based on which tools can find them.
+    
+    Compares features between:
+    - Bugs that NO tools can find (e.g., "None")
+    - Bugs that ALL tools can find (e.g., "All")
+    - Other intersection patterns
+    
+    Args:
+        df: DataFrame with features and performance data
+        feature_cols: List of feature column names
+        tools: List of tool names
+        threshold: Rank threshold (1, 5, or 10). If None, uses FOUND_DEF.
+        suffix: Suffix for output files
+    """
+    print(f"\n{'='*80}")
+    print(f"INTERSECTION-BASED FEATURE ANALYSIS{suffix}")
+    print(f"{'='*80}")
+    
+    # Use the same approach as run_venn_diagrams: load from tool_comparison_summary.csv
+    # This ensures consistency with the Venn/UpSet diagrams
+    if not IN_FILE_TOOL_COMPARISON.exists():
+        print(f"[WARN] Tool comparison file not found: {IN_FILE_TOOL_COMPARISON}")
+        print("Skipping intersection feature analysis.")
+        return
+    
+    perf = pd.read_csv(IN_FILE_TOOL_COMPARISON)
+    print(f"Loaded performance data: {perf.shape} from {IN_FILE_TOOL_COMPARISON}")
+    
+    # Create wide format with found flags (same as Venn diagrams)
+    wide = pivot_success_long(perf, threshold=threshold)
+    
+    # Merge with features from main dataset
+    # First, ensure we have a consistent ID column
+    if "project" in df.columns and "bug_id" in df.columns:
+        merge_cols = ["project", "bug_id"]
+    elif "id" in df.columns:
+        # Try to split id into project and bug_id
+        if "project" not in df.columns or "bug_id" not in df.columns:
+            # Create project and bug_id from id if needed
+            if "id" in df.columns and "project" not in df.columns:
+                df["project"] = df["id"].str.split("-").str[0]
+                df["bug_id"] = df["id"].str.split("-").str[1]
+        merge_cols = ["project", "bug_id"]
+    else:
+        print("[WARN] Cannot merge features: missing project/bug_id columns.")
+        return
+    
+    # Merge with features
+    wide = wide.merge(df[merge_cols + feature_cols], 
+                      on=merge_cols, 
+                      how="left")
+    
+    # Get tool columns
+    tool_cols = [c for c in wide.columns if c.startswith("found_")]
+    
+    # Create intersection pattern
+    M = wide[tool_cols].astype(int)
+    pattern = M.astype(str).agg("".join, axis=1)
+    wide["intersection_pattern"] = pattern
+    
+    # Create readable labels
+    tool_names = [c.replace("found_", "") for c in tool_cols]
+    def label_from_pattern(p):
+        yes = [tool_names[i] for i, ch in enumerate(p) if ch == "1"]
+        return " & ".join(yes) if yes else "None"
+    
+    wide["intersection_label"] = wide["intersection_pattern"].apply(label_from_pattern)
+    
+    # Count tools that found each bug
+    wide["num_tools_found"] = M.sum(axis=1)
+    wide["all_tools"] = (wide["num_tools_found"] == len(tool_cols))
+    wide["no_tools"] = (wide["num_tools_found"] == 0)
+    
+    # Analyze features for different groups
+    print(f"\nIntersection pattern counts:")
+    pattern_counts = wide["intersection_label"].value_counts()
+    for label, count in pattern_counts.items():
+        print(f"  {label}: {count}")
+    
+    # Focus on "None" vs "All" comparison
+    none_bugs = wide[wide["no_tools"]].copy()
+    all_bugs = wide[wide["all_tools"]].copy()
+    
+    print(f"\nComparing features:")
+    print(f"  Bugs that NO tools found: {len(none_bugs)}")
+    print(f"  Bugs that ALL tools found: {len(all_bugs)}")
+    
+    if len(none_bugs) < 5 or len(all_bugs) < 5:
+        print(f"[WARN] Insufficient samples for comparison (min=5). Skipping statistical tests.")
+        return
+    
+    # Statistical comparison for each feature
+    results = []
+    for feat in feature_cols:
+        if feat not in wide.columns:
+            continue
+        
+        x = none_bugs[feat].dropna()
+        y = all_bugs[feat].dropna()
+        
+        if len(x) < 5 or len(y) < 5:
+            continue
+        
+        # Mann-Whitney U test
+        try:
+            from scipy.stats import mannwhitneyu
+            u_stat, p_val = mannwhitneyu(x, y, alternative="two-sided", method="asymptotic")
+        except:
+            continue
+        
+        # Cliff's Delta
+        delta = cliffs_delta(x.values, y.values)
+        
+        # Effect size interpretation
+        if abs(delta) < 0.147:
+            effect_size = "negligible"
+        elif abs(delta) < 0.33:
+            effect_size = "small"
+        elif abs(delta) < 0.474:
+            effect_size = "medium"
+        else:
+            effect_size = "large"
+        
+        results.append({
+            "feature": feat,
+            "none_count": len(x),
+            "all_count": len(y),
+            "none_median": x.median(),
+            "all_median": y.median(),
+            "none_mean": x.mean(),
+            "all_mean": y.mean(),
+            "none_std": x.std(),
+            "all_std": y.std(),
+            "u_statistic": u_stat,
+            "p_value": p_val,
+            "cliffs_delta": delta,
+            "effect_size": effect_size,
+            "median_diff": y.median() - x.median(),
+            "mean_diff": y.mean() - x.mean()
+        })
+    
+    results_df = pd.DataFrame(results)
+    
+    if len(results_df) == 0:
+        print(f"[WARN] No valid feature comparisons. Skipping.")
+        return
+    
+    # Apply Holm-Bonferroni correction
+    results_df = apply_holm(results_df, alpha=ALPHA, pval_col="p_value")
+    
+    # Add "significant" column for compatibility (based on "reject" from apply_holm)
+    if "reject" in results_df.columns:
+        results_df["significant"] = results_df["reject"]
+    else:
+        results_df["significant"] = results_df["p_value"] < ALPHA
+    
+    # Sort by absolute Cliff's Delta
+    results_df["abs_delta"] = results_df["cliffs_delta"].abs()
+    results_df = results_df.sort_values("abs_delta", ascending=False)
+    
+    # Save results
+    out_file = OUT_DIR_VENN / f"intersection_feature_comparison{suffix}.csv"
+    results_df.to_csv(out_file, index=False)
+    print(f"\nSaved: {out_file}")
+    
+    # Print top features
+    print(f"\nTop 10 features with largest differences (None vs All):")
+    print("=" * 80)
+    top_features = results_df.head(10)
+    for _, row in top_features.iterrows():
+        # Check if significant column exists (from apply_holm)
+        sig = "***" if "significant" in row and row["significant"] else ""
+        print(f"{row['feature']:<50} | δ={row['cliffs_delta']:>6.3f} ({row['effect_size']:<8}) | "
+              f"p={row['p_value']:.4f} {sig}")
+        print(f"  None: median={row['none_median']:.2f}, mean={row['none_mean']:.2f}")
+        print(f"  All:  median={row['all_median']:.2f}, mean={row['all_mean']:.2f}")
+    
+    # Create visualization: heatmap of top features
+    top_n = min(20, len(results_df))
+    top_results = results_df.head(top_n)
+    
+    # Prepare data for heatmap
+    heatmap_data = []
+    for _, row in top_results.iterrows():
+        heatmap_data.append({
+            "feature": row["feature"],
+            "Cliff's Delta": row["cliffs_delta"],
+            "p_value": row["p_value"],
+            "significant": row["significant"]
+        })
+    
+    heatmap_df = pd.DataFrame(heatmap_data)
+    heatmap_df = heatmap_df.set_index("feature")
+    
+    # Create heatmap
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    
+    plt.figure(figsize=(8, max(6, top_n * 0.3)))
+    sns.heatmap(heatmap_df[["Cliff's Delta"]], 
+                annot=False, 
+                cmap="RdBu_r", 
+                center=0,
+                vmin=-1, vmax=1,
+                cbar_kws={"label": "Cliff's Delta (None vs All)"})
+    plt.title(f"Feature Differences: Bugs Found by None vs All Tools{suffix}")
+    plt.ylabel("")
+    plt.tight_layout()
+    
+    out_file = OUT_DIR_VENN / f"intersection_feature_heatmap{suffix}.png"
+    plt.savefig(out_file, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {out_file}")
+    
+    # Create boxplots for top features
+    top_5_features = results_df.head(5)["feature"].tolist()
+    for feat in top_5_features:
+        if feat not in wide.columns:
+            continue
+        
+        fig, ax = plt.subplots(figsize=(8, 6))
+        
+        data_to_plot = []
+        labels = []
+        for group_name, group_data in [("None", none_bugs), ("All", all_bugs)]:
+            values = group_data[feat].dropna()
+            if len(values) > 0:
+                data_to_plot.append(values)
+                labels.append(f"{group_name}\n(n={len(values)})")
+        
+        if len(data_to_plot) == 2:
+            bp = ax.boxplot(data_to_plot, labels=labels, patch_artist=True)
+            bp["boxes"][0].set_facecolor("lightcoral")
+            bp["boxes"][1].set_facecolor("lightblue")
+            
+            ax.set_ylabel(feat)
+            ax.set_title(f"Feature Distribution: Bugs Found by None vs All Tools{suffix}")
+            plt.tight_layout()
+            
+            out_file = OUT_DIR_VENN / f"intersection_boxplot_{safe_name(feat)}{suffix}.png"
+            plt.savefig(out_file, dpi=300, bbox_inches="tight")
+            plt.close()
+            print(f"Saved: {out_file}")
+    
+    print(f"\nDone. Outputs in: {OUT_DIR_VENN}")
+
+def run_intersection_feature_analysis():
+    """Run intersection-based feature analysis for different thresholds."""
+    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE)
+    
+    # Get tools from performance data
+    tools = get_tools(df, "mrr")
+    if not tools:
+        print("[WARN] No tools found. Skipping intersection feature analysis.")
+        return
+    
+    # Run for different thresholds
+    thresholds = [1, 5, 10, None]
+    for threshold in thresholds:
+        suffix = f"_top{threshold}" if threshold else ""
+        print(f"\n{'='*80}")
+        print(f"Running intersection feature analysis for threshold: {threshold if threshold else 'All'}")
+        print(f"{'='*80}")
+        analyze_intersection_features(df, feature_cols, tools, threshold=threshold, suffix=suffix)
+
+# ======================================
+# 7. UNIQUE TOOL SUCCESS ANALYSIS
+# ======================================
+
+def analyze_unique_tool_successes(df, feature_cols, tools, threshold=None, suffix=""):
+    """
+    Analyze features of bugs that are uniquely found by each tool.
+    
+    For each tool, identifies bugs that:
+    - Are found by that tool within threshold
+    - Are NOT found by any other tool within threshold
+    
+    Then compares features of these unique bugs across tools and vs bugs found by all tools.
+    
+    Args:
+        df: DataFrame with features and performance data
+        feature_cols: List of feature column names
+        tools: List of tool names
+        threshold: Rank threshold (1, 5, or 10). If None, uses FOUND_DEF.
+        suffix: Suffix for output files
+    """
+    print(f"\n{'='*80}")
+    print(f"UNIQUE TOOL SUCCESS ANALYSIS{suffix}")
+    print(f"{'='*80}")
+    
+    # Use the same approach as intersection analysis: load from tool_comparison_summary.csv
+    if not IN_FILE_TOOL_COMPARISON.exists():
+        print(f"[WARN] Tool comparison file not found: {IN_FILE_TOOL_COMPARISON}")
+        print("Skipping unique tool success analysis.")
+        return
+    
+    perf = pd.read_csv(IN_FILE_TOOL_COMPARISON)
+    print(f"Loaded performance data: {perf.shape} from {IN_FILE_TOOL_COMPARISON}")
+    
+    # Create wide format with found flags
+    wide = pivot_success_long(perf, threshold=threshold)
+    
+    # Merge with features from main dataset
+    if "project" in df.columns and "bug_id" in df.columns:
+        merge_cols = ["project", "bug_id"]
+    elif "id" in df.columns:
+        if "project" not in df.columns or "bug_id" not in df.columns:
+            if "id" in df.columns and "project" not in df.columns:
+                df["project"] = df["id"].str.split("-").str[0]
+                df["bug_id"] = df["id"].str.split("-").str[1]
+        merge_cols = ["project", "bug_id"]
+    else:
+        print("[WARN] Cannot merge features: missing project/bug_id columns.")
+        return
+    
+    # Merge with features
+    wide = wide.merge(df[merge_cols + feature_cols], 
+                      on=merge_cols, 
+                      how="left")
+    
+    # Get tool columns
+    tool_cols = [c for c in wide.columns if c.startswith("found_")]
+    tool_names = [c.replace("found_", "") for c in tool_cols]
+    
+    # For each tool, identify bugs that are uniquely found by that tool
+    print(f"\nIdentifying unique bugs for each tool:")
+    print("=" * 60)
+    
+    unique_bugs_by_tool = {}
+    for tool_name in tool_names:
+        tool_col = f"found_{tool_name}"
+        if tool_col not in wide.columns:
+            continue
+        
+        # Bugs found by this tool
+        found_by_tool = wide[wide[tool_col] == True].copy()
+        
+        # Bugs found by other tools
+        other_tool_cols = [c for c in tool_cols if c != tool_col]
+        found_by_others = wide[other_tool_cols].any(axis=1)
+        
+        # Unique bugs: found by this tool but NOT by any other tool
+        unique_mask = (wide[tool_col] == True) & (~found_by_others)
+        unique_bugs = wide[unique_mask].copy()
+        
+        unique_bugs_by_tool[tool_name] = unique_bugs
+        
+        print(f"\n{tool_name}:")
+        print(f"  Total found by {tool_name}: {len(found_by_tool)}")
+        print(f"  Unique to {tool_name} (not found by others): {len(unique_bugs)}")
+    
+    # Compare features of unique bugs across tools
+    print(f"\n\nComparing features of unique bugs across tools:")
+    print("=" * 60)
+    
+    # Statistical comparison: each tool's unique bugs vs all other unique bugs combined
+    all_results = []
+    
+    for tool_name, unique_bugs in unique_bugs_by_tool.items():
+        if len(unique_bugs) < 5:
+            print(f"\n{tool_name}: Skipping (only {len(unique_bugs)} unique bugs, need at least 5)")
+            continue
+        
+        # Combine unique bugs from all other tools for comparison
+        other_bugs_list = [
+            bugs for other_tool, bugs in unique_bugs_by_tool.items() 
+            if other_tool != tool_name and len(bugs) >= 5
+        ]
+        
+        if len(other_bugs_list) == 0:
+            print(f"\n{tool_name}: Skipping (no other tools with unique bugs for comparison)")
+            continue
+        
+        other_unique_bugs = pd.concat(other_bugs_list, ignore_index=True)
+        
+        if len(other_unique_bugs) < 5:
+            print(f"\n{tool_name}: Skipping (insufficient comparison group: {len(other_unique_bugs)} bugs)")
+            continue
+        
+        print(f"\n{tool_name} (n={len(unique_bugs)}) vs Other tools' unique bugs (n={len(other_unique_bugs)}):")
+        
+        for feat in feature_cols:
+            if feat not in wide.columns:
+                continue
+            
+            x = unique_bugs[feat].dropna()
+            y = other_unique_bugs[feat].dropna()
+            
+            if len(x) < 5 or len(y) < 5:
+                continue
+            
+            # Mann-Whitney U test
+            try:
+                from scipy.stats import mannwhitneyu
+                u_stat, p_val = mannwhitneyu(x, y, alternative="two-sided", method="asymptotic")
+            except:
+                continue
+            
+            # Cliff's Delta
+            delta = cliffs_delta(x.values, y.values)
+            
+            # Effect size interpretation
+            if abs(delta) < 0.147:
+                effect_size = "negligible"
+            elif abs(delta) < 0.33:
+                effect_size = "small"
+            elif abs(delta) < 0.474:
+                effect_size = "medium"
+            else:
+                effect_size = "large"
+            
+            all_results.append({
+                "tool": tool_name,
+                "feature": feat,
+                "unique_count": len(x),
+                "other_count": len(y),
+                "unique_median": x.median(),
+                "other_median": y.median(),
+                "unique_mean": x.mean(),
+                "other_mean": y.mean(),
+                "unique_std": x.std(),
+                "other_std": y.std(),
+                "u_statistic": u_stat,
+                "p_value": p_val,
+                "cliffs_delta": delta,
+                "effect_size": effect_size,
+                "median_diff": x.median() - y.median(),
+                "mean_diff": x.mean() - y.mean()
+            })
+    
+    if len(all_results) == 0:
+        print(f"[WARN] No valid comparisons. Skipping.")
+        return
+    
+    results_df = pd.DataFrame(all_results)
+    
+    # Apply Holm-Bonferroni correction per tool
+    results_df_list = []
+    for tool_name in results_df["tool"].unique():
+        tool_results = results_df[results_df["tool"] == tool_name].copy()
+        tool_results = apply_holm(tool_results, alpha=ALPHA, pval_col="p_value")
+        if "reject" in tool_results.columns:
+            tool_results["significant"] = tool_results["reject"]
+        else:
+            tool_results["significant"] = tool_results["p_value"] < ALPHA
+        results_df_list.append(tool_results)
+    
+    results_df = pd.concat(results_df_list, ignore_index=True)
+    
+    # Sort by absolute Cliff's Delta
+    results_df["abs_delta"] = results_df["cliffs_delta"].abs()
+    results_df = results_df.sort_values(["tool", "abs_delta"], ascending=[True, False])
+    
+    # Save results
+    out_file = OUT_DIR_VENN / f"unique_tool_success_comparison{suffix}.csv"
+    results_df.to_csv(out_file, index=False)
+    print(f"\nSaved: {out_file}")
+    
+    # Create visualization: heatmap showing top features for each tool
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    
+    # Get top 10 features per tool
+    top_n_per_tool = 10
+    heatmap_data = []
+    
+    for tool_name in sorted(results_df["tool"].unique()):
+        tool_results = results_df[results_df["tool"] == tool_name].head(top_n_per_tool)
+        for _, row in tool_results.iterrows():
+            heatmap_data.append({
+                "tool": tool_name,
+                "feature": row["feature"],
+                "Cliff's Delta": row["cliffs_delta"]
+            })
+    
+    if heatmap_data:
+        heatmap_df = pd.DataFrame(heatmap_data)
+        pivot_heatmap = heatmap_df.pivot(index="feature", columns="tool", values="Cliff's Delta")
+        
+        # Sort by average absolute delta across tools
+        pivot_heatmap["avg_abs_delta"] = pivot_heatmap.abs().mean(axis=1)
+        pivot_heatmap = pivot_heatmap.sort_values("avg_abs_delta", ascending=False)
+        pivot_heatmap = pivot_heatmap.drop("avg_abs_delta", axis=1)
+        
+        # Create heatmap
+        plt.figure(figsize=(max(8, len(pivot_heatmap.columns) * 1.5), max(8, len(pivot_heatmap) * 0.3)))
+        sns.heatmap(pivot_heatmap, 
+                    annot=False, 
+                    cmap="RdBu_r", 
+                    center=0,
+                    vmin=-1, vmax=1,
+                    cbar_kws={"label": "Cliff's Delta (Tool's Unique vs Others' Unique)"},
+                    yticklabels=True)
+        plt.title(f"Feature Differences: Unique Tool Successes{suffix}\n(Each tool's unique bugs vs other tools' unique bugs)")
+        plt.ylabel("")
+        plt.xlabel("Tool")
+        plt.tight_layout()
+        
+        out_file = OUT_DIR_VENN / f"unique_tool_success_heatmap{suffix}.png"
+        plt.savefig(out_file, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"Saved: {out_file}")
+    
+    # Create boxplots for top features per tool
+    top_features_per_tool = 3
+    for tool_name in sorted(results_df["tool"].unique()):
+        tool_results = results_df[results_df["tool"] == tool_name].head(top_features_per_tool)
+        unique_bugs = unique_bugs_by_tool.get(tool_name)
+        
+        if unique_bugs is None or len(unique_bugs) < 5:
+            continue
+        
+        # Get other tools' unique bugs for comparison
+        other_bugs_list = [
+            bugs for other_tool, bugs in unique_bugs_by_tool.items() 
+            if other_tool != tool_name and len(bugs) >= 5
+        ]
+        
+        if len(other_bugs_list) == 0:
+            continue
+        
+        other_unique_bugs = pd.concat(other_bugs_list, ignore_index=True)
+        
+        if len(other_unique_bugs) < 5:
+            continue
+        
+        for _, row in tool_results.iterrows():
+            feat = row["feature"]
+            if feat not in wide.columns:
+                continue
+            
+            fig, ax = plt.subplots(figsize=(8, 6))
+            
+            data_to_plot = []
+            labels = []
+            
+            tool_values = unique_bugs[feat].dropna()
+            other_values = other_unique_bugs[feat].dropna()
+            
+            if len(tool_values) > 0 and len(other_values) > 0:
+                data_to_plot.append(tool_values)
+                labels.append(f"{tool_name}\n(n={len(tool_values)})")
+                data_to_plot.append(other_values)
+                labels.append(f"Other tools\n(n={len(other_values)})")
+            
+            if len(data_to_plot) == 2:
+                bp = ax.boxplot(data_to_plot, labels=labels, patch_artist=True)
+                bp["boxes"][0].set_facecolor("lightgreen")
+                bp["boxes"][1].set_facecolor("lightgray")
+                
+                ax.set_ylabel(feat)
+                ax.set_title(f"Feature Distribution: {tool_name}'s Unique Bugs vs Others' Unique Bugs{suffix}")
+                plt.tight_layout()
+                
+                out_file = OUT_DIR_VENN / f"unique_tool_boxplot_{safe_name(tool_name)}_{safe_name(feat)}{suffix}.png"
+                plt.savefig(out_file, dpi=300, bbox_inches="tight")
+                plt.close()
+                print(f"Saved: {out_file}")
+    
+    # Also compare each tool's unique bugs vs bugs found by ALL tools
+    print(f"\n\nComparing each tool's unique bugs vs bugs found by ALL tools:")
+    print("=" * 60)
+    
+    # Get bugs found by all tools
+    all_tools_mask = wide[tool_cols].all(axis=1)
+    all_tools_bugs = wide[all_tools_mask].copy()
+    
+    if len(all_tools_bugs) >= 5:
+        all_vs_unique_results = []
+        
+        for tool_name, unique_bugs in unique_bugs_by_tool.items():
+            if len(unique_bugs) < 5:
+                continue
+            
+            print(f"\n{tool_name} unique (n={len(unique_bugs)}) vs All tools (n={len(all_tools_bugs)}):")
+            
+            for feat in feature_cols:
+                if feat not in wide.columns:
+                    continue
+                
+                x = unique_bugs[feat].dropna()
+                y = all_tools_bugs[feat].dropna()
+                
+                if len(x) < 5 or len(y) < 5:
+                    continue
+                
+                try:
+                    from scipy.stats import mannwhitneyu
+                    u_stat, p_val = mannwhitneyu(x, y, alternative="two-sided", method="asymptotic")
+                except:
+                    continue
+                
+                delta = cliffs_delta(x.values, y.values)
+                
+                if abs(delta) < 0.147:
+                    effect_size = "negligible"
+                elif abs(delta) < 0.33:
+                    effect_size = "small"
+                elif abs(delta) < 0.474:
+                    effect_size = "medium"
+                else:
+                    effect_size = "large"
+                
+                all_vs_unique_results.append({
+                    "tool": tool_name,
+                    "feature": feat,
+                    "unique_count": len(x),
+                    "all_count": len(y),
+                    "unique_median": x.median(),
+                    "all_median": y.median(),
+                    "unique_mean": x.mean(),
+                    "all_mean": y.mean(),
+                    "u_statistic": u_stat,
+                    "p_value": p_val,
+                    "cliffs_delta": delta,
+                    "effect_size": effect_size
+                })
+        
+        if len(all_vs_unique_results) > 0:
+            all_vs_unique_df = pd.DataFrame(all_vs_unique_results)
+            
+            # Apply Holm-Bonferroni correction per tool
+            all_vs_unique_list = []
+            for tool_name in all_vs_unique_df["tool"].unique():
+                tool_results = all_vs_unique_df[all_vs_unique_df["tool"] == tool_name].copy()
+                tool_results = apply_holm(tool_results, alpha=ALPHA, pval_col="p_value")
+                if "reject" in tool_results.columns:
+                    tool_results["significant"] = tool_results["reject"]
+                else:
+                    tool_results["significant"] = tool_results["p_value"] < ALPHA
+                all_vs_unique_list.append(tool_results)
+            
+            all_vs_unique_df = pd.concat(all_vs_unique_list, ignore_index=True)
+            all_vs_unique_df["abs_delta"] = all_vs_unique_df["cliffs_delta"].abs()
+            all_vs_unique_df = all_vs_unique_df.sort_values(["tool", "abs_delta"], ascending=[True, False])
+            
+            out_file = OUT_DIR_VENN / f"unique_vs_all_tools_comparison{suffix}.csv"
+            all_vs_unique_df.to_csv(out_file, index=False)
+            print(f"\nSaved: {out_file}")
+            
+            # Create heatmap: unique vs all
+            top_n_per_tool = 10
+            heatmap_data = []
+            
+            for tool_name in sorted(all_vs_unique_df["tool"].unique()):
+                tool_results = all_vs_unique_df[all_vs_unique_df["tool"] == tool_name].head(top_n_per_tool)
+                for _, row in tool_results.iterrows():
+                    heatmap_data.append({
+                        "tool": tool_name,
+                        "feature": row["feature"],
+                        "Cliff's Delta": row["cliffs_delta"]
+                    })
+            
+            if heatmap_data:
+                heatmap_df = pd.DataFrame(heatmap_data)
+                pivot_heatmap = heatmap_df.pivot(index="feature", columns="tool", values="Cliff's Delta")
+                
+                # Sort by average absolute delta
+                pivot_heatmap["avg_abs_delta"] = pivot_heatmap.abs().mean(axis=1)
+                pivot_heatmap = pivot_heatmap.sort_values("avg_abs_delta", ascending=False)
+                pivot_heatmap = pivot_heatmap.drop("avg_abs_delta", axis=1)
+                
+                plt.figure(figsize=(max(8, len(pivot_heatmap.columns) * 1.5), max(8, len(pivot_heatmap) * 0.3)))
+                sns.heatmap(pivot_heatmap, 
+                            annot=False, 
+                            cmap="RdBu_r", 
+                            center=0,
+                            vmin=-1, vmax=1,
+                            cbar_kws={"label": "Cliff's Delta (Tool's Unique vs All Tools)"},
+                            yticklabels=True)
+                plt.title(f"Feature Differences: Each Tool's Unique Bugs vs Bugs Found by All Tools{suffix}")
+                plt.ylabel("")
+                plt.xlabel("Tool")
+                plt.tight_layout()
+                
+                out_file = OUT_DIR_VENN / f"unique_vs_all_tools_heatmap{suffix}.png"
+                plt.savefig(out_file, dpi=300, bbox_inches="tight")
+                plt.close()
+                print(f"Saved: {out_file}")
+    
+    print(f"\nDone. Outputs in: {OUT_DIR_VENN}")
+
+def run_unique_tool_success_analysis():
+    """Run unique tool success analysis for different thresholds."""
+    df, feature_cols, id_cols, perf_cols = load_data_and_features(IN_FILE)
+    
+    # Get tools from performance data
+    tools = get_tools(df, "mrr")
+    if not tools:
+        print("[WARN] No tools found. Skipping unique tool success analysis.")
+        return
+    
+    # Run for different thresholds
+    thresholds = [1, 5, 10, None]
+    for threshold in thresholds:
+        suffix = f"_top{threshold}" if threshold else ""
+        print(f"\n{'='*80}")
+        print(f"Running unique tool success analysis for threshold: {threshold if threshold else 'All'}")
+        print(f"{'='*80}")
+        analyze_unique_tool_successes(df, feature_cols, tools, threshold=threshold, suffix=suffix)
+
+# ======================================
 # MAIN EXECUTION
 # ======================================
 
@@ -2398,6 +3224,8 @@ if __name__ == "__main__":
     print(f"  - Top features visualized: {TOP_N_OUTLIER_FEATURES}")
     print(f"Clustered Heatmaps: {RUN_CLUSTERED_HEATMAPS}")
     print(f"Venn Diagrams: {RUN_VENN_DIAGRAMS}")
+    print(f"Intersection Feature Analysis: {RUN_INTERSECTION_FEATURE_ANALYSIS}")
+    print(f"Unique Tool Success Analysis: {RUN_UNIQUE_TOOL_SUCCESS_ANALYSIS}")
     print(f"Diagnostics: {RUN_DIAGNOSTICS}")
     print("=" * 60)
 
@@ -2419,6 +3247,12 @@ if __name__ == "__main__":
 
     if RUN_VENN_DIAGRAMS:
         run_venn_diagrams()
+    
+    if RUN_INTERSECTION_FEATURE_ANALYSIS:
+        run_intersection_feature_analysis()
+    
+    if RUN_UNIQUE_TOOL_SUCCESS_ANALYSIS:
+        run_unique_tool_success_analysis()
 
     print("\n" + "=" * 60)
     print("ALL ANALYSES COMPLETE")
