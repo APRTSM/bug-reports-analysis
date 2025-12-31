@@ -46,7 +46,8 @@ def load_data_and_features(in_file):
     print(f"Performance columns (excluded): {len(perf_cols)}")
     
     # Exclude redundant columns that are identical to other features
-    redundant_features = ['fine_grained_description_length']  # Identical to description_length
+    # Note: confidence features are kept in summary statistics (only excluded from analysis)
+    redundant_features = ['fine_grained_description_length', 'description_length_fine_grained']  # Identical to description_length
     feature_cols = [c for c in feature_cols if c not in redundant_features]
     
     return df, feature_cols

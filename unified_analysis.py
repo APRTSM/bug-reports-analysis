@@ -208,9 +208,15 @@ def load_data():
     # Exclude missingness features
     feature_cols = [c for c in feature_cols if not (c.endswith("_is_missing") or "__is_missing" in c)]
     
-    # Exclude redundant features
-    redundant = ['fine_grained_description_length']
+    # Exclude redundant features (identical to other features)
+    redundant = ['fine_grained_description_length', 'description_length_fine_grained']
     feature_cols = [c for c in feature_cols if c not in redundant]
+    
+    # Exclude confidence features from analysis (but keep in summary statistics)
+    confidence_features = [c for c in feature_cols if 'confidence' in c.lower()]
+    feature_cols = [c for c in feature_cols if c not in confidence_features]
+    if confidence_features:
+        print(f"  Excluded {len(confidence_features)} confidence features from analysis: {confidence_features}")
     
     # Categorize features
     categorized_features = categorize_features(feature_cols, df_features.columns)
@@ -231,13 +237,70 @@ def load_data():
         print(f"\n⚠ No enhanced features detected. Consider using enhanced preprocessing.")
     
     # Load tool comparison data
-    df_tools = pd.read_csv(IN_FILE_TOOL_COMPARISON)
-    print(f"\nLoaded tool comparison: {df_tools.shape}")
+    df_tools_raw = pd.read_csv(IN_FILE_TOOL_COMPARISON)
+    print(f"\nLoaded tool comparison: {df_tools_raw.shape}")
     
-    # Get tool names
-    tools = get_tools(df_features, "mrr")
-    if not tools:
-        tools = EXPECTED_TOOLS
+    # Pivot from long to wide format if needed
+    if "tool" in df_tools_raw.columns:
+        # Data is in long format, pivot to wide
+        print("  Pivoting tool comparison data from long to wide format...")
+        
+        # Get unique tools (normalize to lowercase for consistency)
+        tools_raw = df_tools_raw["tool"].unique()
+        tools = sorted([t.lower() for t in tools_raw])
+        print(f"  Tools found: {tools}")
+        
+        # Pivot rank, mrr, and top@ columns
+        pivot_cols = ["rank", "mrr", "top@1", "top@5", "top@10"]
+        available_pivot_cols = [c for c in pivot_cols if c in df_tools_raw.columns]
+        
+        if not available_pivot_cols:
+            print("  [WARN] No pivotable columns found. Trying to use 'detected' column...")
+            # Fallback: use detected column
+            df_tools = df_tools_raw.pivot_table(
+                index=["project", "bug_id"],
+                columns="tool",
+                values="detected",
+                aggfunc="first"
+            )
+            df_tools.columns = [f"detected_{tool}" for tool in df_tools.columns]
+            df_tools = df_tools.reset_index()
+        else:
+            # Pivot available columns
+            df_tools = df_tools_raw.pivot_table(
+                index=["project", "bug_id"],
+                columns="tool",
+                values=available_pivot_cols,
+                aggfunc="first"
+            )
+            # Flatten column names: (metric, tool) -> metric_tool
+            # Handle @ symbol in column names by replacing with underscore
+            # Normalize tool names to lowercase
+            new_cols = []
+            for metric, tool_orig in df_tools.columns:
+                # Replace @ with underscore for valid column names
+                metric_clean = metric.replace("@", "_")
+                # Normalize tool name to lowercase
+                tool_normalized = tool_orig.lower()
+                new_cols.append(f"{metric_clean}_{tool_normalized}")
+            df_tools.columns = new_cols
+            df_tools = df_tools.reset_index()
+        
+        print(f"  Pivoted shape: {df_tools.shape}")
+    else:
+        # Data is already in wide format
+        df_tools = df_tools_raw
+        # Get tool names from columns (try multiple prefixes)
+        tools = get_tools(df_tools, "rank")
+        if not tools:
+            tools = get_tools(df_tools, "mrr")
+        if not tools:
+            tools = get_tools(df_features, "mrr")
+        if not tools:
+            tools = [t.lower() for t in EXPECTED_TOOLS]
+    
+    # Normalize tool names to lowercase for consistency
+    tools = [t.lower() for t in tools]
     print(f"Tools detected: {tools}")
     
     return df_features, df_tools, feature_cols, categorized_features, tools, id_cols
@@ -248,13 +311,34 @@ def create_success_flags(df_tools, tools, threshold):
     
     for tool in tools:
         rank_col = f"rank_{tool}"
-        if rank_col not in df_tools.columns:
-            print(f"[WARN] Missing column: {rank_col}")
+        # Handle @ symbol in column names (pivoted columns use underscore)
+        top_col = f"top_{threshold}_{tool}" if threshold in [1, 5, 10] else None
+        mrr_col = f"mrr_{tool}"
+        detected_col = f"detected_{tool}"
+        
+        # Try multiple methods to determine if bug was found
+        found = None
+        
+        # Method 1: Use rank column if available
+        if rank_col in df_tools.columns:
+            found = df_tools[rank_col] <= threshold
+        # Method 2: Use top@N column if available
+        elif top_col and top_col in df_tools.columns:
+            found = df_tools[top_col] == 1
+        # Method 3: Calculate rank from MRR (rank = 1/mrr if mrr > 0)
+        elif mrr_col in df_tools.columns:
+            mrr = df_tools[mrr_col].fillna(0)
+            calculated_rank = np.where(mrr > 0, 1.0 / mrr, np.inf)
+            found = calculated_rank <= threshold
+        # Method 4: Use detected column if available
+        elif detected_col in df_tools.columns:
+            found = df_tools[detected_col].fillna("No").str.contains("Yes", case=False, na=False)
+        else:
+            print(f"[WARN] Missing column: {rank_col} (and no fallback columns found)")
             result[f"found_{tool}"] = False
             continue
         
-        # Success = rank <= threshold
-        result[f"found_{tool}"] = df_tools[rank_col] <= threshold
+        result[f"found_{tool}"] = found
     
     return result
 
