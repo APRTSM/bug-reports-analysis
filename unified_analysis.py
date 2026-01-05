@@ -42,17 +42,17 @@ except ImportError:
 DATA_DIR = Path(".")
 
 # Input files - UPDATED to use enhanced preprocessed data
-IN_FILE = DATA_DIR / "full_feature_preproccessed/experimentA_full_dataset.csv"
+IN_FILE = DATA_DIR / "full_feature_preproccessed_fixed/experimentA_preprocessed_rich.csv"
 IN_FILE_TOOL_COMPARISON = DATA_DIR / "tool_comparison_summary.csv"
 
 # Output directory
-OUT_DIR = DATA_DIR / "focused_tool_comparison_results"
+OUT_DIR = DATA_DIR / "tool_comparison_results_fixed"
 OUT_DIR.mkdir(exist_ok=True)
 
 # Analysis settings
 ALPHA = 0.05
 PRACTICAL_SIG_DELTA = 0.2  # Minimum Cliff's delta to consider meaningful
-MIN_GROUP_SIZE = 8  # Minimum bugs per group for reliable comparison
+MIN_GROUP_SIZE = 5  # Minimum bugs per group for reliable comparison
 
 # Tool names (will be auto-detected but can be specified)
 EXPECTED_TOOLS = ["buglocator", "flexfl", "locus", "boostnshift"]
@@ -211,6 +211,92 @@ def load_data():
     # Exclude redundant features (identical to other features)
     redundant = ['fine_grained_description_length', 'description_length_fine_grained']
     feature_cols = [c for c in feature_cols if c not in redundant]
+    
+    # Exclude text-derived word_count and char_len features
+    text_stats_to_exclude = [c for c in feature_cols if c.startswith('txt_') and 
+                             (c.endswith('_word_count') or c.endswith('_char_len'))]
+    feature_cols = [c for c in feature_cols if c not in text_stats_to_exclude]
+    if text_stats_to_exclude:
+        print(f"  Excluded {len(text_stats_to_exclude)} text-derived word_count/char_len features from analysis")
+        print(f"    Examples: {text_stats_to_exclude[:5]}")
+    
+    # Deduplicate text-derived features: keep one of each pair (prefer _density over _count)
+    txt_features = [c for c in feature_cols if c.startswith('txt_')]
+    if txt_features:
+        # First, handle special case: avg_sentence_len vs avg_words_per_line
+        # Group by source (everything before _avg_)
+        sentence_line_pairs = {}
+        for feat in txt_features:
+            if '_avg_sentence_len' in feat:
+                source = feat.replace('_avg_sentence_len', '')
+                if source not in sentence_line_pairs:
+                    sentence_line_pairs[source] = {'sentence_len': None, 'words_per_line': None}
+                sentence_line_pairs[source]['sentence_len'] = feat
+            elif '_avg_words_per_line' in feat:
+                source = feat.replace('_avg_words_per_line', '')
+                if source not in sentence_line_pairs:
+                    sentence_line_pairs[source] = {'sentence_len': None, 'words_per_line': None}
+                sentence_line_pairs[source]['words_per_line'] = feat
+        
+        # For pairs where both exist, keep avg_sentence_len (drop avg_words_per_line)
+        features_to_drop_special = []
+        for source, pair in sentence_line_pairs.items():
+            if pair['sentence_len'] and pair['words_per_line']:
+                features_to_drop_special.append(pair['words_per_line'])
+        
+        # Remove the special case features from txt_features for the general deduplication
+        txt_features_filtered = [f for f in txt_features if f not in features_to_drop_special]
+        
+        # Group features by base name (everything except the last suffix)
+        feature_groups = {}
+        for feat in txt_features_filtered:
+            parts = feat.split('_')
+            if len(parts) >= 3:
+                base = '_'.join(parts[:-1])  # Everything except last part
+                suffix = parts[-1]
+                if base not in feature_groups:
+                    feature_groups[base] = []
+                feature_groups[base].append((feat, suffix))
+        
+        # For groups with multiple features, keep one based on priority
+        features_to_keep = set()
+        features_to_drop = []
+        
+        # Priority order: prefer density over count, then alphabetical
+        priority_order = ['density', 'count', 'ratio', 'avg', 'median', 'min', 'max']
+        
+        for base, features in feature_groups.items():
+            if len(features) > 1:
+                # Sort by priority
+                def get_priority(item):
+                    suffix = item[1]
+                    if suffix in priority_order:
+                        return priority_order.index(suffix)
+                    return len(priority_order)  # Lower priority for others
+                
+                features_sorted = sorted(features, key=get_priority)
+                # Keep the first (highest priority)
+                keep_feat = features_sorted[0][0]
+                features_to_keep.add(keep_feat)
+                # Drop the rest
+                for feat, _ in features_sorted[1:]:
+                    features_to_drop.append(feat)
+            else:
+                # Single feature, keep it
+                features_to_keep.add(features[0][0])
+        
+        # Combine all features to drop
+        all_features_to_drop = features_to_drop + features_to_drop_special
+        
+        # Update feature_cols: keep non-txt features and selected txt features
+        feature_cols = [c for c in feature_cols if not c.startswith('txt_')] + list(features_to_keep)
+        
+        if all_features_to_drop:
+            print(f"  Deduplicated text features: kept {len(features_to_keep)} txt_ features, dropped {len(all_features_to_drop)} duplicates")
+            if features_to_drop_special:
+                print(f"    Dropped avg_words_per_line features (kept avg_sentence_len): {features_to_drop_special}")
+            if features_to_drop:
+                print(f"    Examples of other dropped: {features_to_drop[:5]}")
     
     # Exclude confidence features from analysis (but keep in summary statistics)
     confidence_features = [c for c in feature_cols if 'confidence' in c.lower()]

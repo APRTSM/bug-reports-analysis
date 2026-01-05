@@ -34,7 +34,7 @@ DATA_DIR = Path(".")
 ENABLE_STANDARDIZATION = True  # Set to False to skip standardization
 
 # Input files - UPDATED to use enhanced features
-FEATURES_FILE = DATA_DIR / "bug_features_enhanced.csv" 
+FEATURES_FILE = DATA_DIR / "bug_features_enhanced_fixed.csv" 
 RATINGS_FILE  = DATA_DIR / "gemini_ratings/gemini_bug_ratings.csv"
 CATEG_FILE    = DATA_DIR / "gemini_ratings/gemini_bug_categorization.csv"
 FINE_GRAINED_CATEG_FILE = DATA_DIR / "gemini_ratings/fine_grained_gemini_categorization.csv"
@@ -42,8 +42,8 @@ PERF_FILE     = DATA_DIR / "tool_comparison_summary.csv"
 BEE_RESULTS_FILE = DATA_DIR / "bee_results.jsonl"
 
 # Output files
-OUT_FULL = DATA_DIR / "full_feature_preproccessed/experimentA_full_dataset.csv"
-OUT_PREP = DATA_DIR / "full_feature_preproccessed/experimentA_preprocessed_rich.csv"
+OUT_FULL = DATA_DIR / "full_feature_preproccessed_fixed/experimentA_full_dataset.csv"
+OUT_PREP = DATA_DIR / "full_feature_preproccessed_fixed/experimentA_preprocessed_rich.csv"
 SCALER_FILE = DATA_DIR / "feature_scaler.pkl"
 
 # -----------------------------
@@ -763,6 +763,18 @@ remaining_nan_cols = df.select_dtypes(include=[np.number]).columns[df.select_dty
 if remaining_nan_cols:
     print(f"  Filling remaining NaNs with 0 in {len(remaining_nan_cols)} columns")
     df[remaining_nan_cols] = df[remaining_nan_cols].fillna(0.0)
+
+# 6.13 Separate features from performance metrics
+print("\n6.13 Separating features from performance metrics...")
+PERFORMANCE_COLS = [
+    c for c in df.columns
+    if c.startswith(("top@", "mrr_", "map_"))
+]
+X = df.drop(columns=PERFORMANCE_COLS, errors="ignore")
+print(f"  Performance columns identified: {len(PERFORMANCE_COLS)}")
+print(f"  Feature matrix X shape: {X.shape}")
+if PERFORMANCE_COLS:
+    print(f"  Performance columns: {PERFORMANCE_COLS[:5]}{'...' if len(PERFORMANCE_COLS) > 5 else ''}")
 
 # Save preprocessed dataset
 print(f"\nPreprocessed (rich) shape: {df.shape}")

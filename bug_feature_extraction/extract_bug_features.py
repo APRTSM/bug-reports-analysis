@@ -17,7 +17,7 @@ nltk.download("punkt", quiet=True)
 
 # ----------------- CONFIG -------------------
 DATA_DIR = "defects4j_xml"
-OUTPUT_FILE = "bug_features_enhanced.csv"
+OUTPUT_FILE = "bug_features_enhanced_fixed.csv"
 EMBED_MODEL = "all-MiniLM-L6-v2"
 USE_XML = True
 BEE_RESULTS_FILE = "bee_results.jsonl"
@@ -254,7 +254,7 @@ def extract_semantic_diversity_features(text: str):
             "semantic_spread_pc1": 0.0,
             "semantic_spread_pc2": 0.0,
             "semantic_coherence": 1.0,  # Single sentence is perfectly coherent
-            "num_semantic_sentences": len(sents)
+            #"num_semantic_sentences": len(sents)
         }
     
     try:
@@ -643,14 +643,14 @@ def compute_syntactic_features(text: str):
             print(f"Warning: Readability calculation failed: {e}")
 
     return {
-        "n_tokens": n_tokens,
-        "n_words": n_words,
+        #"n_tokens": n_tokens,
+        #"n_words": n_words,
         "n_sentences": n_sentences,
-        "flesch_reading_ease": flesch,
-        "smog_index": smog,
+        #"flesch_reading_ease": flesch,
+        #"smog_index": smog,
         "gunning_fog": gunning,
-        "coleman_liau_index": coleman,
-        "automated_readability_index": ari,
+        #"coleman_liau_index": coleman,
+        #"automated_readability_index": ari,
     }
 
 
@@ -804,7 +804,7 @@ def main():
                         "exc_cat_io_error": 0,
                         "exc_cat_runtime_error": 0,
                         "exc_cat_concurrency": 0,
-                        "exc_cat_assertion": 0,
+                        #"exc_cat_assertion": 0,
                         "exc_cat_arithmetic": 0,
                         "has_exc_null_pointer": 0,
                         "has_exc_type_error": 0,

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 # Configuration
-INPUT_DIR = Path("focused_tool_comparison_results")
+INPUT_DIR = Path("tool_comparison_results_fixed")
 OUTPUT_DIR = INPUT_DIR
 THRESHOLDS = [1, 5, 10]
 
