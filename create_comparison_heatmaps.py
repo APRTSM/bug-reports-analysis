@@ -65,11 +65,11 @@ def create_all_vs_none_heatmap(df: pd.DataFrame, threshold: int, top_n: int = 30
         vmin=-1, vmax=1,
         annot=True,
         fmt='.3f',
-        cbar_kws={'label': "Cliff's Delta"},
+        #cbar_kws={'label': "Cliff's Delta"},
         ax=axes[0]
     )
     axes[0].set_title(f'ALL vs NONE (Top-{threshold})\nCliff\'s Delta Effect Size', fontweight='bold')
-    axes[0].set_ylabel('Feature', fontweight='bold')
+    axes[0].set_ylabel('')
     
     # Secondary heatmap: Median values comparison
     matrix_medians = np.column_stack([
@@ -79,11 +79,11 @@ def create_all_vs_none_heatmap(df: pd.DataFrame, threshold: int, top_n: int = 30
     sns.heatmap(
         matrix_medians,
         xticklabels=['ALL Median', 'NONE Median'],
-        yticklabels=features,
+        yticklabels=False,
         cmap='YlOrRd',
         annot=True,
         fmt='.2f',
-        cbar_kws={'label': 'Median Value'},
+        #cbar_kws={'label': 'Median Value'},
         ax=axes[1]
     )
     axes[1].set_title(f'Median Values Comparison', fontweight='bold')
