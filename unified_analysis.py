@@ -390,6 +390,19 @@ def load_data():
     tools = [t.lower() for t in tools]
     print(f"Tools detected: {tools}")
     
+    # Ensure consistent data types for merge keys
+    # Convert bug_id to Int64 (nullable integer) in both dataframes
+    if "bug_id" in df_features.columns:
+        df_features["bug_id"] = pd.to_numeric(df_features["bug_id"], errors="coerce").astype("Int64")
+    if "bug_id" in df_tools.columns:
+        df_tools["bug_id"] = pd.to_numeric(df_tools["bug_id"], errors="coerce").astype("Int64")
+    
+    # Ensure project is string in both
+    if "project" in df_features.columns:
+        df_features["project"] = df_features["project"].astype(str)
+    if "project" in df_tools.columns:
+        df_tools["project"] = df_tools["project"].astype(str)
+    
     return df_features, df_tools, feature_cols, categorized_features, tools, id_cols
 
 def create_success_flags(df_tools, tools, threshold):
@@ -784,6 +797,35 @@ def analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold):
         data_others = merged[merged[["project", "bug_id"]].apply(tuple, axis=1).isin(
             others_bugs[["project", "bug_id"]].apply(tuple, axis=1)
         )]
+        
+        # Report missing values for each tool
+        features_with_missing_unique = []
+        features_with_missing_others = []
+        for feat in feature_cols:
+            if feat not in merged.columns:
+                continue
+            # Check for missing values in unique group
+            if data_unique[feat].isna().any():
+                missing_count = data_unique[feat].isna().sum()
+                missing_pct = (missing_count / len(data_unique)) * 100
+                features_with_missing_unique.append((feat, missing_count, missing_pct))
+            # Check for missing values in others group
+            if data_others[feat].isna().any():
+                missing_count = data_others[feat].isna().sum()
+                missing_pct = (missing_count / len(data_others)) * 100
+                features_with_missing_others.append((feat, missing_count, missing_pct))
+        
+        print(f"  Features with missing values:")
+        print(f"    Unique bugs group: {len(features_with_missing_unique)} features with missing values")
+        if features_with_missing_unique:
+            # Sort by missing percentage (descending)
+            features_with_missing_unique.sort(key=lambda x: x[2], reverse=True)
+            print(f"      Top 5 by missing %: {', '.join([f'{f[0]} ({f[2]:.1f}%)' for f in features_with_missing_unique[:5]])}")
+        print(f"    Others group: {len(features_with_missing_others)} features with missing values")
+        if features_with_missing_others:
+            # Sort by missing percentage (descending)
+            features_with_missing_others.sort(key=lambda x: x[2], reverse=True)
+            print(f"      Top 5 by missing %: {', '.join([f'{f[0]} ({f[2]:.1f}%)' for f in features_with_missing_others[:5]])}")
         
         results = []
         for feat in feature_cols:
