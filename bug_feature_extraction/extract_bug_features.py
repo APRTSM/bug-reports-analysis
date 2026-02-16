@@ -289,7 +289,7 @@ def extract_semantic_diversity_features(text: str):
             "semantic_spread_pc1": float(spread_pc1),
             "semantic_spread_pc2": float(spread_pc2),
             "semantic_coherence": float(avg_similarity),
-            "num_semantic_sentences": len(sents)
+            #"num_semantic_sentences": len(sents)
         }
         
     except Exception as e:
@@ -299,7 +299,7 @@ def extract_semantic_diversity_features(text: str):
             "semantic_spread_pc1": 0.0,
             "semantic_spread_pc2": 0.0,
             "semantic_coherence": 0.0,
-            "num_semantic_sentences": len(sents)
+            #"num_semantic_sentences": len(sents)
         }
 
 
@@ -567,29 +567,6 @@ def extract_context_features(text: str):
     }
 
 
-def extract_behavior_features(text: str, n_sentences=None):
-    """Count behavior-describing verbs."""
-    behavior_verbs = {
-        "crash", "hang", "freeze", "fail", "throw", "error", "break",
-        "render", "display", "show", "save", "load", "open", "close",
-        "restart", "reload", "timeout", "time out", "terminate",
-        "shut", "shut down", "exit", "return", "calculate", "compute",
-        "parse", "compile", "build", "deploy", "upload", "download",
-    }
-
-    doc = nlp(text)
-    behavior_count = 0
-    for token in doc:
-        if token.pos_ == "VERB" and token.lemma_.lower() in behavior_verbs:
-            behavior_count += 1
-
-    if not n_sentences:
-        n_sentences = sum(1 for _ in doc.sents) or 1
-
-    return {
-        "behavior_verb_count": behavior_count,
-        "behavior_verb_density": float(behavior_count) / n_sentences if n_sentences else 0.0,
-    }
 
 
 def compute_modality_features(text: str, n_sentences=None):
@@ -820,7 +797,7 @@ def main():
                         "exception_avg_frame_package_depth": 0.0
                     }
                 
-                behavior_feats = extract_behavior_features(text, syn.get("n_sentences"))
+                #behavior_feats = extract_behavior_features(text, syn.get("n_sentences"))
                 modality_feats = compute_modality_features(text, syn.get("n_sentences"))
                 
                 # Completeness score
@@ -836,7 +813,7 @@ def main():
                     **causal_feats,
                     **context_feats,
                     **stacktrace_feats,
-                    **behavior_feats,
+                    #**behavior_feats,
                     **modality_feats,
                     "redundancy": redund,
                     "ambiguity": ambig,

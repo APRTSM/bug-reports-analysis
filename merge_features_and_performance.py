@@ -549,6 +549,13 @@ if not fine_grained_categ_df.empty:
 # -----------------------------
 print("\nComputing MRR from ranks...")
 perf_df = perf_df.copy()
+
+# Ensure consistent data types for merge keys
+if "bug_id" in perf_df.columns:
+    perf_df["bug_id"] = pd.to_numeric(perf_df["bug_id"], errors="coerce").astype("Int64")
+if "project" in perf_df.columns:
+    perf_df["project"] = perf_df["project"].astype(str)
+
 perf_df["mrr"] = np.where(perf_df["rank"].notna(), 1.0 / perf_df["rank"], 0.0)
 
 perf_subset = perf_df[["project", "bug_id", "tool", "rank", "mrr", "top@1", "top@5"]].copy()
@@ -566,6 +573,18 @@ perf_wide = perf_subset.pivot_table(
 perf_wide.columns = [f"{metric}_{tool}" for metric, tool in perf_wide.columns]
 perf_wide = perf_wide.reset_index()
 
+# Ensure consistent data types in perf_wide after pivot
+if "bug_id" in perf_wide.columns:
+    perf_wide["bug_id"] = pd.to_numeric(perf_wide["bug_id"], errors="coerce").astype("Int64")
+if "project" in perf_wide.columns:
+    perf_wide["project"] = perf_wide["project"].astype(str)
+
+# Ensure consistent data types in features_df (should already be done by split_id, but double-check)
+if "bug_id" in features_df.columns:
+    features_df["bug_id"] = pd.to_numeric(features_df["bug_id"], errors="coerce").astype("Int64")
+if "project" in features_df.columns:
+    features_df["project"] = features_df["project"].astype(str)
+
 # -----------------------------
 # 5. Merge all sources
 # -----------------------------
@@ -575,6 +594,12 @@ merged = features_df.merge(perf_wide, on=["project", "bug_id"], how="left")
 drop_from_ratings = ["description_length"]
 ratings_for_merge = ratings_df.drop(columns=drop_from_ratings, errors="ignore")
 
+# Ensure consistent data types in ratings_for_merge
+if "bug_id" in ratings_for_merge.columns:
+    ratings_for_merge["bug_id"] = pd.to_numeric(ratings_for_merge["bug_id"], errors="coerce").astype("Int64")
+if "project" in ratings_for_merge.columns:
+    ratings_for_merge["project"] = ratings_for_merge["project"].astype(str)
+
 merged = merged.merge(
     ratings_for_merge,
     on=["project", "bug_id"],
@@ -583,6 +608,12 @@ merged = merged.merge(
 )
 
 categ_for_merge = categ_df.copy()
+# Ensure consistent data types in categ_for_merge
+if "bug_id" in categ_for_merge.columns:
+    categ_for_merge["bug_id"] = pd.to_numeric(categ_for_merge["bug_id"], errors="coerce").astype("Int64")
+if "project" in categ_for_merge.columns:
+    categ_for_merge["project"] = categ_for_merge["project"].astype(str)
+
 merged = merged.merge(
     categ_for_merge,
     on=["project", "bug_id"],
@@ -592,6 +623,12 @@ merged = merged.merge(
 
 if not fine_grained_categ_df.empty:
     fine_grained_for_merge = fine_grained_categ_df.copy()
+    # Ensure consistent data types in fine_grained_for_merge
+    if "bug_id" in fine_grained_for_merge.columns:
+        fine_grained_for_merge["bug_id"] = pd.to_numeric(fine_grained_for_merge["bug_id"], errors="coerce").astype("Int64")
+    if "project" in fine_grained_for_merge.columns:
+        fine_grained_for_merge["project"] = fine_grained_for_merge["project"].astype(str)
+    
     merged = merged.merge(
         fine_grained_for_merge,
         on=["project", "bug_id"],
@@ -602,6 +639,8 @@ if not fine_grained_categ_df.empty:
 # Load and merge bee_results
 bee_df = load_bee_results(BEE_RESULTS_FILE)
 if not bee_df.empty:
+    # Ensure consistent data types in bee_df (it uses 'id' column, not project/bug_id)
+    # The merge is on 'id', so we don't need to normalize project/bug_id for bee_df
     merged = merged.merge(bee_df, on="id", how="left", suffixes=("", "_bee"))
 
 print(f"\nMerged shape: {merged.shape}")
