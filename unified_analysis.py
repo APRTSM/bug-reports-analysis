@@ -45,6 +45,15 @@ DATA_DIR = Path(".")
 IN_FILE = DATA_DIR / "full_feature_preproccessed_fixed/experimentA_preprocessed_rich.csv"
 IN_FILE_TOOL_COMPARISON = DATA_DIR / "tool_comparison_summary.csv"
 
+# Dataset filtering: Set to filter by dataset if needed
+# Defects4J projects: All projects from Defects4J dataset
+DEFECTS4J_PROJECTS = [
+    "Chart", "Cli", "Closure", "Codec", "Collections", "Compress", "Csv", "Gson",
+    "JacksonCore", "JacksonDatabind", "JacksonXml", "Jsoup", "JxPath",
+    "Lang", "Math", "Mockito", "Time"
+]
+FILTER_DEFECTS4J_ONLY = True  # Set to True to analyze only Defects4J bugs
+
 # Output directory
 OUT_DIR = DATA_DIR / "tool_comparison_results_fixed"
 OUT_DIR.mkdir(exist_ok=True)
@@ -55,7 +64,7 @@ PRACTICAL_SIG_DELTA = 0.2  # Minimum Cliff's delta to consider meaningful
 MIN_GROUP_SIZE = 8  # Minimum bugs per group for reliable comparison
 
 # Tool names (will be auto-detected but can be specified)
-EXPECTED_TOOLS = ["buglocator", "flexfl", "locus", "boostnsift"]
+EXPECTED_TOOLS = ["buglocator", "flexfl", "locus", "boostnsift", "BRaIn"]
 
 
 # Rank thresholds to analyze
@@ -221,6 +230,13 @@ def load_data():
         print(f"  Excluded {len(text_stats_to_exclude)} text-derived word_count/char_len features from analysis")
         print(f"    Examples: {text_stats_to_exclude[:5]}")
     
+    # Exclude ratio features
+    ratio_features = [c for c in feature_cols if c.endswith('_ratio')]
+    feature_cols = [c for c in feature_cols if c not in ratio_features]
+    if ratio_features:
+        print(f"  Excluded {len(ratio_features)} ratio features from analysis")
+        print(f"    Examples: {ratio_features[:10]}")
+    
     # Deduplicate text-derived features: keep one of each pair (prefer _density over _count)
     txt_features = [c for c in feature_cols if c.startswith('txt_')]
     if txt_features:
@@ -326,6 +342,19 @@ def load_data():
     # Load tool comparison data
     df_tools_raw = pd.read_csv(IN_FILE_TOOL_COMPARISON)
     print(f"\nLoaded tool comparison: {df_tools_raw.shape}")
+    
+    # Filter to Defects4J only if requested
+    if FILTER_DEFECTS4J_ONLY:
+        initial_count = len(df_tools_raw)
+        df_tools_raw = df_tools_raw[df_tools_raw["project"].isin(DEFECTS4J_PROJECTS)]
+        print(f"  Filtered to Defects4J only: {len(df_tools_raw)} rows (removed {initial_count - len(df_tools_raw)} non-Defects4J rows)")
+        print(f"  Defects4J unique bugs: {df_tools_raw[['project', 'bug_id']].drop_duplicates().shape[0]}")
+    
+    # Also filter feature data to match
+    if FILTER_DEFECTS4J_ONLY:
+        initial_feature_count = len(df_features)
+        df_features = df_features[df_features["project"].isin(DEFECTS4J_PROJECTS)]
+        print(f"  Filtered feature data to Defects4J: {len(df_features)} rows (removed {initial_feature_count - len(df_features)} non-Defects4J rows)")
     
     # Pivot from long to wide format if needed
     if "tool" in df_tools_raw.columns:
@@ -494,6 +523,14 @@ def create_upset_diagram(df_tools, tools, threshold, suffix=""):
         # Print summary statistics
         print(f"\n  UpSet Summary (Top-{threshold}):")
         print(f"    Total bugs found by at least one tool: {len(memberships)}")
+        
+        # Verify total if filtering is enabled
+        if FILTER_DEFECTS4J_ONLY:
+            expected_total = 835  # Defects4J has 835 bugs
+            if len(memberships) > expected_total:
+                print(f"    [WARNING] Union size ({len(memberships)}) exceeds expected Defects4J total ({expected_total})")
+            else:
+                print(f"    Union size ({len(memberships)}) is within expected Defects4J total ({expected_total})")
         
         # Count bugs found by all tools
         all_tools_bugs = sum(1 for m in memberships if len(m) == len(tools))
@@ -770,6 +807,8 @@ def analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold):
     
     all_tool_results = []
     
+    print(f"\nAnalyzing {len(tools)} tools: {', '.join(tools)}")
+    
     for tool in tools:
         found_col = f"found_{tool}"
         other_cols = [f"found_{t}" for t in tools if t != tool]
@@ -779,16 +818,56 @@ def analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold):
         unique_bugs = flags[mask_unique]
         
         # Bugs all other tools find (regardless of this tool)
-        mask_others = flags[other_cols].all(axis=1)
-        others_bugs = flags[mask_others]
+        # Try strict first: bugs found by ALL other tools
+        mask_others_strict = flags[other_cols].all(axis=1)
+        others_bugs_strict = flags[mask_others_strict]
         
-        print(f"\n{tool}:")
-        print(f"  Unique bugs: {len(unique_bugs)}")
-        print(f"  Bugs found by all others: {len(others_bugs)}")
+        # Fallback: bugs found by at least one other tool (if strict doesn't meet minimum)
+        # For tools with many unique bugs, use a more lenient comparison group
+        if len(others_bugs_strict) < MIN_GROUP_SIZE:
+            mask_others = flags[other_cols].any(axis=1)
+            others_bugs = flags[mask_others]
+            print(f"\n{tool}:")
+            print(f"  Unique bugs: {len(unique_bugs)}")
+            print(f"  Bugs found by all others (strict): {len(others_bugs_strict)}")
+            print(f"  Bugs found by at least one other (fallback): {len(others_bugs)}")
+            if len(others_bugs) < MIN_GROUP_SIZE and len(unique_bugs) >= MIN_GROUP_SIZE * 2:
+                # Special case: if tool has many unique bugs (2x minimum) but few others,
+                # use bugs found by majority of other tools instead
+                num_other_tools = len(other_cols)
+                majority_threshold = (num_other_tools + 1) // 2  # At least half
+                mask_others = flags[other_cols].sum(axis=1) >= majority_threshold
+                others_bugs = flags[mask_others]
+                print(f"  Bugs found by majority of others (≥{majority_threshold}/{num_other_tools}): {len(others_bugs)}")
+        else:
+            others_bugs = others_bugs_strict
+            print(f"\n{tool}:")
+            print(f"  Unique bugs: {len(unique_bugs)}")
+            print(f"  Bugs found by all others: {len(others_bugs)}")
         
-        if len(unique_bugs) < MIN_GROUP_SIZE or len(others_bugs) < MIN_GROUP_SIZE:
-            print(f"  [SKIP] Insufficient bugs")
+        # More lenient check: if tool has many unique bugs, allow smaller "others" group
+        min_others_required = MIN_GROUP_SIZE
+        if len(unique_bugs) >= MIN_GROUP_SIZE * 3:  # Tool has 3x minimum unique bugs
+            min_others_required = max(3, MIN_GROUP_SIZE // 2)  # Lower threshold for comparison group
+        elif len(unique_bugs) >= MIN_GROUP_SIZE * 2:  # Tool has 2x minimum unique bugs
+            min_others_required = max(3, int(MIN_GROUP_SIZE * 0.75))  # Slightly lower threshold
+        
+        # Very lenient: if tool has many unique bugs, allow even smaller comparison group
+        if len(unique_bugs) >= MIN_GROUP_SIZE * 5:  # Tool has 5x minimum unique bugs (e.g., 40+)
+            min_others_required = 3  # Very low threshold - just need a few for comparison
+        
+        if len(unique_bugs) < MIN_GROUP_SIZE:
+            print(f"  [SKIP] Insufficient unique bugs ({len(unique_bugs)} < {MIN_GROUP_SIZE})")
             continue
+        
+        if len(others_bugs) < min_others_required:
+            # Proceed with smaller comparison group if we have enough unique bugs
+            # Only skip if comparison group is absolutely too small (< 3) AND unique bugs are also small
+            if len(others_bugs) < 3 and len(unique_bugs) < MIN_GROUP_SIZE * 2:
+                print(f"  [SKIP] Both groups too small (unique: {len(unique_bugs)}, others: {len(others_bugs)})")
+                continue
+            else:
+                print(f"  [WARN] Small comparison group ({len(others_bugs)} < {min_others_required}), but proceeding with {len(unique_bugs)} unique bugs")
         
         # Get feature data
         data_unique = merged[merged[["project", "bug_id"]].apply(tuple, axis=1).isin(

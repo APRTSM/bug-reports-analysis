@@ -182,26 +182,39 @@ def create_tool_vs_rest_heatmap(df: pd.DataFrame, threshold: int, top_n: int = 2
     if df is None or len(df) == 0:
         return
     
-    # Filter for practically significant features first, then significant, then top by delta
-    df_sig = df[df['practically_significant'] == True].copy()
-    if len(df_sig) == 0:
-        df_sig = df[df['significant'] == True].copy()
+    # Get top features per tool - use different filtering per tool
+    # This ensures all tools are included even if they don't have practically significant features
+    top_features_per_tool = {}
+    all_tools = sorted(df['tool'].unique())
     
-    # If still no significant features, use top features by absolute delta
-    if len(df_sig) == 0:
-        print(f"  No statistically significant features, using top features by effect size...")
-        df_sig = df.copy()
-        df_sig = df_sig.sort_values('abs_delta', ascending=False).head(top_n * 3)  # Get more candidates
+    for tool in all_tools:
+        tool_df = df[df['tool'] == tool].copy()
+        
+        # Try practically significant first
+        tool_sig = tool_df[tool_df['practically_significant'] == True]
+        if len(tool_sig) == 0:
+            # Fall back to just significant
+            tool_sig = tool_df[tool_df['significant'] == True]
+        if len(tool_sig) == 0:
+            # Fall back to top features by effect size
+            tool_sig = tool_df.copy()
+            tool_sig = tool_sig.sort_values('abs_delta', ascending=False).head(top_n * 2)
+        
+        # Get top N features for this tool
+        tool_sig_sorted = tool_sig.sort_values('abs_delta', ascending=False)
+        top_features_per_tool[tool] = tool_sig_sorted.head(top_n)['feature'].tolist()
+    
+    # Create a combined dataframe with selected features for all tools
+    df_sig = pd.DataFrame()
+    for tool in all_tools:
+        if top_features_per_tool[tool]:
+            tool_features = top_features_per_tool[tool]
+            tool_df = df[(df['tool'] == tool) & (df['feature'].isin(tool_features))]
+            df_sig = pd.concat([df_sig, tool_df], ignore_index=True)
     
     if len(df_sig) == 0:
         print(f"  No features available for tool_vs_rest_top{threshold}")
         return
-    
-    # Get top features per tool
-    top_features_per_tool = {}
-    for tool, group in df_sig.groupby('tool'):
-        group_sorted = group.sort_values('abs_delta', ascending=False)
-        top_features_per_tool[tool] = group_sorted.head(top_n)['feature'].tolist()
     
     # Get all unique top features
     all_top_features = set()

@@ -57,6 +57,13 @@ def load_data_and_features(in_file):
     if text_stats_to_exclude:
         print(f"  Excluded {len(text_stats_to_exclude)} text-derived word_count/char_len features from summary")
     
+    # Exclude ratio features (same as in unified_analysis.py)
+    ratio_features = [c for c in feature_cols if c.endswith('_ratio')]
+    feature_cols = [c for c in feature_cols if c not in ratio_features]
+    if ratio_features:
+        print(f"  Excluded {len(ratio_features)} ratio features from summary")
+        print(f"    Examples: {ratio_features[:10]}")
+    
     # Deduplicate text-derived features: keep one of each pair (prefer _density over _count)
     # Same logic as in unified_analysis.py
     txt_features = [c for c in feature_cols if c.startswith('txt_')]
