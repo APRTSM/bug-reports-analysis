@@ -34,7 +34,7 @@ DATA_DIR = Path(".")
 ENABLE_STANDARDIZATION = True  # Set to False to skip standardization
 
 # Input files - UPDATED to use enhanced features
-FEATURES_FILE = DATA_DIR / "bug_features_enhanced_fixed.csv" 
+FEATURES_FILE = DATA_DIR / "bug_features_cleaned.csv" 
 RATINGS_FILE  = DATA_DIR / "gemini_ratings/gemini_bug_ratings.csv"
 CATEG_FILE    = DATA_DIR / "gemini_ratings/gemini_bug_categorization.csv"
 FINE_GRAINED_CATEG_FILE = DATA_DIR / "gemini_ratings/fine_grained_gemini_categorization.csv"
