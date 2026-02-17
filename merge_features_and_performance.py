@@ -550,6 +550,16 @@ if not fine_grained_categ_df.empty:
 print("\nComputing MRR from ranks...")
 perf_df = perf_df.copy()
 
+# FIX: Some tools (e.g. BRaIn) store bug_id as a composite "Project-N" string
+# instead of just the numeric ID. This MUST run BEFORE pd.to_numeric() below,
+# otherwise "Chart-1" becomes NaN and all BRaIn rows vanish silently.
+_composite_mask = perf_df["bug_id"].astype(str).str.contains("-", na=False)
+if _composite_mask.any():
+    _split = perf_df.loc[_composite_mask, "bug_id"].str.split("-", n=1, expand=True)
+    perf_df.loc[_composite_mask, "project"] = _split[0]
+    perf_df.loc[_composite_mask, "bug_id"]  = _split[1]
+    print(f"  Fixed {_composite_mask.sum()} rows with composite bug_id (e.g. 'Chart-1' → project='Chart', bug_id='1')")
+
 # Ensure consistent data types for merge keys
 if "bug_id" in perf_df.columns:
     perf_df["bug_id"] = pd.to_numeric(perf_df["bug_id"], errors="coerce").astype("Int64")

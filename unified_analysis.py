@@ -42,7 +42,7 @@ except ImportError:
 DATA_DIR = Path(".")
 
 # Input files - UPDATED to use enhanced preprocessed data
-IN_FILE = DATA_DIR / "full_feature_preproccessed_fixed/experimentA_preprocessed_rich.csv"
+IN_FILE = DATA_DIR / "full_feature_preproccessed_fixed/experimentA_preprocessed_cleaned.csv"
 IN_FILE_TOOL_COMPARISON = DATA_DIR / "tool_comparison_summary.csv"
 
 # Dataset filtering: Set to filter by dataset if needed
