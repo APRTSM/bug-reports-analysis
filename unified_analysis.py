@@ -64,7 +64,7 @@ PRACTICAL_SIG_DELTA = 0.2  # Minimum Cliff's delta to consider meaningful
 MIN_GROUP_SIZE = 8  # Minimum bugs per group for reliable comparison
 
 # Tool names (will be auto-detected but can be specified)
-EXPECTED_TOOLS = ["buglocator", "flexfl", "locus", "boostnsift", "BRaIn"]
+EXPECTED_TOOLS = ["buglocator", "flexfl", "locus", "boostnsift", "brain"]
 
 
 # Rank thresholds to analyze
@@ -360,10 +360,20 @@ def load_data():
     if "tool" in df_tools_raw.columns:
         # Data is in long format, pivot to wide
         print("  Pivoting tool comparison data from long to wide format...")
-        
-        # Get unique tools (normalize to lowercase for consistency)
+
+        # FIX 1: Some tools (e.g. BRaIn) store bug_id as "Project-N" instead of "N".
+        # Must split BEFORE numeric conversion or BRaIn rows silently become NaN.
+        _mask = df_tools_raw["bug_id"].astype(str).str.contains("-", na=False)
+        if _mask.any():
+            _split = df_tools_raw.loc[_mask, "bug_id"].str.split("-", n=1, expand=True)
+            df_tools_raw = df_tools_raw.copy()
+            df_tools_raw.loc[_mask, "project"] = _split[0]
+            df_tools_raw.loc[_mask, "bug_id"]  = _split[1]
+            print(f"  Fixed {_mask.sum()} rows with composite bug_id (e.g. 'Chart-1' -> project='Chart', bug_id='1')")
+
+        # FIX 2: Preserve original tool capitalisation (BRaIn, FlexFL) — no lowercasing
         tools_raw = df_tools_raw["tool"].unique()
-        tools = sorted([t.lower() for t in tools_raw])
+        tools = sorted(tools_raw.tolist())
         print(f"  Tools found: {tools}")
         
         # Pivot rank, mrr, and top@ columns
@@ -389,16 +399,11 @@ def load_data():
                 values=available_pivot_cols,
                 aggfunc="first"
             )
-            # Flatten column names: (metric, tool) -> metric_tool
-            # Handle @ symbol in column names by replacing with underscore
-            # Normalize tool names to lowercase
+            # Flatten: (metric, tool) -> metric_tool — preserve tool capitalisation
             new_cols = []
             for metric, tool_orig in df_tools.columns:
-                # Replace @ with underscore for valid column names
                 metric_clean = metric.replace("@", "_")
-                # Normalize tool name to lowercase
-                tool_normalized = tool_orig.lower()
-                new_cols.append(f"{metric_clean}_{tool_normalized}")
+                new_cols.append(f"{metric_clean}_{tool_orig}")
             df_tools.columns = new_cols
             df_tools = df_tools.reset_index()
         
@@ -413,10 +418,10 @@ def load_data():
         if not tools:
             tools = get_tools(df_features, "mrr")
         if not tools:
-            tools = [t.lower() for t in EXPECTED_TOOLS]
+            tools = list(EXPECTED_TOOLS)  # Preserve capitalisation
     
-    # Normalize tool names to lowercase for consistency
-    tools = [t.lower() for t in tools]
+    # Preserve original tool name capitalisation
+    # tools = [t.lower() for t in tools]  # REMOVED
     print(f"Tools detected: {tools}")
     
     # Ensure consistent data types for merge keys
