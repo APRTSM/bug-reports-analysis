@@ -785,13 +785,38 @@ print(f"  Excluded from scaling: {len(exclude_from_scaling)}")
 
 if ENABLE_STANDARDIZATION and cols_to_scale:
     print(f"\n  Standardization: ENABLED")
+    
+    # Store original values and statistics before standardization
+    original_stats = {}
+    for col in cols_to_scale:
+        # Store original values as a new column
+        df[f"{col}__orig"] = df[col].copy()
+        
+        # Calculate and store statistics
+        original_stats[col] = {
+            'mean': float(df[col].mean()),
+            'std': float(df[col].std()),
+            'min': float(df[col].min()),
+            'median': float(df[col].median()),
+            'max': float(df[col].max())
+        }
+        
+        # Add statistics as constant columns (same value for all rows)
+        df[f"{col}__orig_mean"] = original_stats[col]['mean']
+        df[f"{col}__orig_std"] = original_stats[col]['std']
+        df[f"{col}__orig_min"] = original_stats[col]['min']
+        df[f"{col}__orig_median"] = original_stats[col]['median']
+        df[f"{col}__orig_max"] = original_stats[col]['max']
+    
+    # Now standardize the original columns
     scaler = StandardScaler()
     df[cols_to_scale] = scaler.fit_transform(df[cols_to_scale])
     
     SCALER_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(SCALER_FILE, "wb") as f:
-        pickle.dump({'scaler': scaler, 'columns': cols_to_scale}, f)
+        pickle.dump({'scaler': scaler, 'columns': cols_to_scale, 'original_stats': original_stats}, f)
     print(f"  Saved scaler to: {SCALER_FILE}")
+    print(f"  Added {len(cols_to_scale)} original value columns and {len(cols_to_scale) * 5} statistics columns")
 elif not ENABLE_STANDARDIZATION:
     print(f"\n  Standardization: DISABLED")
 else:
