@@ -19,6 +19,11 @@ INPUT_DIR = Path("tool_comparison_results_fixed")
 OUTPUT_DIR = INPUT_DIR
 THRESHOLDS = [1, 5, 10]
 
+# Number of features to show in heatmaps
+TOP_N_ALL_VS_NONE = 12  # Top N features for ALL vs NONE heatmap
+TOP_N_PAIRWISE = 20     # Top N features per tool pair for pairwise heatmap
+TOP_N_TOOL_VS_REST = 10 # Top N features per tool for tool vs rest heatmap
+
 # Set style
 sns.set_style("whitegrid")
 plt.rcParams['figure.dpi'] = 300
@@ -42,19 +47,11 @@ def create_all_vs_none_heatmap(df: pd.DataFrame, threshold: int, top_n: int = 30
     # Sort by absolute delta and take top N
     df_sig = df_sig.sort_values('abs_delta', ascending=False).head(top_n)
     
-    # Create matrix: features x metrics
+    # Get features list
     features = df_sig['feature'].values
-    metrics = {
-        'Cliff\'s Delta': df_sig['cliffs_delta'].values,
-        'Median Diff': df_sig['median_diff'].values,
-        'ALL Median': df_sig['all_median'].values,
-        'NONE Median': df_sig['none_median'].values,
-    }
     
-    # Create figure with subplots
-    fig, axes = plt.subplots(1, 2, figsize=(14, max(8, len(features) * 0.3)))
-    
-    # Main heatmap: Cliff's Delta
+    # Figure 1: Cliff's Delta Effect Size
+    fig1, ax1 = plt.subplots(figsize=(6, max(8, len(features) * 0.3)))
     matrix_delta = df_sig['cliffs_delta'].values.reshape(-1, 1)
     sns.heatmap(
         matrix_delta,
@@ -65,13 +62,19 @@ def create_all_vs_none_heatmap(df: pd.DataFrame, threshold: int, top_n: int = 30
         vmin=-1, vmax=1,
         annot=True,
         fmt='.3f',
-        #cbar_kws={'label': "Cliff's Delta"},
-        ax=axes[0]
+        cbar_kws={'label': "Cliff's Delta"},
+        ax=ax1
     )
-    axes[0].set_title(f'ALL vs NONE (Top-{threshold})\nCliff\'s Delta Effect Size', fontweight='bold')
-    axes[0].set_ylabel('')
+    ax1.set_title(f'ALL vs NONE (Top-{threshold})\nCliff\'s Delta Effect Size', fontweight='bold')
+    ax1.set_ylabel('')
+    plt.tight_layout()
+    out_file1 = OUTPUT_DIR / f"all_vs_none_heatmap_cliffs_delta_top{threshold}.png"
+    plt.savefig(out_file1, bbox_inches='tight', facecolor='white')
+    plt.close()
+    print(f"  Saved: {out_file1}")
     
-    # Secondary heatmap: Median values comparison
+    # Figure 2: Median Values Comparison
+    fig2, ax2 = plt.subplots(figsize=(8, max(8, len(features) * 0.3)))
     matrix_medians = np.column_stack([
         df_sig['all_median'].values,
         df_sig['none_median'].values
@@ -79,21 +82,20 @@ def create_all_vs_none_heatmap(df: pd.DataFrame, threshold: int, top_n: int = 30
     sns.heatmap(
         matrix_medians,
         xticklabels=['ALL Median', 'NONE Median'],
-        yticklabels=False,
+        yticklabels=features,
         cmap='YlOrRd',
         annot=True,
         fmt='.2f',
-        #cbar_kws={'label': 'Median Value'},
-        ax=axes[1]
+        cbar_kws={'label': 'Median Value'},
+        ax=ax2
     )
-    axes[1].set_title(f'Median Values Comparison', fontweight='bold')
-    axes[1].set_ylabel('')
-    
+    ax2.set_title(f'ALL vs NONE (Top-{threshold})\nMedian Values Comparison', fontweight='bold')
+    ax2.set_ylabel('')
     plt.tight_layout()
-    out_file = OUTPUT_DIR / f"all_vs_none_heatmap_top{threshold}.png"
-    plt.savefig(out_file, bbox_inches='tight', facecolor='white')
+    out_file2 = OUTPUT_DIR / f"all_vs_none_heatmap_medians_top{threshold}.png"
+    plt.savefig(out_file2, bbox_inches='tight', facecolor='white')
     plt.close()
-    print(f"  Saved: {out_file}")
+    print(f"  Saved: {out_file2}")
 
 
 def create_pairwise_heatmap(df: pd.DataFrame, threshold: int, top_n: int = 20):
@@ -286,7 +288,7 @@ def main():
         all_vs_none_file = INPUT_DIR / f"all_vs_none_top{threshold}.csv"
         if all_vs_none_file.exists():
             df_all_none = pd.read_csv(all_vs_none_file)
-            create_all_vs_none_heatmap(df_all_none, threshold, top_n=30)
+            create_all_vs_none_heatmap(df_all_none, threshold, top_n=TOP_N_ALL_VS_NONE)
         else:
             print(f"  File not found: {all_vs_none_file}")
         
@@ -295,7 +297,7 @@ def main():
         pairwise_file = INPUT_DIR / f"pairwise_tool_comparison_top{threshold}.csv"
         if pairwise_file.exists():
             df_pairwise = pd.read_csv(pairwise_file)
-            create_pairwise_heatmap(df_pairwise, threshold, top_n=20)
+            create_pairwise_heatmap(df_pairwise, threshold, top_n=TOP_N_PAIRWISE)
         else:
             print(f"  File not found: {pairwise_file}")
         
@@ -304,7 +306,7 @@ def main():
         tool_vs_rest_file = INPUT_DIR / f"tool_vs_rest_top{threshold}.csv"
         if tool_vs_rest_file.exists():
             df_tool_rest = pd.read_csv(tool_vs_rest_file)
-            create_tool_vs_rest_heatmap(df_tool_rest, threshold, top_n=20)
+            create_tool_vs_rest_heatmap(df_tool_rest, threshold, top_n=TOP_N_TOOL_VS_REST)
         else:
             print(f"  File not found: {tool_vs_rest_file}")
     
@@ -314,7 +316,8 @@ def main():
     print(f"\nGenerated heatmaps:")
     for threshold in THRESHOLDS:
         print(f"  Top-{threshold}:")
-        print(f"    - all_vs_none_heatmap_top{threshold}.png")
+        print(f"    - all_vs_none_heatmap_cliffs_delta_top{threshold}.png")
+        print(f"    - all_vs_none_heatmap_medians_top{threshold}.png")
         print(f"    - pairwise_heatmap_top{threshold}.png")
         print(f"    - tool_vs_rest_heatmap_top{threshold}.png")
     print("=" * 80)
