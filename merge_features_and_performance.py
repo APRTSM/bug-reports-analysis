@@ -645,6 +645,12 @@ if not fine_grained_categ_df.empty:
         how="left",
         suffixes=("", "_fine_grained")
     )
+    # Encode fine-grained categories immediately before duplicate cleanup drops category_fine_grained
+    if "category_fine_grained" in merged.columns:
+        print("\n6.6.1 Encoding fine-grained categories...")
+        fine_grained_oh = one_hot_topk_categories(merged, "category_fine_grained", prefix="fg_cat", min_freq=10)
+        merged = pd.concat([merged, fine_grained_oh], axis=1)
+        merged.drop(columns=["category_fine_grained"], inplace=True)
 
 # Load and merge bee_results
 bee_df = load_bee_results(BEE_RESULTS_FILE)
@@ -718,11 +724,7 @@ for cat_col in ["category", "category_categ", "bug_category", "bug_category_cate
         df.drop(columns=[cat_col], inplace=True)
         break
 
-if "fine_grained_category" in df.columns:
-    print("\n6.6.1 Encoding fine-grained categories...")
-    fine_grained_oh = one_hot_topk_categories(df, "fine_grained_category", prefix="fg_cat", min_freq=10)
-    df = pd.concat([df, fine_grained_oh], axis=1)
-    df.drop(columns=["fine_grained_category"], inplace=True)
+
 
 # 6.7 Extract text statistics
 print("\n6.7 Extracting text statistics...")
@@ -763,6 +765,154 @@ print("\n6.10 Reordering columns...")
 key_cols = [c for c in ["project", "bug_id", "id"] if c in df.columns]
 other_cols = [c for c in df.columns if c not in key_cols]
 df = df[key_cols + other_cols]
+
+# 6.10b NEW: Feature redundancy elimination
+print("\n6.10b Removing redundant features...")
+
+def remove_redundant_features(df: pd.DataFrame, key_cols: List[str]) -> pd.DataFrame:
+    """
+    Remove redundant features using three criteria:
+    1. Constant or near-constant features (< 5 unique values or std < 0.01)
+    2. Perfect duplicates (Pearson correlation = 1.0)
+    3. High pairwise correlation (Spearman rho > 0.95)
+    
+    Returns: DataFrame with redundant features removed
+    """
+    from scipy.cluster.hierarchy import linkage, fcluster
+    from scipy.spatial.distance import squareform
+    
+    # Identify numeric feature columns (exclude keys and performance metrics)
+    performance_cols = [c for c in df.columns if c.startswith(("top@", "mrr_", "map_", "rank_"))]
+    exclude_cols = set(key_cols + performance_cols)
+    numeric_cols = [c for c in df.select_dtypes(include=[np.number]).columns 
+                   if c not in exclude_cols]
+    
+    print(f"  Starting with {len(numeric_cols)} numeric features")
+    
+    removed_features = {
+        'constant': [],
+        'duplicates': [],
+        'high_correlation': []
+    }
+    
+    # STEP 1: Remove constant/near-constant features
+    print("  Step 1/3: Removing constant/near-constant features...")
+    features_to_keep = []
+    for col in numeric_cols:
+        n_unique = df[col].nunique()
+        std_val = df[col].std()
+        if n_unique < 5 or std_val < 0.01:
+            removed_features['constant'].append(col)
+        else:
+            features_to_keep.append(col)
+    
+    print(f"    Removed {len(removed_features['constant'])} constant/near-constant features")
+    numeric_cols = features_to_keep
+    
+    # STEP 2: Remove perfect duplicates (Pearson correlation = 1.0)
+    print("  Step 2/3: Removing perfect duplicates...")
+    corr_matrix = df[numeric_cols].corr(method='pearson').abs()
+    
+    # Find pairs with perfect correlation
+    upper_triangle = np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
+    perfect_pairs = []
+    for i in range(len(corr_matrix)):
+        for j in range(i+1, len(corr_matrix)):
+            if corr_matrix.iloc[i, j] >= 0.9999:  # Perfect correlation
+                perfect_pairs.append((corr_matrix.index[i], corr_matrix.columns[j]))
+    
+    # Keep first feature from each duplicate pair
+    features_to_remove_step2 = set()
+    for feat1, feat2 in perfect_pairs:
+        if feat1 not in features_to_remove_step2:
+            features_to_remove_step2.add(feat2)
+            removed_features['duplicates'].append(feat2)
+    
+    print(f"    Removed {len(removed_features['duplicates'])} duplicate features")
+    numeric_cols = [c for c in numeric_cols if c not in features_to_remove_step2]
+    
+    # STEP 3: Remove high pairwise correlation (Spearman rho > 0.95)
+    print("  Step 3/3: Removing highly correlated features (rho > 0.95)...")
+    
+    if len(numeric_cols) > 1:
+        # Compute Spearman correlation
+        spearman_corr = df[numeric_cols].corr(method='spearman').abs()
+        
+        # Convert correlation to distance
+        distance_matrix = 1 - spearman_corr
+        
+        # Hierarchical clustering
+        condensed_dist = squareform(distance_matrix, checks=False)
+        linkage_matrix = linkage(condensed_dist, method='average')
+        
+        # Cut tree at correlation threshold of 0.95 (distance = 0.05)
+        clusters = fcluster(linkage_matrix, t=0.05, criterion='distance')
+        
+        # For each cluster, keep the feature with highest variance
+        cluster_df = pd.DataFrame({
+            'feature': numeric_cols,
+            'cluster': clusters,
+            'variance': df[numeric_cols].var()
+        })
+        
+        # Keep one representative per cluster (highest variance)
+        features_to_keep_step3 = []
+        for cluster_id in cluster_df['cluster'].unique():
+            cluster_features = cluster_df[cluster_df['cluster'] == cluster_id]
+            if len(cluster_features) == 1:
+                features_to_keep_step3.append(cluster_features['feature'].iloc[0])
+            else:
+                # Keep feature with highest variance
+                best_feature = cluster_features.nlargest(1, 'variance')['feature'].iloc[0]
+                features_to_keep_step3.append(best_feature)
+                
+                # Mark others as removed
+                removed_in_cluster = cluster_features[cluster_features['feature'] != best_feature]['feature'].tolist()
+                removed_features['high_correlation'].extend(removed_in_cluster)
+        
+        print(f"    Removed {len(removed_features['high_correlation'])} highly correlated features")
+        numeric_cols = features_to_keep_step3
+    
+    # Prepare final feature set
+    final_features = key_cols + performance_cols + numeric_cols
+    
+    # Add back non-numeric columns
+    non_numeric_cols = [c for c in df.columns if c not in df.select_dtypes(include=[np.number]).columns]
+    for col in non_numeric_cols:
+        if col not in final_features and col not in exclude_cols:
+            final_features.append(col)
+    
+    print(f"\n  Redundancy elimination summary:")
+    print(f"    Constant/near-constant: {len(removed_features['constant'])}")
+    print(f"    Perfect duplicates: {len(removed_features['duplicates'])}")
+    print(f"    High correlation (>0.95): {len(removed_features['high_correlation'])}")
+    print(f"    Total removed: {sum(len(v) for v in removed_features.values())}")
+    print(f"    Features retained: {len(numeric_cols)}")
+    
+    # Save removed features log
+    removed_log_file = DATA_DIR / "removed_features_log.txt"
+    with open(removed_log_file, 'w') as f:
+        f.write("FEATURE REDUNDANCY ELIMINATION LOG\n")
+        f.write("=" * 60 + "\n\n")
+        
+        f.write(f"Constant/Near-Constant Features ({len(removed_features['constant'])}):\n")
+        for feat in sorted(removed_features['constant']):
+            f.write(f"  - {feat}\n")
+        
+        f.write(f"\nPerfect Duplicates ({len(removed_features['duplicates'])}):\n")
+        for feat in sorted(removed_features['duplicates']):
+            f.write(f"  - {feat}\n")
+        
+        f.write(f"\nHighly Correlated Features ({len(removed_features['high_correlation'])}):\n")
+        for feat in sorted(removed_features['high_correlation']):
+            f.write(f"  - {feat}\n")
+    
+    print(f"  Saved removal log to: {removed_log_file}")
+    
+    return df[final_features]
+
+# Apply redundancy elimination
+df = remove_redundant_features(df, key_cols)
 
 # 6.11 Standardize numeric features
 print("\n6.11 Standardizing numeric features...")

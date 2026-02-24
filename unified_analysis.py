@@ -42,7 +42,7 @@ except ImportError:
 DATA_DIR = Path(".")
 
 # Input files - UPDATED to use enhanced preprocessed data
-IN_FILE = DATA_DIR / "full_feature_preproccessed_fixed/experimentA_preprocessed_cleaned.csv"
+IN_FILE = DATA_DIR / "full_feature_preproccessed_fixed/experimentA_preprocessed_rich.csv"
 IN_FILE_TOOL_COMPARISON = DATA_DIR / "tool_comparison_summary.csv"
 
 # Dataset filtering: Set to filter by dataset if needed
@@ -105,6 +105,12 @@ FEATURE_CATEGORIES = {
     'concepts': [
         'concept_network_concept_diversity', 'concept_network_has_cross_layer_concepts',
         'concept_network_concept_breadth'
+    ],
+    'bug_category': [
+        'fg_cat__Processing', 'fg_cat__Other (Logic)', 
+        'fg_cat__Exception handling', 'fg_cat__Null pointer dereference',
+        'fg_cat___other__', 'fg_cat__Missing case',
+        'cat___other__'
     ]
 }
 
@@ -214,6 +220,12 @@ def load_data():
     perf_cols = [c for c in df_features.columns if c.startswith("mrr_") or c.startswith("top@") or c.startswith("rank_")]
     numeric_cols = df_features.select_dtypes(include=[np.number]).columns.tolist()
     feature_cols = [c for c in numeric_cols if c not in perf_cols + id_cols]
+
+    orig_cols = [c for c in feature_cols if '__orig' in c]
+    feature_cols = [c for c in feature_cols if '__orig' not in c]
+    if orig_cols:
+        print(f"  Excluded {len(orig_cols)} __orig reference columns from analysis")
+        print(f"    (These are redundant with standardized versions)")
     
     # Exclude missingness features
     feature_cols = [c for c in feature_cols if not (c.endswith("_is_missing") or "__is_missing" in c)]
