@@ -291,15 +291,7 @@ def main():
             create_all_vs_none_heatmap(df_all_none, threshold, top_n=TOP_N_ALL_VS_NONE)
         else:
             print(f"  File not found: {all_vs_none_file}")
-        
-        # 2. Pairwise comparisons
-        print(f"\n2. Creating pairwise comparison heatmap...")
-        pairwise_file = INPUT_DIR / f"pairwise_tool_comparison_top{threshold}.csv"
-        if pairwise_file.exists():
-            df_pairwise = pd.read_csv(pairwise_file)
-            create_pairwise_heatmap(df_pairwise, threshold, top_n=TOP_N_PAIRWISE)
-        else:
-            print(f"  File not found: {pairwise_file}")
+    
         
         # 3. Tool vs REST
         print(f"\n3. Creating tool vs REST heatmap...")

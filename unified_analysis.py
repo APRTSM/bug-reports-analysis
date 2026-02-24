@@ -1090,14 +1090,14 @@ def main():
         all_vs_none_df = analyze_all_vs_none(df_features, df_tools, feature_cols, tools, threshold, categorized_features)
         
         # Analysis 2: Pairwise tool comparisons
-        pairwise_df = analyze_tool_pairwise(df_features, df_tools, feature_cols, tools, threshold)
+        #pairwise_df = analyze_tool_pairwise(df_features, df_tools, feature_cols, tools, threshold)
         
         # Analysis 3: Tool vs rest
         tool_vs_rest_df = analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold)
         
         # Create visualizations
-        if pairwise_df is not None:
-            create_summary_heatmap(pairwise_df, threshold)
+        #if pairwise_df is not None:
+            #create_summary_heatmap(pairwise_df, threshold)
     
     print("\n" + "=" * 80)
     print("ANALYSIS COMPLETE")
