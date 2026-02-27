@@ -42,12 +42,11 @@ USE_XML = True  # Set to True to use XML files, False to use JSON files
 # Try these model names in order (fallback if one doesn't work)
 # Note: Model names should match what's available in your API
 GEMINI_MODELS = [
-    "gemini-2.5-pro",           # Latest pro model
-    "gemini-2.0-flash",        # Fast and efficient
-    "gemini-pro-latest",        # Fallback to latest pro
-    "gemini-2.5-flash",         # Alternative flash model
+    #"gemini-2.0-flash",     # Fast and (usually) has free-tier quota
+    "gemini-2.5-flash",     # Alternative flash model
+    "gemini-pro-latest",    # Fallback
 ]
-GEMINI_MODEL = GEMINI_MODELS[0]  # Start with gemini-2.5-pro
+GEMINI_MODEL = GEMINI_MODELS[0]
 
 # Get API key from environment variable or set here (not recommended)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -56,11 +55,11 @@ if not GEMINI_API_KEY:
     print("Please set it with: export GEMINI_API_KEY='your-api-key'")
     print("Or set it directly in the script (not recommended for production)")
     # Uncomment and set your key here if needed:
-    # GEMINI_API_KEY = "your-api-key-here"
+    GEMINI_API_KEY = "AIzaSyCk_jxNfBN7o3_Vn5F8Hfa5dzv1aR20KQY"
 
 # Rate limiting: delay between API calls (seconds)
 # Increased to avoid hitting free tier limits
-API_DELAY = 2.0
+API_DELAY = 5.0  # Increased delay for free tier
 
 # Maximum retries for failed API calls
 MAX_RETRIES = 5
@@ -252,8 +251,14 @@ def extract_retry_delay(error_msg: str) -> Optional[float]:
 
 def call_gemini_api(prompt: str, retries: int = MAX_RETRIES) -> Optional[str]:
     """Call Gemini API with retry logic and model fallback."""
+    quota_exhausted_models = set()  # Track models that have exhausted quota
+    
     # Try each model in order if one fails
     for model_name in GEMINI_MODELS:
+        # Skip models that have exhausted quota
+        if model_name in quota_exhausted_models:
+            continue
+            
         for attempt in range(retries):
             try:
                 model = genai.GenerativeModel(model_name)
@@ -269,6 +274,12 @@ def call_gemini_api(prompt: str, retries: int = MAX_RETRIES) -> Optional[str]:
                 
                 # Check for rate limit errors (429)
                 if "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower():
+                    # Check if it's a daily quota exhaustion (limit: 0)
+                    if "limit: 0" in error_msg or "quota exceeded" in error_msg.lower():
+                        print(f"  ⚠ Daily quota exhausted for {model_name}. Skipping this model.")
+                        quota_exhausted_models.add(model_name)
+                        break  # Try next model
+                    
                     retry_delay = extract_retry_delay(error_msg)
                     if retry_delay:
                         wait_time = min(retry_delay + 5, MAX_RATE_LIMIT_WAIT)  # Add buffer, cap at max
@@ -298,8 +309,16 @@ def call_gemini_api(prompt: str, retries: int = MAX_RETRIES) -> Optional[str]:
                 else:
                     print(f"  Error calling Gemini API with {model_name}: {e}")
                     if model_name == GEMINI_MODELS[-1]:
+                        # All models exhausted
+                        if quota_exhausted_models:
+                            print(f"  ❌ All available models have exhausted quota: {', '.join(quota_exhausted_models)}")
+                            print(f"  💡 Please wait and try again later, or upgrade your API plan.")
                         return None
                     break  # Try next model
+    
+    # If we get here, all models failed
+    if quota_exhausted_models:
+        print(f"  ❌ All models exhausted quota. Please wait and try again later.")
     return None
 
 
@@ -463,11 +482,15 @@ def process_bug_reports(data_dir: str = DATA_DIR, output_file: str = OUTPUT_FILE
                 print(f"Rating bug report: {bid}")
                 rating = rate_bug_report(title, desc)
                 
+                # Add delay after EVERY API call (successful or not) to respect rate limits
+                time.sleep(API_DELAY)
+                
                 if rating:
                     # Combine bug report info with rating
                     row = {
                         "id": bid,
                         "title": title,
+                        "description": desc,
                         "description_length": len(desc),
                         **rating
                     }
@@ -484,6 +507,7 @@ def process_bug_reports(data_dir: str = DATA_DIR, output_file: str = OUTPUT_FILE
                     row = {
                         "id": bid,
                         "title": title,
+                        "description": desc,
                         "description_length": len(desc),
                         "actionability": None,
                         "clarity": None,
