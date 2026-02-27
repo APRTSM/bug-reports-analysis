@@ -220,7 +220,8 @@ def load_data():
     perf_cols = [c for c in df_features.columns if c.startswith("mrr_") or c.startswith("top@") or c.startswith("rank_")]
     numeric_cols = df_features.select_dtypes(include=[np.number]).columns.tolist()
     feature_cols = [c for c in numeric_cols if c not in perf_cols + id_cols]
-
+    
+    # CRITICAL: Exclude __orig columns (they're for reference only, redundant with standardized versions)
     orig_cols = [c for c in feature_cols if '__orig' in c]
     feature_cols = [c for c in feature_cols if '__orig' not in c]
     if orig_cols:
@@ -249,9 +250,43 @@ def load_data():
         print(f"  Excluded {len(ratio_features)} ratio features from analysis")
         print(f"    Examples: {ratio_features[:10]}")
     
-    # Deduplicate text-derived features: keep one of each pair (prefer _density over _count)
+    # AGGRESSIVE txt_ feature deduplication to avoid redundancy
+    # Problem: Multiple txt_*_avg_word_len features are nearly redundant (all measure word length)
     txt_features = [c for c in feature_cols if c.startswith('txt_')]
+    
     if txt_features:
+        print(f"\n  Deduplicating txt_ features to reduce redundancy...")
+        
+        # Step 1: For avg_word_len features, keep only title and reasoning (drop root_cause, impacted_code, etc.)
+        txt_word_len_feats = [c for c in txt_features if 'avg_word_len' in c]
+        if len(txt_word_len_feats) > 2:
+            keep_word_len = [f for f in txt_word_len_feats if 'title' in f or 'reasoning' in f][:2]
+            drop_word_len = [f for f in txt_word_len_feats if f not in keep_word_len]
+            feature_cols = [c for c in feature_cols if c not in drop_word_len]
+            txt_features = [c for c in feature_cols if c.startswith('txt_')]
+            print(f"    Reduced {len(txt_word_len_feats)} avg_word_len features to {len(keep_word_len)} (kept: title, reasoning)")
+        
+        # Step 2: For avg_sentence_len features, keep only title and reasoning
+        txt_sent_len_feats = [c for c in txt_features if 'avg_sentence_len' in c]
+        if len(txt_sent_len_feats) > 2:
+            keep_sent_len = [f for f in txt_sent_len_feats if 'title' in f or 'reasoning' in f][:2]
+            drop_sent_len = [f for f in txt_sent_len_feats if f not in keep_sent_len]
+            feature_cols = [c for c in feature_cols if c not in drop_sent_len]
+            txt_features = [c for c in feature_cols if c.startswith('txt_')]
+            print(f"    Reduced {len(txt_sent_len_feats)} avg_sentence_len features to {len(keep_sent_len)} (kept: title, reasoning)")
+        
+        # Step 3: For hedge_count/hedge_density features, keep only one pair (prefer reasoning section)
+        txt_hedge_feats = [c for c in txt_features if 'hedge' in c]
+        if len(txt_hedge_feats) > 2:
+            keep_hedge = [f for f in txt_hedge_feats if 'reasoning' in f or 'root_cause' in f][:2]
+            if not keep_hedge:
+                keep_hedge = txt_hedge_feats[:2]  # Fallback: keep first 2
+            drop_hedge = [f for f in txt_hedge_feats if f not in keep_hedge]
+            feature_cols = [c for c in feature_cols if c not in drop_hedge]
+            txt_features = [c for c in feature_cols if c.startswith('txt_')]
+            print(f"    Reduced {len(txt_hedge_feats)} hedge features to {len(keep_hedge)}")
+        
+        # Step 4: General deduplication - handle remaining pairs
         # First, handle special case: avg_sentence_len vs avg_words_per_line
         # Group by source (everything before _avg_)
         sentence_line_pairs = {}
@@ -1090,14 +1125,14 @@ def main():
         all_vs_none_df = analyze_all_vs_none(df_features, df_tools, feature_cols, tools, threshold, categorized_features)
         
         # Analysis 2: Pairwise tool comparisons
-        #pairwise_df = analyze_tool_pairwise(df_features, df_tools, feature_cols, tools, threshold)
+        pairwise_df = analyze_tool_pairwise(df_features, df_tools, feature_cols, tools, threshold)
         
         # Analysis 3: Tool vs rest
         tool_vs_rest_df = analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold)
         
         # Create visualizations
-        #if pairwise_df is not None:
-            #create_summary_heatmap(pairwise_df, threshold)
+        if pairwise_df is not None:
+            create_summary_heatmap(pairwise_df, threshold)
     
     print("\n" + "=" * 80)
     print("ANALYSIS COMPLETE")
