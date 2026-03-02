@@ -361,6 +361,18 @@ def load_data():
                 print(f"    Dropped avg_words_per_line features (kept avg_sentence_len): {features_to_drop_special}")
             if features_to_drop:
                 print(f"    Examples of other dropped: {features_to_drop[:5]}")
+            
+            # Log all_features_to_drop to removed_features_log.txt
+            log_file = Path("removed_features_log.txt")
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write("\n\n")
+                f.write("=" * 60 + "\n")
+                f.write("FEATURES DROPPED BY UNIFIED_ANALYSIS.PY\n")
+                f.write("=" * 60 + "\n\n")
+                f.write(f"Text Feature Deduplication ({len(all_features_to_drop)} features):\n")
+                for feat in sorted(all_features_to_drop):
+                    f.write(f"  - {feat}\n")
+                f.write("\n")
     
     # Exclude confidence features from analysis (but keep in summary statistics)
     confidence_features = [c for c in feature_cols if 'confidence' in c.lower()]
@@ -541,15 +553,15 @@ def create_upset_diagram(df_tools, tools, threshold, suffix=""):
     # Create success flags
     flags = create_success_flags(df_tools, tools, threshold)
     
-    # Create membership list for each bug
+    # Create membership list for each bug (including bugs found by 0 tools)
     memberships = []
     for _, row in flags.iterrows():
         bug_tools = tuple([tool for tool in tools if row[f"found_{tool}"]])
-        if bug_tools:  # Only include bugs found by at least one tool
-            memberships.append(bug_tools)
+        # Include all bugs, even those found by 0 tools (empty tuple)
+        memberships.append(bug_tools)
     
     if not memberships:
-        print(f"  No bugs found by any tool at threshold {threshold}")
+        print(f"  No bugs in dataset at threshold {threshold}")
         return
     
     # Create UpSet plot
@@ -574,15 +586,23 @@ def create_upset_diagram(df_tools, tools, threshold, suffix=""):
         
         # Print summary statistics
         print(f"\n  UpSet Summary (Top-{threshold}):")
-        print(f"    Total bugs found by at least one tool: {len(memberships)}")
+        print(f"    Total bugs in dataset: {len(memberships)}")
+        
+        # Count bugs found by 0 tools (none)
+        zero_tools_bugs = sum(1 for m in memberships if len(m) == 0)
+        print(f"    Bugs found by 0 tools (none): {zero_tools_bugs}")
+        
+        # Count bugs found by at least one tool
+        at_least_one = sum(1 for m in memberships if len(m) > 0)
+        print(f"    Bugs found by at least one tool: {at_least_one}")
         
         # Verify total if filtering is enabled
         if FILTER_DEFECTS4J_ONLY:
             expected_total = 835  # Defects4J has 835 bugs
             if len(memberships) > expected_total:
-                print(f"    [WARNING] Union size ({len(memberships)}) exceeds expected Defects4J total ({expected_total})")
+                print(f"    [WARNING] Total bugs ({len(memberships)}) exceeds expected Defects4J total ({expected_total})")
             else:
-                print(f"    Union size ({len(memberships)}) is within expected Defects4J total ({expected_total})")
+                print(f"    Total bugs ({len(memberships)}) is within expected Defects4J total ({expected_total})")
         
         # Count bugs found by all tools
         all_tools_bugs = sum(1 for m in memberships if len(m) == len(tools))
@@ -718,132 +738,9 @@ def analyze_all_vs_none(df_features, df_tools, feature_cols, tools, threshold, c
     return results_df
 
 
-# ======================================
-# ANALYSIS 2: PAIRWISE TOOL COMPARISON
-# ======================================
-
-def analyze_tool_pairwise(df_features, df_tools, feature_cols, tools, threshold):
-    """
-    Compare features of bugs uniquely found by each tool pair.
-    """
-    print(f"\n{'='*80}")
-    print(f"ANALYSIS 2: PAIRWISE TOOL COMPARISONS (Top-{threshold})")
-    print(f"{'='*80}")
-    
-    # Create success flags
-    flags = create_success_flags(df_tools, tools, threshold)
-    
-    # For each tool, identify bugs it finds that others don't
-    unique_bugs = {}
-    for tool in tools:
-        found_col = f"found_{tool}"
-        other_cols = [f"found_{t}" for t in tools if t != tool]
-        
-        # Bugs this tool finds AND no other tool finds
-        mask_found = flags[found_col]
-        mask_others_not = ~flags[other_cols].any(axis=1)
-        unique_bugs[tool] = flags[mask_found & mask_others_not]
-        
-        print(f"{tool}: {len(unique_bugs[tool])} unique bugs")
-    
-    # Merge with features
-    merged = pd.merge(flags, df_features, on=["project", "bug_id"], how="inner")
-    
-    # Pairwise comparisons
-    all_pairwise_results = []
-    
-    for tool_a, tool_b in combinations(tools, 2):
-        bugs_a = unique_bugs[tool_a]
-        bugs_b = unique_bugs[tool_b]
-        
-        if len(bugs_a) < MIN_GROUP_SIZE or len(bugs_b) < MIN_GROUP_SIZE:
-            print(f"\n[SKIP] {tool_a} vs {tool_b}: insufficient bugs")
-            continue
-        
-        print(f"\n{tool_a} (n={len(bugs_a)}) vs {tool_b} (n={len(bugs_b)}):")
-        
-        # Get feature data for each group
-        data_a = merged[merged[["project", "bug_id"]].apply(tuple, axis=1).isin(
-            bugs_a[["project", "bug_id"]].apply(tuple, axis=1)
-        )]
-        data_b = merged[merged[["project", "bug_id"]].apply(tuple, axis=1).isin(
-            bugs_b[["project", "bug_id"]].apply(tuple, axis=1)
-        )]
-        
-        results = []
-        for feat in feature_cols:
-            if feat not in merged.columns:
-                continue
-            
-            x_a = data_a[feat].dropna()
-            x_b = data_b[feat].dropna()
-            
-            if len(x_a) < MIN_GROUP_SIZE or len(x_b) < MIN_GROUP_SIZE:
-                continue
-            
-            try:
-                u_stat, p_val = mannwhitneyu(x_a, x_b, alternative="two-sided")
-            except:
-                continue
-            
-            delta = cliffs_delta(x_a.values, x_b.values)
-            
-            results.append({
-                "tool_a": tool_a,
-                "tool_b": tool_b,
-                "feature": feat,
-                "n_a": len(x_a),
-                "n_b": len(x_b),
-                "median_a": x_a.median(),
-                "median_b": x_b.median(),
-                "mean_a": x_a.mean(),
-                "mean_b": x_b.mean(),
-                "median_diff": x_a.median() - x_b.median(),
-                "u_statistic": u_stat,
-                "p_value": p_val,
-                "cliffs_delta": delta,
-                "effect_size": effect_size_label(delta)
-            })
-        
-        if not results:
-            continue
-        
-        # Apply correction per pair
-        pair_df = pd.DataFrame(results)
-        pair_df = apply_holm(pair_df, alpha=ALPHA)
-        pair_df["abs_delta"] = pair_df["cliffs_delta"].abs()
-        pair_df["practically_significant"] = (
-            pair_df["significant"] & 
-            (pair_df["abs_delta"] >= PRACTICAL_SIG_DELTA)
-        )
-        
-        all_pairwise_results.append(pair_df)
-        
-        # Print top 5 for this pair
-        pair_df = pair_df.sort_values("abs_delta", ascending=False)
-        print(f"\nTop 5 discriminative features ({tool_a} vs {tool_b}):")
-        for _, row in pair_df.head(5).iterrows():
-            sig = "***" if row["practically_significant"] else ""
-            print(f"  {row['feature']:<35} | δ={row['cliffs_delta']:>6.3f} | p={row['pval_adj']:.4f} {sig}")
-    
-    if not all_pairwise_results:
-        print("\n[WARN] No valid pairwise comparisons")
-        return None
-    
-    # Combine all pairwise results
-    combined_df = pd.concat(all_pairwise_results, ignore_index=True)
-    combined_df = combined_df.sort_values(["tool_a", "tool_b", "abs_delta"], ascending=[True, True, False])
-    
-    # Save
-    out_file = OUT_DIR / f"pairwise_tool_comparison_top{threshold}.csv"
-    combined_df.to_csv(out_file, index=False)
-    print(f"\nSaved: {out_file}")
-    
-    return combined_df
-
 
 # ======================================
-# ANALYSIS 3: TOOL vs REST
+# ANALYSIS 2: TOOL vs REST
 # ======================================
 
 def analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold):
@@ -1124,15 +1021,8 @@ def main():
         # Analysis 1: ALL vs NONE
         all_vs_none_df = analyze_all_vs_none(df_features, df_tools, feature_cols, tools, threshold, categorized_features)
         
-        # Analysis 2: Pairwise tool comparisons
-        pairwise_df = analyze_tool_pairwise(df_features, df_tools, feature_cols, tools, threshold)
-        
         # Analysis 3: Tool vs rest
         tool_vs_rest_df = analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold)
-        
-        # Create visualizations
-        if pairwise_df is not None:
-            create_summary_heatmap(pairwise_df, threshold)
     
     print("\n" + "=" * 80)
     print("ANALYSIS COMPLETE")
