@@ -789,7 +789,7 @@ def collapse_statistical_feature_families(cols):
     for col in cols:
 
         base = re.sub(
-            r"__(orig(_mean|_std|_min|_median|_max)?)$",
+            r"__orig(_(mean|std|min|median|max))?$",
             "",
             col
         )
@@ -823,25 +823,60 @@ def collapse_statistical_feature_families(cols):
 
 def remove_length_metric_duplicates(cols):
     """
-    Collapse redundant length measures such as:
-    *_chars
-    *_length
-    *_word_count
+    Collapse redundant text length families.
+
+    Examples collapsed:
+
+    txt_description_char_len
+    txt_description_word_count
+    txt_description_line_count
+    txt_description_avg_words_per_line
+
+    Rule:
+    keep word_count + line_count
+    drop char_len and avg_words_per_line
     """
 
     keep = []
-    seen = set()
     removed = []
+
+    groups = {}
 
     for col in cols:
 
-        base = re.sub(r"(chars|length|word_count)", "", col)
-
-        if base not in seen:
+        if not col.startswith("txt_"):
             keep.append(col)
-            seen.add(base)
-        else:
-            removed.append(col)
+            continue
+
+        base = re.sub(
+            r"_(char_len|chars|length|word_count|line_count|avg_words_per_line)$",
+            "",
+            col
+        )
+
+        groups.setdefault(base, []).append(col)
+
+    for base, feats in groups.items():
+
+        chosen = []
+
+        for f in feats:
+            if f.endswith("word_count"):
+                chosen.append(f)
+
+        for f in feats:
+            if f.endswith("line_count"):
+                chosen.append(f)
+
+        # fallback if neither exists
+        if not chosen:
+            chosen = [feats[0]]
+
+        keep.extend(chosen)
+
+        for f in feats:
+            if f not in chosen:
+                removed.append(f)
 
     return keep, removed
 

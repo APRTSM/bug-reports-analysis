@@ -42,7 +42,7 @@ except ImportError:
 DATA_DIR = Path(".")
 
 # Input files - UPDATED to use enhanced preprocessed data
-IN_FILE = DATA_DIR / "full_feature_preproccessed_fixed/experimentA_preprocessed_rich.csv"
+IN_FILE = DATA_DIR / "experimentA_cleaned.csv"
 IN_FILE_TOOL_COMPARISON = DATA_DIR / "tool_comparison_summary.csv"
 
 # Dataset filtering: Set to filter by dataset if needed
@@ -1293,24 +1293,19 @@ def main():
         tool_vs_rest_df = analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold)
 
         # Analysis: Repair difficulty by category (per tool)
-        repair_cat_df = analyze_repair_difficulty_by_category(
-            df_features, df_tools, tools, threshold
-        )
+        #repair_cat_df = analyze_repair_difficulty_by_category(
+        #    df_features, df_tools, tools, threshold
+        #)
         
         # Analysis: Repair difficulty by category (overall dataset)
-        repair_cat_overall_df = analyze_repair_difficulty_by_category_overall(
-            df_features, threshold
-        )
+        #repair_cat_overall_df = analyze_repair_difficulty_by_category_overall(
+        #    df_features, threshold
+        #)
     
     print("\n" + "=" * 80)
     print("ANALYSIS COMPLETE")
     print(f"Results saved to: {OUT_DIR}")
     print("=" * 80)
-    print("\nGenerated files:")
-    print("  - all_vs_none_top{1,5,10}.csv")
-    print("  - pairwise_tool_comparison_top{1,5,10}.csv")
-    print("  - tool_vs_rest_top{1,5,10}.csv")
-    print("  - pairwise_heatmap_top{1,5,10}.png")
     if UPSET_AVAILABLE:
         print("  - upset_diagram_top{1,5,10}.png")
     print("=" * 80)
