@@ -296,10 +296,6 @@ Distributed under the APRTSM Lab Research License (non-commercial use only).
 - [Cleanlab](https://github.com/cleanlab/cleanlab) for outlier detection
 - scikit-learn for clustering and machine learning
 
----
-
-## References
-
-- Scikit-learn documentation: https://scikit-learn.org/
+---## References- Scikit-learn documentation: https://scikit-learn.org/
 - Clustering algorithms: https://scikit-learn.org/stable/modules/clustering.html
 - Feature importance: https://scikit-learn.org/stable/modules/permutation_importance.html

@@ -769,150 +769,302 @@ df = df[key_cols + other_cols]
 # 6.10b NEW: Feature redundancy elimination
 print("\n6.10b Removing redundant features...")
 
+import re
+
+def collapse_statistical_feature_families(cols):
+    """
+    Collapse expansion families such as:
+    feature__orig
+    feature__orig_mean
+    feature__orig_std
+    feature__orig_min
+    feature__orig_median
+    feature__orig_max
+
+    Keep only ONE representative.
+    """
+
+    base_map = {}
+
+    for col in cols:
+
+        base = re.sub(
+            r"__(orig(_mean|_std|_min|_median|_max)?)$",
+            "",
+            col
+        )
+
+        if base not in base_map:
+            base_map[base] = []
+
+        base_map[base].append(col)
+
+    selected = []
+    removed = []
+
+    for base, family in base_map.items():
+
+        if base in family:
+            selected.append(base)
+            removed.extend([f for f in family if f != base])
+
+        else:
+            median = [f for f in family if "median" in f]
+
+            if median:
+                selected.append(median[0])
+                removed.extend([f for f in family if f != median[0]])
+            else:
+                selected.append(family[0])
+                removed.extend(family[1:])
+
+    return selected, removed
+
+
+def remove_length_metric_duplicates(cols):
+    """
+    Collapse redundant length measures such as:
+    *_chars
+    *_length
+    *_word_count
+    """
+
+    keep = []
+    seen = set()
+    removed = []
+
+    for col in cols:
+
+        base = re.sub(r"(chars|length|word_count)", "", col)
+
+        if base not in seen:
+            keep.append(col)
+            seen.add(base)
+        else:
+            removed.append(col)
+
+    return keep, removed
+
 def remove_redundant_features(df: pd.DataFrame, key_cols: List[str]) -> pd.DataFrame:
     """
-    Remove redundant features using three criteria:
-    1. Constant or near-constant features (< 5 unique values or std < 0.01)
-    2. Perfect duplicates (Pearson correlation = 1.0)
-    3. High pairwise correlation (Spearman rho > 0.95)
-    
-    Returns: DataFrame with redundant features removed
+    Improved feature redundancy elimination.
+
+    Steps:
+    1. Remove constant / near-constant features
+    2. Remove perfect duplicates (Spearman correlation ≈ 1.0)
+    3. Remove highly correlated clusters (Spearman rho > 0.95)
+    4. Select representative feature using variance + missingness penalty
     """
+
     from scipy.cluster.hierarchy import linkage, fcluster
     from scipy.spatial.distance import squareform
-    
-    # Identify numeric feature columns (exclude keys and performance metrics)
+
     performance_cols = [c for c in df.columns if c.startswith(("top@", "mrr_", "map_", "rank_"))]
     exclude_cols = set(key_cols + performance_cols)
-    numeric_cols = [c for c in df.select_dtypes(include=[np.number]).columns 
-                   if c not in exclude_cols]
-    
-    print(f"  Starting with {len(numeric_cols)} numeric features")
-    
+
+    numeric_cols = [
+    c for c in df.select_dtypes(include=[np.number]).columns
+    if c not in exclude_cols
+    ]
+
+    print(f"\nStarting redundancy elimination with {len(numeric_cols)} numeric features")
+
     removed_features = {
-        'constant': [],
-        'duplicates': [],
-        'high_correlation': []
+        "statistical_expansions": [],
+        "length_duplicates": [],
+        "constant": [],
+        "duplicates": [],
+        "high_correlation": []
     }
-    
-    # STEP 1: Remove constant/near-constant features
-    print("  Step 1/3: Removing constant/near-constant features...")
-    features_to_keep = []
+
+# ---------------------------------------------------
+# NEW STEP 0: Collapse statistical feature families
+# ---------------------------------------------------
+
+    numeric_cols, removed_exp = collapse_statistical_feature_families(numeric_cols)
+    removed_features["statistical_expansions"].extend(removed_exp)
+
+    print(f"Collapsed {len(removed_exp)} statistical expansion features")
+    print(f"Remaining features: {len(numeric_cols)}")
+
+    # ---------------------------------------------------
+    # NEW STEP 0.5: Remove obvious length duplicates
+    # ---------------------------------------------------
+
+    numeric_cols, removed_len = remove_length_metric_duplicates(numeric_cols)
+    removed_features["length_duplicates"].extend(removed_len)
+
+    print(f"Removed {len(removed_len)} length duplicate features")
+    print(f"Remaining features: {len(numeric_cols)}")
+
+    # ---------------------------------------------------
+    # STEP 1: Remove constant / near-constant features
+    # ---------------------------------------------------
+
+    print("Step 1: Removing constant / near-constant features")
+
+    variance_floor = 0.001
+
+    keep_cols = []
+
     for col in numeric_cols:
+
         n_unique = df[col].nunique()
         std_val = df[col].std()
-        if n_unique < 5 or std_val < 0.01:
-            removed_features['constant'].append(col)
+        var_val = df[col].var()
+
+        if n_unique < 5 or std_val < 0.01 or var_val < variance_floor:
+            removed_features["constant"].append(col)
         else:
-            features_to_keep.append(col)
-    
-    print(f"    Removed {len(removed_features['constant'])} constant/near-constant features")
-    numeric_cols = features_to_keep
-    
-    # STEP 2: Remove perfect duplicates (Pearson correlation = 1.0)
-    print("  Step 2/3: Removing perfect duplicates...")
-    corr_matrix = df[numeric_cols].corr(method='pearson').abs()
-    
-    # Find pairs with perfect correlation
-    upper_triangle = np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
-    perfect_pairs = []
+            keep_cols.append(col)
+
+    numeric_cols = keep_cols
+
+    print(f"  Removed {len(removed_features['constant'])} low-variance features")
+    print(f"  Remaining features: {len(numeric_cols)}")
+
+    # ---------------------------------------------------
+    # STEP 2: Remove duplicate features
+    # ---------------------------------------------------
+
+    print("Step 2: Removing duplicate features (Spearman ≈ 1.0)")
+
+    corr_matrix = df[numeric_cols].corr(method="spearman").abs()
+
+    to_remove = set()
+
     for i in range(len(corr_matrix)):
-        for j in range(i+1, len(corr_matrix)):
-            if corr_matrix.iloc[i, j] >= 0.9999:  # Perfect correlation
-                perfect_pairs.append((corr_matrix.index[i], corr_matrix.columns[j]))
-    
-    # Keep first feature from each duplicate pair
-    features_to_remove_step2 = set()
-    for feat1, feat2 in perfect_pairs:
-        if feat1 not in features_to_remove_step2:
-            features_to_remove_step2.add(feat2)
-            removed_features['duplicates'].append(feat2)
-    
-    print(f"    Removed {len(removed_features['duplicates'])} duplicate features")
-    numeric_cols = [c for c in numeric_cols if c not in features_to_remove_step2]
-    
-    # STEP 3: Remove high pairwise correlation (Spearman rho > 0.95)
-    print("  Step 3/3: Removing highly correlated features (rho > 0.95)...")
-    
-    if len(numeric_cols) > 1:
-        # Compute Spearman correlation
-        spearman_corr = df[numeric_cols].corr(method='spearman').abs()
-        
-        # Convert correlation to distance
-        distance_matrix = 1 - spearman_corr
-        
-        # Hierarchical clustering
-        condensed_dist = squareform(distance_matrix, checks=False)
-        linkage_matrix = linkage(condensed_dist, method='average')
-        
-        # Cut tree at correlation threshold of 0.95 (distance = 0.05)
-        clusters = fcluster(linkage_matrix, t=0.05, criterion='distance')
-        
-        # For each cluster, keep the feature with highest variance
-        cluster_df = pd.DataFrame({
-            'feature': numeric_cols,
-            'cluster': clusters,
-            'variance': df[numeric_cols].var()
-        })
-        
-        # Keep one representative per cluster (highest variance)
-        features_to_keep_step3 = []
-        for cluster_id in cluster_df['cluster'].unique():
-            cluster_features = cluster_df[cluster_df['cluster'] == cluster_id]
-            if len(cluster_features) == 1:
-                features_to_keep_step3.append(cluster_features['feature'].iloc[0])
-            else:
-                # Keep feature with highest variance
-                best_feature = cluster_features.nlargest(1, 'variance')['feature'].iloc[0]
-                features_to_keep_step3.append(best_feature)
-                
-                # Mark others as removed
-                removed_in_cluster = cluster_features[cluster_features['feature'] != best_feature]['feature'].tolist()
-                removed_features['high_correlation'].extend(removed_in_cluster)
-        
-        print(f"    Removed {len(removed_features['high_correlation'])} highly correlated features")
-        numeric_cols = features_to_keep_step3
-    
-    # Prepare final feature set
-    final_features = key_cols + performance_cols + numeric_cols
-    
-    # Add back non-numeric columns
-    non_numeric_cols = [c for c in df.columns if c not in df.select_dtypes(include=[np.number]).columns]
+        for j in range(i + 1, len(corr_matrix)):
+            if corr_matrix.iloc[i, j] >= 0.999:
+                f1 = corr_matrix.index[i]
+                f2 = corr_matrix.columns[j]
+
+                if f1 not in to_remove:
+                    to_remove.add(f2)
+                    removed_features["duplicates"].append(f2)
+
+    numeric_cols = [c for c in numeric_cols if c not in to_remove]
+
+    print(f"  Removed {len(removed_features['duplicates'])} duplicates")
+    print(f"  Remaining features: {len(numeric_cols)}")
+
+    # ---------------------------------------------------
+    # STEP 3: Cluster highly correlated features
+    # ---------------------------------------------------
+
+    print("Step 3: Clustering highly correlated features (ρ > 0.95)")
+
+    spearman_corr = df[numeric_cols].corr(method="spearman").abs()
+
+    distance_matrix = 1 - spearman_corr
+
+    condensed_dist = squareform(distance_matrix, checks=False)
+
+    linkage_matrix = linkage(condensed_dist, method="average")
+
+    clusters = fcluster(linkage_matrix, t=0.05, criterion="distance")
+
+    cluster_df = pd.DataFrame({
+        "feature": numeric_cols,
+        "cluster": clusters,
+        "variance": df[numeric_cols].var(),
+        "missingness": df[numeric_cols].isna().mean()
+    })
+
+    cluster_sizes = cluster_df["cluster"].value_counts()
+
+    print("\nCluster size distribution:")
+
+    for size, count in cluster_sizes.value_counts().sort_index().items():
+        print(f"  size {size}: {count} clusters")
+
+    selected_features = []
+
+    for cluster_id in cluster_df["cluster"].unique():
+
+        cluster_feats = cluster_df[cluster_df["cluster"] == cluster_id]
+
+        if len(cluster_feats) == 1:
+
+            selected_features.append(cluster_feats["feature"].iloc[0])
+
+        else:
+
+            # representative score: variance × (1 - missingness)
+
+            cluster_feats["score"] = (
+                cluster_feats["variance"] *
+                (1 - cluster_feats["missingness"])
+            )
+
+            best = cluster_feats.sort_values("score", ascending=False).iloc[0]["feature"]
+
+            selected_features.append(best)
+
+            removed = cluster_feats[cluster_feats["feature"] != best]["feature"].tolist()
+
+            removed_features["high_correlation"].extend(removed)
+
+    numeric_cols = selected_features
+
+    print(f"\nRemoved {len(removed_features['high_correlation'])} highly correlated features")
+    print(f"Remaining numeric features: {len(numeric_cols)}")
+
+    # ---------------------------------------------------
+    # Build final dataset
+    # ---------------------------------------------------
+
+    final_cols = key_cols + performance_cols + numeric_cols
+
+    non_numeric_cols = [
+        c for c in df.columns
+        if c not in df.select_dtypes(include=[np.number]).columns
+    ]
+
     for col in non_numeric_cols:
-        if col not in final_features and col not in exclude_cols:
-            final_features.append(col)
-    
-    print(f"\n  Redundancy elimination summary:")
-    print(f"    Constant/near-constant: {len(removed_features['constant'])}")
-    print(f"    Perfect duplicates: {len(removed_features['duplicates'])}")
-    print(f"    High correlation (>0.95): {len(removed_features['high_correlation'])}")
-    print(f"    Total removed: {sum(len(v) for v in removed_features.values())}")
-    print(f"    Features retained: {len(numeric_cols)}")
-    
-    # Save removed features log
+        if col not in final_cols:
+            final_cols.append(col)
+
+    # ---------------------------------------------------
+    # Summary table
+    # ---------------------------------------------------
+
+    print("\nRedundancy elimination summary")
+
+    summary = {
+        "Initial features": len(df.select_dtypes(include=[np.number]).columns),
+        "Statistical expansions removed": len(removed_features["statistical_expansions"]),
+        "Length duplicates removed": len(removed_features["length_duplicates"]),
+        "Constant removed": len(removed_features["constant"]),
+        "Duplicates removed": len(removed_features["duplicates"]),
+        "High correlation removed": len(removed_features["high_correlation"]),
+        "Final numeric features": len(numeric_cols)
+    }
+
+    for k, v in summary.items():
+        print(f"  {k}: {v}")
+
+    # ---------------------------------------------------
+    # Save removal log
+    # ---------------------------------------------------
+
     removed_log_file = DATA_DIR / "removed_features_log.txt"
-    with open(removed_log_file, 'w') as f:
+
+    with open(removed_log_file, "w") as f:
+
         f.write("FEATURE REDUNDANCY ELIMINATION LOG\n")
         f.write("=" * 60 + "\n\n")
-        
-        f.write(f"Constant/Near-Constant Features ({len(removed_features['constant'])}):\n")
-        for feat in sorted(removed_features['constant']):
-            f.write(f"  - {feat}\n")
-        
-        f.write(f"\nPerfect Duplicates ({len(removed_features['duplicates'])}):\n")
-        for feat in sorted(removed_features['duplicates']):
-            f.write(f"  - {feat}\n")
-        
-        f.write(f"\nHighly Correlated Features ({len(removed_features['high_correlation'])}):\n")
-        for feat in sorted(removed_features['high_correlation']):
-            f.write(f"  - {feat}\n")
-    
-    print(f"  Saved removal log to: {removed_log_file}")
-    
-    return df[final_features]
 
-# Apply redundancy elimination
-df = remove_redundant_features(df, key_cols)
+        for key in removed_features:
+            f.write(f"{key.upper()} ({len(removed_features[key])})\n")
+            for feat in sorted(removed_features[key]):
+                f.write(f"  - {feat}\n")
+            f.write("\n")
+
+    print(f"\nSaved removal log: {removed_log_file}")
+
+    return df[final_cols]
+
 
 # 6.11 Standardize numeric features
 print("\n6.11 Standardizing numeric features...")
@@ -971,6 +1123,8 @@ elif not ENABLE_STANDARDIZATION:
     print(f"\n  Standardization: DISABLED")
 else:
     print(f"\n  Standardization: SKIPPED (no columns to scale)")
+
+df = remove_redundant_features(df, key_cols)
 
 # 6.12 Final NaN handling
 print("\n6.12 Final NaN handling...")
@@ -1039,13 +1193,3 @@ else:
 
 print("\n" + "=" * 60)
 print("Enhanced preprocessing complete!")
-print("=" * 60)
-print("\nNew features added:")
-print("  ✓ LLM interaction features (quality composites, consistency)")
-print("  ✓ Ambiguity type encoding (5 categories)")
-print("  ✓ Concept network features (cross-layer analysis)")
-print("  ✓ Semantic consistency features (LLM vs syntactic alignment)")
-print("  ✓ Enhanced exception categories (8 types)")
-print("  ✓ Semantic diversity metrics (entropy, coherence, spread)")
-print("  ✓ Embedding clustering (10 clusters)")
-print("=" * 60)

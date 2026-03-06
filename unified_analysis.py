@@ -923,6 +923,274 @@ def analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold):
     
     return combined_df
 
+def analyze_repair_difficulty_by_category(df_features, df_tools, tools, threshold):
+    """
+    Analyze repair difficulty across bug categories for bugs uniquely localized by each tool.
+    """
+
+    print(f"\n{'='*80}")
+    print(f"REPAIR DIFFICULTY × BUG CATEGORY ANALYSIS (Top-{threshold})")
+    print(f"{'='*80}")
+
+    flags = create_success_flags(df_tools, tools, threshold)
+
+    merged = pd.merge(flags, df_features, on=["project", "bug_id"], how="inner")
+    
+    print(f"Merged dataset shape: {merged.shape}")
+    print(f"Columns in merged dataset: {len(merged.columns)}")
+
+    if "repair_difficulty" not in merged.columns:
+        print("[ERROR] repair_difficulty column not found")
+        print(f"  Available columns containing 'repair': {[c for c in merged.columns if 'repair' in c.lower()]}")
+        return
+
+    # Detect category columns - use the explicit category columns from the preprocessed dataset
+    desired_category_cols = [
+        "fg_cat_Dependency",
+        "fg_cat_Exception handling",
+        "fg_cat_Missing case",
+        "fg_cat_Null pointer dereference",
+        "fg_cat_Other (Logic)",
+        "fg_cat_Processing",
+        "fg_cat___missing__",
+        "fg_cat___other__",
+        "cat_Functional Issue",
+        "cat___other__",
+    ]
+
+    # Keep only those that actually exist in the merged dataframe
+    category_cols = [c for c in desired_category_cols if c in merged.columns]
+
+    print(f"Found {len(category_cols)} category columns (from explicit list)")
+    if category_cols:
+        print(f"  Using category columns: {category_cols}")
+
+    missing_cats = [c for c in desired_category_cols if c not in merged.columns]
+    if missing_cats:
+        print(f"  Note: the following expected category columns were not found and will be skipped: {missing_cats}")
+
+    if not category_cols:
+        print("[ERROR] No bug category columns detected from the explicit list")
+        print(f"  Available columns containing 'cat': {[c for c in merged.columns if 'cat' in c.lower()][:20]}")
+        return
+
+    results = []
+
+    for tool in tools:
+
+        found_col = f"found_{tool}"
+        other_cols = [f"found_{t}" for t in tools if t != tool]
+
+        # unique successes
+        mask_unique = merged[found_col] & ~merged[other_cols].any(axis=1)
+        tool_unique = merged[mask_unique]
+
+        print(f"\n{tool}: {len(tool_unique)} unique bugs")
+
+        if len(tool_unique) < MIN_GROUP_SIZE:
+            continue
+
+        for cat in category_cols:
+
+            subset = tool_unique[tool_unique[cat] == 1]
+
+            if len(subset) < MIN_GROUP_SIZE:
+                continue
+
+            results.append({
+                "tool": tool,
+                "category": cat,
+                "n": len(subset),
+                "mean_repair_difficulty": subset["repair_difficulty"].mean(),
+                "median_repair_difficulty": subset["repair_difficulty"].median(),
+                "std_repair_difficulty": subset["repair_difficulty"].std()
+            })
+
+    if not results:
+        print(f"[WARN] No sufficient category samples found.")
+        print(f"  This means no tool had at least {MIN_GROUP_SIZE} unique bugs with at least {MIN_GROUP_SIZE} bugs in any category.")
+        print("  Try lowering the minimum sample size threshold or check if categories are properly encoded.")
+        return None
+
+    results_df = pd.DataFrame(results)
+    
+    print(f"\nGenerated {len(results_df)} category-tool combinations")
+
+    out_file = OUT_DIR / f"repair_difficulty_by_category_top{threshold}.csv"
+    results_df.to_csv(out_file, index=False)
+
+    print(f"\nSaved: {out_file}")
+    print(f"  Rows: {len(results_df)}")
+    print(f"  Columns: {list(results_df.columns)}")
+
+    return results_df
+
+
+def analyze_repair_difficulty_by_category_overall(df_features, threshold):
+    """
+    Analyze repair difficulty across bug categories for the entire dataset (not per tool).
+    """
+    
+    print(f"\n{'='*80}")
+    print(f"OVERALL REPAIR DIFFICULTY × BUG CATEGORY ANALYSIS (Top-{threshold})")
+    print(f"{'='*80}")
+    
+    print(f"Dataset shape: {df_features.shape}")
+    print(f"Columns in dataset: {len(df_features.columns)}")
+    
+    if "repair_difficulty" not in df_features.columns:
+        print("[ERROR] repair_difficulty column not found")
+        print(f"  Available columns containing 'repair': {[c for c in df_features.columns if 'repair' in c.lower()]}")
+        return None
+    
+    # Detect category columns - use the explicit category columns from the preprocessed dataset
+    desired_category_cols = [
+        "fg_cat_Dependency",
+        "fg_cat_Exception handling",
+        "fg_cat_Missing case",
+        "fg_cat_Null pointer dereference",
+        "fg_cat_Other (Logic)",
+        "fg_cat_Processing",
+        "fg_cat___missing__",
+        "fg_cat___other__",
+        "cat_Functional Issue",
+        "cat___other__",
+    ]
+    
+    # Keep only those that actually exist in the dataframe
+    category_cols = [c for c in desired_category_cols if c in df_features.columns]
+    
+    print(f"Found {len(category_cols)} category columns (from explicit list)")
+    if category_cols:
+        print(f"  Using category columns: {category_cols}")
+    
+    missing_cats = [c for c in desired_category_cols if c not in df_features.columns]
+    if missing_cats:
+        print(f"  Note: the following expected category columns were not found and will be skipped: {missing_cats}")
+    
+    if not category_cols:
+        print("[ERROR] No bug category columns detected from the explicit list")
+        print(f"  Available columns containing 'cat': {[c for c in df_features.columns if 'cat' in c.lower()][:20]}")
+        return None
+    
+    results = []
+    
+    for cat in category_cols:
+        # Get all bugs in this category
+        subset = df_features[df_features[cat] == 1]
+        
+        if len(subset) < MIN_GROUP_SIZE:
+            print(f"  Skipping {cat}: only {len(subset)} bugs (need at least {MIN_GROUP_SIZE})")
+            continue
+        
+        results.append({
+            "category": cat,
+            "n": len(subset),
+            "mean_repair_difficulty": subset["repair_difficulty"].mean(),
+            "median_repair_difficulty": subset["repair_difficulty"].median(),
+            "std_repair_difficulty": subset["repair_difficulty"].std(),
+            "min_repair_difficulty": subset["repair_difficulty"].min(),
+            "max_repair_difficulty": subset["repair_difficulty"].max()
+        })
+        
+        print(f"  {cat}: {len(subset)} bugs, mean repair difficulty = {subset['repair_difficulty'].mean():.3f}")
+    
+    if not results:
+        print(f"[WARN] No sufficient category samples found.")
+        print(f"  This means no category had at least {MIN_GROUP_SIZE} bugs.")
+        return None
+    
+    results_df = pd.DataFrame(results)
+    
+    # Perform Mann-Whitney U test and Cliff's delta for each category vs all other bugs
+    print(f"\n{'='*80}")
+    print(f"STATISTICAL COMPARISONS: Each Category vs All Other Bugs")
+    print(f"{'='*80}")
+    
+    all_repair_difficulty = df_features["repair_difficulty"].dropna()
+    
+    statistical_results = []
+    for _, row in results_df.iterrows():
+        cat = row["category"]
+        cat_bugs = df_features[df_features[cat] == 1]["repair_difficulty"].dropna()
+        other_bugs = df_features[df_features[cat] == 0]["repair_difficulty"].dropna()
+        
+        if len(cat_bugs) < MIN_GROUP_SIZE or len(other_bugs) < MIN_GROUP_SIZE:
+            continue
+        
+        try:
+            # Mann-Whitney U test
+            u_stat, p_val = mannwhitneyu(cat_bugs.values, other_bugs.values, alternative="two-sided")
+            
+            # Cliff's delta (positive means category > others, negative means category < others)
+            delta = cliffs_delta(cat_bugs.values, other_bugs.values)
+            
+            statistical_results.append({
+                "category": cat,
+                "n_category": len(cat_bugs),
+                "n_others": len(other_bugs),
+                "median_category": cat_bugs.median(),
+                "median_others": other_bugs.median(),
+                "mean_category": cat_bugs.mean(),
+                "mean_others": other_bugs.mean(),
+                "u_statistic": u_stat,
+                "p_value": p_val,
+                "cliffs_delta": delta,
+                "abs_delta": abs(delta),
+                "effect_size": effect_size_label(delta)
+            })
+        except Exception as e:
+            print(f"  Warning: Could not compare {cat} vs others: {e}")
+            continue
+    
+    if statistical_results:
+        stats_df = pd.DataFrame(statistical_results)
+        
+        # Apply Holm-Bonferroni correction
+        stats_df = apply_holm(stats_df, alpha=ALPHA, pval_col="p_value")
+        
+        # Mark practically significant comparisons
+        stats_df["practically_significant"] = (
+            stats_df["significant"] & 
+            (stats_df["abs_delta"] >= PRACTICAL_SIG_DELTA)
+        )
+        
+        # Merge statistical results with descriptive statistics
+        results_df = results_df.merge(
+            stats_df[["category", "n_others", "median_others", "mean_others", 
+                     "u_statistic", "p_value", "pval_adj", "cliffs_delta", 
+                     "abs_delta", "effect_size", "significant", "practically_significant"]],
+            on="category",
+            how="left"
+        )
+        
+        print(f"\nGenerated statistical comparisons for {len(stats_df)} categories")
+        print(f"  Statistically significant: {stats_df['significant'].sum()}")
+        print(f"  Practically significant (|δ| ≥ {PRACTICAL_SIG_DELTA}): {stats_df['practically_significant'].sum()}")
+        
+        # Print top comparisons
+        print(f"\nTop categories by effect size (vs all other bugs):")
+        stats_df_sorted = stats_df.sort_values("abs_delta", ascending=False)
+        for _, row in stats_df_sorted.head(10).iterrows():
+            sig_marker = "***" if row["practically_significant"] else ("*" if row["significant"] else "")
+            direction = "higher" if row["cliffs_delta"] > 0 else "lower"
+            print(f"  {row['category']}: {direction} repair difficulty "
+                  f"(δ={row['cliffs_delta']:.3f}, {row['effect_size']}), "
+                  f"p={row['pval_adj']:.4f} {sig_marker}")
+    
+    results_df = results_df.sort_values("mean_repair_difficulty", ascending=False)
+    
+    print(f"\nGenerated {len(results_df)} category statistics")
+    
+    out_file = OUT_DIR / f"repair_difficulty_by_category_overall_top{threshold}.csv"
+    results_df.to_csv(out_file, index=False)
+    
+    print(f"\nSaved: {out_file}")
+    print(f"  Rows: {len(results_df)}")
+    print(f"  Columns: {list(results_df.columns)}")
+    
+    return results_df
+
 
 # ======================================
 # VISUALIZATION
@@ -1023,6 +1291,16 @@ def main():
         
         # Analysis 3: Tool vs rest
         tool_vs_rest_df = analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold)
+
+        # Analysis: Repair difficulty by category (per tool)
+        repair_cat_df = analyze_repair_difficulty_by_category(
+            df_features, df_tools, tools, threshold
+        )
+        
+        # Analysis: Repair difficulty by category (overall dataset)
+        repair_cat_overall_df = analyze_repair_difficulty_by_category_overall(
+            df_features, threshold
+        )
     
     print("\n" + "=" * 80)
     print("ANALYSIS COMPLETE")
