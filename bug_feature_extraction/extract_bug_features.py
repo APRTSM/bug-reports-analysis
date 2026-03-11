@@ -608,26 +608,28 @@ def compute_syntactic_features(text: str):
     n_words = sum(1 for t in doc if t.is_alpha)
     n_sentences = sum(1 for _ in doc.sents)
 
-    flesch = smog = gunning = coleman = ari = None
+    flesch = smog = gunning = coleman = ari = kincaid = lix = None
     if len(text) >= MIN_TEXT_LENGTH:
         try:
-            flesch = textstat.flesch_reading_ease(text)
-            smog = textstat.smog_index(text)
-            gunning = textstat.gunning_fog(text)
-            coleman = textstat.coleman_liau_index(text)
-            ari = textstat.automated_readability_index(text)
+            flesch   = textstat.flesch_reading_ease(text)
+            smog     = textstat.smog_index(text)
+            gunning  = textstat.gunning_fog(text)
+            coleman  = textstat.coleman_liau_index(text)
+            ari      = textstat.automated_readability_index(text)
+            kincaid  = textstat.flesch_kincaid_grade(text)
+            lix      = textstat.lix(text)
         except (ValueError, ZeroDivisionError) as e:
             print(f"Warning: Readability calculation failed: {e}")
 
     return {
-        #"n_tokens": n_tokens,
-        #"n_words": n_words,
         "n_sentences": n_sentences,
-        #"flesch_reading_ease": flesch,
-        #"smog_index": smog,
+        "flesch_reading_ease": flesch,
+        "smog_index": smog,
         "gunning_fog": gunning,
-        #"coleman_liau_index": coleman,
-        #"automated_readability_index": ari,
+        "coleman_liau_index": coleman,
+        "automated_readability_index": ari,
+        "kincaid_grade": kincaid,
+        "lix": lix,
     }
 
 
