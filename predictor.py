@@ -106,6 +106,22 @@ AVN_FEATURES = [
     'flesch','kincaid','embedding_cluster_size',
 ]
 
+INTERACTION_FEATURES = [
+    'complexity_reasoning',
+    'complexity_description',
+    'complexity_readability',
+    'reasoning_clarity',
+    'structure_actionability',
+    'readability_combo',
+    'ambiguity_reasoning'
+]
+
+# add interactions to each tool feature list
+for t in TOOL_FEATURES:
+    TOOL_FEATURES[t] = TOOL_FEATURES[t] + INTERACTION_FEATURES
+
+AVN_FEATURES = AVN_FEATURES + INTERACTION_FEATURES
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def cliffs_delta(group1: np.ndarray, group2: np.ndarray) -> float:
     """
@@ -233,6 +249,57 @@ def evaluate_scores(y_true: np.ndarray,
 print("Loading data...")
 df = pd.read_csv(args.features)
 
+# ── Interaction features derived from significant feature patterns ───────────
+
+def add_interaction_features(df):
+
+    # Core interaction: complexity × reasoning
+    if {'repair_difficulty','reasoning_composite'}.issubset(df.columns):
+        df['complexity_reasoning'] = (
+            df['repair_difficulty'] * df['reasoning_composite']
+        )
+
+    # Complexity × description structure
+    if {'repair_difficulty','txt_description_line_count'}.issubset(df.columns):
+        df['complexity_description'] = (
+            df['repair_difficulty'] * df['txt_description_line_count']
+        )
+
+    # Complexity × readability (FlexFL pattern)
+    if {'repair_difficulty','ari'}.issubset(df.columns):
+        df['complexity_readability'] = (
+            df['repair_difficulty'] * df['ari']
+        )
+
+    # Reasoning × clarity
+    if {'reasoning_composite','clarity'}.issubset(df.columns):
+        df['reasoning_clarity'] = (
+            df['reasoning_composite'] * df['clarity']
+        )
+
+    # Structure × actionability
+    if {'txt_description_line_count','actionability'}.issubset(df.columns):
+        df['structure_actionability'] = (
+            df['txt_description_line_count'] * df['actionability']
+        )
+
+    # Readability cluster (BoostNSift pattern)
+    if {'ari','coleman_liau','flesch'}.issubset(df.columns):
+        df['readability_combo'] = (
+            df['ari'] + df['coleman_liau'] - df['flesch']
+        )
+
+    # Semantic ambiguity × reasoning
+    if {'ambiguity_type_count','reasoning_composite'}.issubset(df.columns):
+        df['ambiguity_reasoning'] = (
+            df['ambiguity_type_count'] * df['reasoning_composite']
+        )
+
+    return df
+
+
+df = add_interaction_features(df)
+
 if Path(args.tools).exists():
     df_tools = pd.read_csv(args.tools)
     brain_mask = df_tools['tool'] == 'BRaIn'
@@ -272,6 +339,8 @@ ALL_FEAT = (df.drop(columns=[c for c in exclude if c in df.columns])
 for t in TOOLS:
     TOOL_FEATURES[t] = [f for f in TOOL_FEATURES[t] if f in ALL_FEAT]
 AVN_FEATURES = [f for f in AVN_FEATURES if f in ALL_FEAT]
+
+
 
 # Add n_success column
 for thresh in THRESHOLDS:
@@ -702,3 +771,126 @@ To run on a new dataset:
         --new_features /path/to/new_features.csv \\
         --new_tools    /path/to/new_tool_comparison.csv
 """)
+
+# ── Anchored multi-tool routing sweep ───────────────────────────────────────
+print("\nRunning anchored multi-tool routing sweep...")
+
+# Localizability score
+s = np.zeros(N)
+y_any = np.zeros(N, dtype=int)
+y_key = (5, 'any_vs_none_top5')
+
+if y_key in all_scores_store:
+    s, y_any = all_scores_store[y_key]
+
+# Tool scores (computed earlier in script)
+score_fl = all_scores_store.get((5, 'FlexFL'), (np.zeros(N), None))[0]
+score_bl = all_scores_store.get((5, 'buglocator'), (np.zeros(N), None))[0]
+score_br = all_scores_store.get((5, 'BRaIn'), (np.zeros(N), None))[0]
+score_bo = all_scores_store.get((5, 'boostnsift'), (np.zeros(N), None))[0]
+score_lo = all_scores_store.get((5, 'locus'), (np.zeros(N), None))[0]
+
+# Ground truth success labels
+success_fl = df['top@5_FlexFL'].fillna(0).astype(int).values
+success_bl = df['top@5_buglocator'].fillna(0).astype(int).values
+success_br = df['top@5_BRaIn'].fillna(0).astype(int).values
+success_bo = df['top@5_boostnsift'].fillna(0).astype(int).values
+success_lo = df['top@5_locus'].fillna(0).astype(int).values
+
+routing_rows = []
+
+triage_percentiles = np.arange(10, 81, 5)
+margins = np.arange(0.0, 1.5, 0.1)
+
+for p_triage in triage_percentiles:
+
+    triage_t = np.percentile(s, p_triage)
+
+    for margin in margins:
+
+        routed_success = 0
+        triaged = 0
+
+        used_fl = 0
+        used_bl = 0
+        used_br = 0
+        used_bo = 0
+        used_lo = 0
+
+        for i in range(N):
+
+            # ── Stage 1: triage ──
+            if s[i] < triage_t:
+                triaged += 1
+                continue
+
+            # ── Stage 2: default tool ──
+            best_tool = "FlexFL"
+            best_score = score_fl[i]
+
+            # IR tools
+            if score_bl[i] - best_score > margin:
+                best_tool = "BugLocator"
+                best_score = score_bl[i]
+
+            if score_bo[i] - best_score > margin:
+                best_tool = "BoostNSift"
+                best_score = score_bo[i]
+
+            # semantic tool
+            if score_br[i] - best_score > margin:
+                best_tool = "BRaIn"
+                best_score = score_br[i]
+
+            # weakest tool (large margin needed)
+            if score_lo[i] - best_score > (margin + 0.3):
+                best_tool = "Locus"
+                best_score = score_lo[i]
+
+            # ── Evaluate outcome ──
+            if best_tool == "FlexFL":
+                used_fl += 1
+                if success_fl[i]:
+                    routed_success += 1
+
+            elif best_tool == "BugLocator":
+                used_bl += 1
+                if success_bl[i]:
+                    routed_success += 1
+
+            elif best_tool == "BoostNSift":
+                used_bo += 1
+                if success_bo[i]:
+                    routed_success += 1
+
+            elif best_tool == "BRaIn":
+                used_br += 1
+                if success_br[i]:
+                    routed_success += 1
+
+            elif best_tool == "Locus":
+                used_lo += 1
+                if success_lo[i]:
+                    routed_success += 1
+
+        coverage = routed_success / N
+
+        routing_rows.append({
+            'triage_pct': p_triage,
+            'triage_threshold': round(triage_t, 3),
+            'margin': round(margin, 3),
+
+            'coverage': round(coverage, 3),
+            'triaged': int(triaged),
+
+            'flexfl_used': int(used_fl),
+            'buglocator_used': int(used_bl),
+            'boostnsift_used': int(used_bo),
+            'brain_used': int(used_br),
+            'locus_used': int(used_lo)
+        })
+
+routing_df = pd.DataFrame(routing_rows)
+routing_df.to_csv(OUT_DIR / 'routing_sweep.csv', index=False)
+
+print(f"  Routing sweep saved to {OUT_DIR / 'routing_sweep.csv'}")
