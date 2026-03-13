@@ -21,7 +21,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
-from scipy.stats import mannwhitneyu
+from scipy.stats import mannwhitneyu, spearmanr
 from statsmodels.stats.multitest import multipletests
 from itertools import combinations
 
@@ -738,6 +738,92 @@ def analyze_all_vs_none(df_features, df_tools, feature_cols, tools, threshold, c
     return results_df
 
 
+    # ======================================
+# ANALYSIS: BUG DIFFICULTY SPECTRUM
+# ======================================
+
+def analyze_bug_difficulty_spectrum(df_features, df_tools, feature_cols, tools, threshold):
+    """
+    Analyze correlation between bug report features and number of tools that
+    successfully localize the bug (bug difficulty spectrum).
+    """
+
+    print(f"\n{'='*80}")
+    print(f"ANALYSIS: BUG DIFFICULTY SPECTRUM (Top-{threshold})")
+    print(f"{'='*80}")
+
+    flags = create_success_flags(df_tools, tools, threshold)
+
+    found_cols = [f"found_{tool}" for tool in tools]
+
+    flags["num_found"] = flags[found_cols].sum(axis=1)
+
+    # normalize
+    flags["tool_success_rate"] = flags["num_found"] / len(tools)
+
+    merged = pd.merge(flags, df_features, on=["project", "bug_id"], how="inner")
+
+    print(f"Bugs analyzed: {len(merged)}")
+
+    results = []
+
+    for feat in feature_cols:
+
+        if feat not in merged.columns:
+            continue
+
+        x = merged[feat]
+        y = merged["tool_success_rate"]
+
+        valid = (~x.isna()) & (~y.isna())
+
+        if valid.sum() < MIN_GROUP_SIZE:
+            continue
+
+        try:
+            rho, p_val = spearmanr(x[valid], y[valid])
+        except:
+            continue
+
+        results.append({
+            "feature": feat,
+            "spearman_rho": rho,
+            "p_value": p_val,
+            "n": valid.sum()
+        })
+
+    if not results:
+        print("[WARN] No valid correlations computed")
+        return None
+
+    results_df = pd.DataFrame(results)
+
+    results_df = apply_holm(results_df, alpha=ALPHA, pval_col="p_value")
+
+    results_df["abs_rho"] = results_df["spearman_rho"].abs()
+
+    results_df = results_df.sort_values("abs_rho", ascending=False)
+
+    out_file = OUT_DIR / f"bug_difficulty_spectrum_top{threshold}.csv"
+    results_df.to_csv(out_file, index=False)
+
+    print(f"Saved: {out_file}")
+
+    print("\nTop 10 features correlated with bug difficulty:")
+    print("=" * 100)
+
+    for _, row in results_df.head(10).iterrows():
+
+        direction = "easier bugs" if row["spearman_rho"] > 0 else "harder bugs"
+
+        print(
+            f"{row['feature']:<40} | ρ={row['spearman_rho']:.3f} ({direction}) | "
+            f"p={row['pval_adj']:.4f}"
+        )
+
+    return results_df
+
+
 
 # ======================================
 # ANALYSIS 2: TOOL vs REST
@@ -922,6 +1008,121 @@ def analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold):
     print(f"\nSaved: {out_file}")
     
     return combined_df
+
+# ======================================
+# ANALYSIS: PAIRWISE UNIQUE TOOL COMPARISON
+# ======================================
+
+def analyze_pairwise_unique_tools(df_features, df_tools, feature_cols, tools, threshold):
+    """
+    Compare bug reports uniquely localized by tool A vs uniquely localized by tool B.
+    """
+
+    print(f"\n{'='*80}")
+    print(f"ANALYSIS: PAIRWISE UNIQUE TOOL COMPARISON (Top-{threshold})")
+    print(f"{'='*80}")
+
+    flags = create_success_flags(df_tools, tools, threshold)
+    merged = pd.merge(flags, df_features, on=["project", "bug_id"], how="inner")
+
+    all_results = []
+
+    for tool_a, tool_b in combinations(tools, 2):
+
+        print(f"\nComparing {tool_a} vs {tool_b}")
+
+        found_a = f"found_{tool_a}"
+        found_b = f"found_{tool_b}"
+
+        other_cols = [f"found_{t}" for t in tools if t not in [tool_a, tool_b]]
+
+        # Bugs uniquely found by A
+        mask_a_only = merged[found_a] & ~merged[[found_b] + other_cols].any(axis=1)
+        a_only = merged[mask_a_only]
+
+        # Bugs uniquely found by B
+        mask_b_only = merged[found_b] & ~merged[[found_a] + other_cols].any(axis=1)
+        b_only = merged[mask_b_only]
+
+        print(f"  {tool_a}-only bugs: {len(a_only)}")
+        print(f"  {tool_b}-only bugs: {len(b_only)}")
+
+        if len(a_only) < MIN_GROUP_SIZE or len(b_only) < MIN_GROUP_SIZE:
+            print("  [SKIP] Not enough bugs for comparison")
+            continue
+
+        results = []
+
+        for feat in feature_cols:
+
+            if feat not in merged.columns:
+                continue
+
+            x_a = a_only[feat].dropna()
+            x_b = b_only[feat].dropna()
+
+            if len(x_a) < MIN_GROUP_SIZE or len(x_b) < MIN_GROUP_SIZE:
+                continue
+
+            try:
+                u_stat, p_val = mannwhitneyu(x_a, x_b, alternative="two-sided")
+            except:
+                continue
+
+            delta = cliffs_delta(x_a.values, x_b.values)
+
+            results.append({
+                "tool_a": tool_a,
+                "tool_b": tool_b,
+                "feature": feat,
+                "a_n": len(x_a),
+                "b_n": len(x_b),
+                "a_median": x_a.median(),
+                "b_median": x_b.median(),
+                "median_diff": x_a.median() - x_b.median(),
+                "u_statistic": u_stat,
+                "p_value": p_val,
+                "cliffs_delta": delta,
+                "effect_size": effect_size_label(delta)
+            })
+
+        if not results:
+            continue
+
+        pair_df = pd.DataFrame(results)
+        pair_df = apply_holm(pair_df, alpha=ALPHA)
+
+        pair_df["abs_delta"] = pair_df["cliffs_delta"].abs()
+        pair_df["practically_significant"] = (
+            pair_df["significant"] &
+            (pair_df["abs_delta"] >= PRACTICAL_SIG_DELTA)
+        )
+
+        pair_df = pair_df.sort_values("abs_delta", ascending=False)
+
+        print("\n  Top distinguishing features:")
+        for _, row in pair_df.head(5).iterrows():
+            direction = tool_a if row["cliffs_delta"] > 0 else tool_b
+            print(
+                f"    {row['feature']:<35} "
+                f"| δ={row['cliffs_delta']:.3f} "
+                f"| stronger for {direction}"
+            )
+
+        all_results.append(pair_df)
+
+    if not all_results:
+        print("[WARN] No valid pairwise comparisons")
+        return None
+
+    combined = pd.concat(all_results, ignore_index=True)
+
+    out_file = OUT_DIR / f"pairwise_unique_tools_top{threshold}.csv"
+    combined.to_csv(out_file, index=False)
+
+    print(f"\nSaved: {out_file}")
+
+    return combined
 
 def analyze_repair_difficulty_by_category(df_features, df_tools, tools, threshold):
     """
@@ -1289,8 +1490,13 @@ def main():
         # Analysis 1: ALL vs NONE
         all_vs_none_df = analyze_all_vs_none(df_features, df_tools, feature_cols, tools, threshold, categorized_features)
         
+        #difficulty_df = analyze_bug_difficulty_spectrum(
+        #    df_features, df_tools, feature_cols, tools, threshold
+        #)
         # Analysis 3: Tool vs rest
         tool_vs_rest_df = analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold)
+
+       # pairwise_df = analyze_pairwise_unique_tools(df_features, df_tools, feature_cols, tools, threshold)
 
         # Analysis: Repair difficulty by category (per tool)
         #repair_cat_df = analyze_repair_difficulty_by_category(
