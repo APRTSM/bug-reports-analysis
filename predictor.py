@@ -75,26 +75,17 @@ RANDOM_STATE = 42
 # Features to use per task
 # Tool-specific: from tool-vs-rest analysis
 TOOL_FEATURES = {
-    'FlexFL':    ['repair_difficulty','txt_description_line_count','actionability',
-                  'reasoning_composite','clarity','ari','description_length',
-                  'technical_completeness','coleman_liau','txt_title_digit_density',
-                  'expected_observed_alignment','flesch','txt_title_avg_sentence_len',
-                  'ambiguity_type_count','kincaid'],
-    'BRaIn':     ['actionability','txt_description_line_count','repair_difficulty',
-                  'technical_completeness','clarity','txt_title_avg_sentence_len',
-                  'txt_title_digit_density','expected_observed_alignment',
-                  'reasoning_composite','description_length','ambiguity_type_count','ari'],
-    'boostnsift':['expected_observed_alignment','ari','coleman_liau','flesch',
-                  'technical_completeness','description_length','reasoning_composite',
-                  'ambiguity_type_count','txt_description_line_count',
-                  'txt_title_avg_sentence_len'],
-    'locus':     ['description_length','ari','reasoning_composite','embedding_cluster_size',
-                  'coleman_liau','flesch','txt_description_line_count',
-                  'expected_observed_alignment','ambiguity_type_count',
-                  'concept_network_concept_breadth','clarity'],
-    'buglocator':['txt_description_line_count','description_length','reasoning_composite',
-                  'actionability','clarity','technical_completeness',
-                  'expected_observed_alignment','ari','coleman_liau','flesch'],
+    'FlexFL':     ['repair_difficulty','txt_description_line_count',
+                   'reasoning_composite','actionability','clarity',
+                   'ari','coleman_liau','txt_title_digit_density'],
+    'BRaIn':      ['ari','txt_description_line_count','technical_completeness','clarity'],
+    'boostnsift': ['repair_difficulty','expected_observed_alignment',
+                   'ari','coleman_liau'],
+    'buglocator': ['repair_difficulty','txt_description_line_count',
+                   'txt_title_avg_sentence_len'],
+    'locus':      ['repair_difficulty','txt_title_digit_density',
+                   'txt_title_avg_sentence_len','expected_observed_alignment',
+                   'concept_network_concept_breadth','embedding_cluster_size'],
 }
 # All-vs-none: from all-vs-none Cliff's delta analysis
 AVN_FEATURES = [
@@ -116,11 +107,6 @@ INTERACTION_FEATURES = [
     'ambiguity_reasoning'
 ]
 
-# add interactions to each tool feature list
-for t in TOOL_FEATURES:
-    TOOL_FEATURES[t] = TOOL_FEATURES[t] + INTERACTION_FEATURES
-
-AVN_FEATURES = AVN_FEATURES + INTERACTION_FEATURES
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def cliffs_delta(group1: np.ndarray, group2: np.ndarray) -> float:
@@ -159,40 +145,47 @@ def compute_deltas(df_train: pd.DataFrame,
                    features: list,
                    target_col: str,
                    comparison: str = 'binary') -> dict:
-    """
-    Compute Cliff's delta for each feature.
 
-    comparison='binary':
-        group1 = bugs where target==1, group2 = bugs where target==0
-        delta > 0 means feature is higher in successes
-
-    comparison='all_vs_none':
-        group1 = bugs where ALL tools succeed, group2 = bugs where NO tool succeeds
-        (uses target_col='n_success', requires special handling)
-    """
     deltas = {}
+
     if comparison == 'binary':
         pos = df_train[df_train[target_col] == 1]
         neg = df_train[df_train[target_col] == 0]
+
         for f in features:
             if f not in df_train.columns:
                 deltas[f] = 0.0
                 continue
-            deltas[f] = cliffs_delta_fast(
+
+            d = cliffs_delta_fast(
                 pos[f].dropna().values,
                 neg[f].dropna().values
             )
+
+            if f in INTERACTION_FEATURES:
+                d *= 1.5
+
+            deltas[f] = d
+
     elif comparison == 'all_vs_none':
         all_bugs  = df_train[df_train[target_col] == len(TOOLS)]
         none_bugs = df_train[df_train[target_col] == 0]
+
         for f in features:
             if f not in df_train.columns:
                 deltas[f] = 0.0
                 continue
-            deltas[f] = cliffs_delta_fast(
+
+            d = cliffs_delta_fast(
                 all_bugs[f].dropna().values,
                 none_bugs[f].dropna().values
             )
+
+            if f in INTERACTION_FEATURES:
+                d *= 1.5
+
+            deltas[f] = d
+
     return deltas
 
 
@@ -303,8 +296,14 @@ df = add_interaction_features(df)
 if Path(args.tools).exists():
     df_tools = pd.read_csv(args.tools)
     brain_mask = df_tools['tool'] == 'BRaIn'
-    df_tools.loc[brain_mask, 'bug_id'] = \
-        df_tools.loc[brain_mask, 'bug_id'].str.split('-').str[-1]
+
+    df_tools['bug_id'] = df_tools['bug_id'].astype(str)
+
+    df_tools.loc[brain_mask, 'bug_id'] = (
+        df_tools.loc[brain_mask, 'bug_id']
+        .str.split('-')
+        .str[-1]
+    )
     feat_keys = df[['project','bug_id']].copy().astype(str)
     df_tools[['project','bug_id']] = df_tools[['project','bug_id']].astype(str)
     df_filtered = df_tools.merge(feat_keys, on=['project','bug_id'], how='inner')
@@ -336,8 +335,8 @@ ALL_FEAT = (df.drop(columns=[c for c in exclude if c in df.columns])
               .select_dtypes(include=[np.number]).columns.tolist())
 
 # Filter feature lists to available columns
-for t in TOOLS:
-    TOOL_FEATURES[t] = [f for f in TOOL_FEATURES[t] if f in ALL_FEAT]
+for tool in TOOLS:
+    TOOL_FEATURES[tool] += [f for f in INTERACTION_FEATURES if f in df.columns]
 AVN_FEATURES = [f for f in AVN_FEATURES if f in ALL_FEAT]
 
 
@@ -772,125 +771,317 @@ To run on a new dataset:
         --new_tools    /path/to/new_tool_comparison.csv
 """)
 
-# ── Anchored multi-tool routing sweep ───────────────────────────────────────
-print("\nRunning anchored multi-tool routing sweep...")
+# ════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
 
-# Localizability score
-s = np.zeros(N)
-y_any = np.zeros(N, dtype=int)
-y_key = (5, 'any_vs_none_top5')
+# ════════════════════════════════════════════════════════════════════════════
+# THREE-TIER CASCADE ROUTING — 5-FOLD CROSS-VALIDATED
+# ════════════════════════════════════════════════════════════════════════════
+#
+# Motivation (from empirical findings):
+#   Bug report features predict general localizability (AUC ~0.79) but
+#   cannot distinguish which individual tool will succeed on a given hard
+#   bug (RQ3 null result). Rather than selecting between tools, we exploit
+#   the architectural cost hierarchy of the tools themselves:
+#
+#   Tier 1 — IR only (cheapest):
+#       Pure lexical retrieval, no LLM calls, local execution.
+#       Deployed for high-quality reports where lexical signal is strong.
+#
+#   Tier 2 — BRaIn (intermediate):
+#       IR retrieval + LLM relevance feedback for query expansion/rerank.
+#       Uses local open-source model (Mistral 7B), one LLM pass per bug.
+#       Deployed for medium-quality reports needing contextual augmentation.
+#
+#   Tier 3 — FlexFL (most expensive):
+#       Full agentic LLM pipeline with codebase navigation.
+#       Uses commercial LLM API. Deployed only for low-quality,
+#       high-difficulty reports where lighter approaches fall short.
+#
+# The localizability scorer (delta-weighted, trained on IR success) assigns
+# a quality score to each bug. Two thresholds partition bugs into the three
+# tiers. We sweep threshold pairs to produce a cost-coverage curve.
+#
+# References:
+#   BRaIn architecture — Samir & Rahman (2025), arXiv:2501.10542
+#   FlexFL architecture — Xu et al. (2025), IEEE TSE
+# ════════════════════════════════════════════════════════════════════════════
 
-if y_key in all_scores_store:
-    s, y_any = all_scores_store[y_key]
+print("\n" + "="*70)
+print("THREE-TIER CASCADE ROUTING (IR → BRaIn → FlexFL), 5-FOLD CV")
+print("="*70)
 
-# Tool scores (computed earlier in script)
-score_fl = all_scores_store.get((5, 'FlexFL'), (np.zeros(N), None))[0]
-score_bl = all_scores_store.get((5, 'buglocator'), (np.zeros(N), None))[0]
-score_br = all_scores_store.get((5, 'BRaIn'), (np.zeros(N), None))[0]
-score_bo = all_scores_store.get((5, 'boostnsift'), (np.zeros(N), None))[0]
-score_lo = all_scores_store.get((5, 'locus'), (np.zeros(N), None))[0]
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import roc_auc_score
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
-# Ground truth success labels
-success_fl = df['top@5_FlexFL'].fillna(0).astype(int).values
-success_bl = df['top@5_buglocator'].fillna(0).astype(int).values
-success_br = df['top@5_BRaIn'].fillna(0).astype(int).values
-success_bo = df['top@5_boostnsift'].fillna(0).astype(int).values
-success_lo = df['top@5_locus'].fillna(0).astype(int).values
+# ── Tier definitions ──────────────────────────────────────────────────────
+IR_TOOLS  = ['boostnsift', 'buglocator', 'locus']
+BRAIN_COL = 'top@5_BRaIn'
+FLEX_COL  = 'top@5_FlexFL'
+
+ir_cols = [f'top@5_{t}' for t in IR_TOOLS if f'top@5_{t}' in df.columns]
+
+df['_ir_success']    = (df[ir_cols].max(axis=1) == 1).astype(int) if ir_cols else 0
+df['_brain_success'] = df[BRAIN_COL].fillna(0).astype(int) if BRAIN_COL in df.columns else 0
+df['_flex_success']  = df[FLEX_COL].fillna(0).astype(int)  if FLEX_COL  in df.columns else 0
+
+N = len(df)
+ir_y    = df['_ir_success'].values
+brain_y = df['_brain_success'].values
+flex_y  = df['_flex_success'].values
+
+# ── Baselines ─────────────────────────────────────────────────────────────
+always_ir    = ir_y.mean()
+always_brain = ((ir_y == 1) | (brain_y == 1)).mean()  # IR + BRaIn on all bugs
+always_flex  = flex_y.mean()
+oracle       = ((ir_y == 1) | (brain_y == 1) | (flex_y == 1)).mean()
+
+print(f"  Always-IR only:              {always_ir:.3f}")
+print(f"  Always-IR+BRaIn:             {always_brain:.3f}")
+print(f"  Always-FlexFL:               {always_flex:.3f}")
+print(f"  Oracle (all three tools):    {oracle:.3f}")
+print(f"  N = {N} bugs\n")
+
+# ── Sweep configuration ───────────────────────────────────────────────────
+# ir_pct   = % of bugs routed to Tier 1 (IR only, top scorers)
+# brain_pct = % of bugs routed to Tier 2 (IR + BRaIn, middle scorers)
+# flex_pct  = remaining % routed to Tier 3 (IR + BRaIn + FlexFL)
+# Constraint: ir_pct + brain_pct + flex_pct = 100
+
+SWEEP = [
+    # (ir_pct, brain_pct, flex_pct)
+    (100,  0,  0),   # Always IR (baseline)
+    ( 70, 20, 10),
+    ( 60, 25, 15),
+    ( 50, 30, 20),
+    ( 50, 40, 10),
+    ( 40, 40, 20),
+    ( 35, 35, 30),
+    ( 30, 40, 30),
+    ( 20, 50, 30),
+    (  0,100,  0),   # Always IR+BRaIn (no FlexFL)
+    (  0,  0,100),   # Always full cascade (oracle routing)
+]
+
+# ── 5-fold CV ─────────────────────────────────────────────────────────────
+skf = StratifiedKFold(n_splits=N_SPLITS, shuffle=True, random_state=RANDOM_STATE)
+
+fold_coverage  = {k: [] for k in SWEEP}
+fold_flex_frac = {k: [] for k in SWEEP}
+fold_auc       = []
+oof_scores     = np.zeros(N)
+
+for fold, (tr_idx, te_idx) in enumerate(skf.split(df, ir_y)):
+    df_tr = df.iloc[tr_idx]
+    df_te = df.iloc[te_idx]
+    n_te  = len(te_idx)
+
+    # Train scorer on IR success within this fold
+    deltas = compute_deltas(df_tr, AVN_FEATURES, '_ir_success',
+                            comparison='binary')
+    means  = df_tr[AVN_FEATURES].mean().to_dict()
+    stds   = df_tr[AVN_FEATURES].std().to_dict()
+
+    te_scores = delta_score(df_te, AVN_FEATURES, deltas, means, stds)
+    tr_scores = delta_score(df_tr, AVN_FEATURES, deltas, means, stds)
+    oof_scores[te_idx] = te_scores
+
+    if len(np.unique(ir_y[te_idx])) == 2:
+        fold_auc.append(roc_auc_score(ir_y[te_idx], te_scores))
+
+    ir_te    = ir_y[te_idx]
+    brain_te = brain_y[te_idx]
+    flex_te  = flex_y[te_idx]
+
+    for (pct_ir, pct_brain, pct_flex) in SWEEP:
+        assert pct_ir + pct_brain + pct_flex == 100, \
+            f"Tier percentages must sum to 100: {pct_ir}+{pct_brain}+{pct_flex}"
+
+        # Thresholds derived from TRAINING score distribution
+        # Top pct_ir% → Tier 1; bottom pct_flex% → Tier 3; middle → Tier 2
+        t_high = np.percentile(tr_scores, 100 - pct_ir)   if pct_ir   < 100 else  np.inf
+        t_low  = np.percentile(tr_scores, pct_flex)        if pct_flex > 0   else -np.inf
+
+        # Mutually exclusive tier assignment
+        tier1 = te_scores >= t_high                        # IR only
+        tier3 = te_scores <  t_low                        # Full cascade
+        tier2 = ~tier1 & ~tier3                            # IR + BRaIn
+
+        # Coverage per tier (best available tool within tier)
+        cov1 = (tier1 & (ir_te    == 1)).sum()
+        cov2 = (tier2 & ((ir_te == 1) | (brain_te == 1))).sum()
+        cov3 = (tier3 & ((ir_te == 1) | (brain_te == 1) | (flex_te == 1))).sum()
+        coverage = (cov1 + cov2 + cov3) / n_te
+
+        # FlexFL invocation fraction (cost proxy for commercial API calls)
+        flex_fraction = tier3.sum() / n_te
+
+        fold_coverage[k].append(coverage) if (k := (pct_ir, pct_brain, pct_flex)) else None
+        fold_coverage[(pct_ir, pct_brain, pct_flex)][-1]  # already appended above
+        fold_flex_frac[(pct_ir, pct_brain, pct_flex)].append(flex_fraction)
+
+    # Fix the double-append issue above with a cleaner loop
+    # (re-doing cleanly below — the walrus operator caused a duplicate)
+
+# Re-run cleanly
+fold_coverage  = {k: [] for k in SWEEP}
+fold_flex_frac = {k: [] for k in SWEEP}
+fold_auc       = []
+
+for fold, (tr_idx, te_idx) in enumerate(skf.split(df, ir_y)):
+    df_tr = df.iloc[tr_idx]
+    df_te = df.iloc[te_idx]
+    n_te  = len(te_idx)
+
+    deltas = compute_deltas(df_tr, AVN_FEATURES, '_ir_success',
+                            comparison='binary')
+    means  = df_tr[AVN_FEATURES].mean().to_dict()
+    stds   = df_tr[AVN_FEATURES].std().to_dict()
+
+    te_scores = delta_score(df_te, AVN_FEATURES, deltas, means, stds)
+    tr_scores = delta_score(df_tr, AVN_FEATURES, deltas, means, stds)
+
+    if len(np.unique(ir_y[te_idx])) == 2:
+        fold_auc.append(roc_auc_score(ir_y[te_idx], te_scores))
+
+    ir_te    = ir_y[te_idx]
+    brain_te = brain_y[te_idx]
+    flex_te  = flex_y[te_idx]
+
+    for (pct_ir, pct_brain, pct_flex) in SWEEP:
+        t_high = np.percentile(tr_scores, 100 - pct_ir)   if pct_ir   < 100 else  np.inf
+        t_low  = np.percentile(tr_scores, pct_flex)        if pct_flex > 0   else -np.inf
+
+        tier1 = te_scores >= t_high
+        tier3 = te_scores <  t_low
+        tier2 = ~tier1 & ~tier3
+
+        cov1 = (tier1 & (ir_te    == 1)).sum()
+        cov2 = (tier2 & ((ir_te == 1) | (brain_te == 1))).sum()
+        cov3 = (tier3 & ((ir_te == 1) | (brain_te == 1) | (flex_te == 1))).sum()
+        coverage = (cov1 + cov2 + cov3) / n_te
+
+        flex_fraction = tier3.sum() / n_te
+
+        fold_coverage[(pct_ir, pct_brain, pct_flex)].append(coverage)
+        fold_flex_frac[(pct_ir, pct_brain, pct_flex)].append(flex_fraction)
+
+# ── Results table ─────────────────────────────────────────────────────────
+mean_auc = np.mean(fold_auc) if fold_auc else float('nan')
+std_auc  = np.std(fold_auc)  if fold_auc else float('nan')
+print(f"IR-success scorer AUC: {mean_auc:.3f} ± {std_auc:.3f}")
+
+print(f"\n{'IR%':>5} {'BRaIn%':>7} {'FlexFL%':>8} | "
+      f"{'Coverage':>14} {'FlexFL calls':>13} {'vs FlexFL':>11}")
+print("-"*65)
 
 routing_rows = []
+for k in SWEEP:
+    pct_ir, pct_brain, pct_flex = k
+    cov_mean  = np.mean(fold_coverage[k])
+    cov_std   = np.std(fold_coverage[k])
+    flex_mean = np.mean(fold_flex_frac[k])
+    diff      = cov_mean - always_flex
+    print(f"{pct_ir:>4}%  {pct_brain:>6}%  {pct_flex:>7}% | "
+          f"{cov_mean:.3f}±{cov_std:.3f}  "
+          f"{flex_mean:>12.2f}  {diff:>+.3f}")
+    routing_rows.append({
+        'tier1_ir_pct':     pct_ir,
+        'tier2_brain_pct':  pct_brain,
+        'tier3_flex_pct':   pct_flex,
+        'coverage_mean':    round(cov_mean,  4),
+        'coverage_std':     round(cov_std,   4),
+        'flexfl_frac_mean': round(flex_mean, 4),
+        'vs_always_flexfl': round(diff,      4),
+    })
 
-triage_percentiles = np.arange(10, 81, 5)
-margins = np.arange(0.0, 1.5, 0.1)
+# ── Key operating points ──────────────────────────────────────────────────
+print(f"\n=== Baselines ===")
+print(f"  Always-IR only:           {always_ir:.3f}  (0% BRaIn, 0% FlexFL)")
+print(f"  Always-IR+BRaIn:          {always_brain:.3f}  (100% BRaIn, 0% FlexFL)")
+print(f"  Always-FlexFL:            {always_flex:.3f}  (100% FlexFL)")
+print(f"  Oracle full cascade:      {oracle:.3f}")
 
-for p_triage in triage_percentiles:
+# Best coverage at each FlexFL budget
+print(f"\n=== Best coverage by FlexFL invocation budget ===")
+for budget in [0.0, 0.10, 0.20, 0.30, 0.50]:
+    candidates = [(k, np.mean(fold_coverage[k]))
+                  for k in SWEEP
+                  if np.mean(fold_flex_frac[k]) <= budget + 0.02]
+    if not candidates:
+        continue
+    best_k, best_cov = max(candidates, key=lambda x: x[1])
+    best_flex = np.mean(fold_flex_frac[best_k])
+    best_std  = np.std(fold_coverage[best_k])
+    print(f"  FlexFL ≤{budget:.0%}: coverage {best_cov:.3f}±{best_std:.3f}  "
+          f"[IR={best_k[0]}%, BRaIn={best_k[1]}%, FlexFL={best_k[2]}%]  "
+          f"(actual FlexFL={best_flex:.2f})")
 
-    triage_t = np.percentile(s, p_triage)
-
-    for margin in margins:
-
-        routed_success = 0
-        triaged = 0
-
-        used_fl = 0
-        used_bl = 0
-        used_br = 0
-        used_bo = 0
-        used_lo = 0
-
-        for i in range(N):
-
-            # ── Stage 1: triage ──
-            if s[i] < triage_t:
-                triaged += 1
-                continue
-
-            # ── Stage 2: default tool ──
-            best_tool = "FlexFL"
-            best_score = score_fl[i]
-
-            # IR tools
-            if score_bl[i] - best_score > margin:
-                best_tool = "BugLocator"
-                best_score = score_bl[i]
-
-            if score_bo[i] - best_score > margin:
-                best_tool = "BoostNSift"
-                best_score = score_bo[i]
-
-            # semantic tool
-            if score_br[i] - best_score > margin:
-                best_tool = "BRaIn"
-                best_score = score_br[i]
-
-            # weakest tool (large margin needed)
-            if score_lo[i] - best_score > (margin + 0.3):
-                best_tool = "Locus"
-                best_score = score_lo[i]
-
-            # ── Evaluate outcome ──
-            if best_tool == "FlexFL":
-                used_fl += 1
-                if success_fl[i]:
-                    routed_success += 1
-
-            elif best_tool == "BugLocator":
-                used_bl += 1
-                if success_bl[i]:
-                    routed_success += 1
-
-            elif best_tool == "BoostNSift":
-                used_bo += 1
-                if success_bo[i]:
-                    routed_success += 1
-
-            elif best_tool == "BRaIn":
-                used_br += 1
-                if success_br[i]:
-                    routed_success += 1
-
-            elif best_tool == "Locus":
-                used_lo += 1
-                if success_lo[i]:
-                    routed_success += 1
-
-        coverage = routed_success / N
-
-        routing_rows.append({
-            'triage_pct': p_triage,
-            'triage_threshold': round(triage_t, 3),
-            'margin': round(margin, 3),
-
-            'coverage': round(coverage, 3),
-            'triaged': int(triaged),
-
-            'flexfl_used': int(used_fl),
-            'buglocator_used': int(used_bl),
-            'boostnsift_used': int(used_bo),
-            'brain_used': int(used_br),
-            'locus_used': int(used_lo)
-        })
-
+# ── Save CSV ──────────────────────────────────────────────────────────────
 routing_df = pd.DataFrame(routing_rows)
-routing_df.to_csv(OUT_DIR / 'routing_sweep.csv', index=False)
+routing_df.to_csv(OUT_DIR / 'cascade_routing_sweep.csv', index=False)
+print(f"\nSweep results saved to {OUT_DIR / 'cascade_routing_sweep.csv'}")
 
-print(f"  Routing sweep saved to {OUT_DIR / 'routing_sweep.csv'}")
+# ── Plot: cost-coverage curve ─────────────────────────────────────────────
+fig, ax = plt.subplots(figsize=(7, 5))
+
+# Plot the sweep curve (x = FlexFL fraction, y = coverage)
+xs = [np.mean(fold_flex_frac[k]) for k in SWEEP]
+ys = [np.mean(fold_coverage[k])  for k in SWEEP]
+es = [np.std(fold_coverage[k])   for k in SWEEP]
+
+# Sort by x for clean line
+order = np.argsort(xs)
+xs_s  = [xs[i] for i in order]
+ys_s  = [ys[i] for i in order]
+es_s  = [es[i] for i in order]
+
+ax.plot(xs_s, ys_s, 'o-', color='#2166ac', lw=2, ms=6,
+        label='Three-tier cascade (IR → BRaIn → FlexFL)')
+ax.fill_between(xs_s,
+                [y-e for y,e in zip(ys_s, es_s)],
+                [y+e for y,e in zip(ys_s, es_s)],
+                alpha=0.15, color='#2166ac')
+
+# Baselines
+ax.axhline(always_flex,  color='#d73027', lw=1.5, ls='--',
+           label=f'Always-FlexFL: {always_flex:.3f}')
+ax.axhline(always_brain, color='#f4a582', lw=1.5, ls='-.',
+           label=f'Always-IR+BRaIn: {always_brain:.3f}')
+ax.axhline(always_ir,    color='#4dac26', lw=1.5, ls=':',
+           label=f'Always-IR: {always_ir:.3f}')
+
+# Annotate best point (highest coverage at ≤30% FlexFL)
+candidates_30 = [(k, np.mean(fold_coverage[k]))
+                 for k in SWEEP
+                 if np.mean(fold_flex_frac[k]) <= 0.32]
+if candidates_30:
+    best_k30, best_cov30 = max(candidates_30, key=lambda x: x[1])
+    bx = np.mean(fold_flex_frac[best_k30])
+    by = best_cov30
+    ax.annotate(
+        f'IR={best_k30[0]}%, BRaIn={best_k30[1]}%\nFlexFL={best_k30[2]}%\n'
+        f'Coverage={by:.3f}',
+        xy=(bx, by), xytext=(bx + 0.08, by - 0.02),
+        fontsize=7.5, color='#2166ac',
+        arrowprops=dict(arrowstyle='->', color='#2166ac', lw=1)
+    )
+
+ax.set_xlabel('Fraction of bugs invoking FlexFL (commercial LLM)', fontsize=10)
+ax.set_ylabel('Top-5 Coverage', fontsize=10)
+ax.set_title('Cost–Coverage Tradeoff:\nThree-Tier Cascade (IR → BRaIn → FlexFL)',
+             fontsize=11)
+ax.set_xlim(-0.03, 1.05)
+ax.legend(fontsize=8, loc='lower right')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+plt.tight_layout()
+
+for ext in ['pdf', 'png']:
+    plt.savefig(PLOT_DIR / f'cascade_routing_curve.{ext}',
+                dpi=150, bbox_inches='tight')
+plt.close()
+print(f"Plot saved to {PLOT_DIR / 'cascade_routing_curve.png'}")
