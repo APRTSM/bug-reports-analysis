@@ -22,10 +22,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 from scipy.stats import mannwhitneyu, spearmanr
-from statsmodels.stats.multitest import multipletests
 from itertools import combinations
 
 warnings.filterwarnings('ignore', category=RuntimeWarning)
+
+# statsmodels is only needed for some analyses; keep optional so UpSet can run.
+try:
+    from statsmodels.stats.multitest import multipletests  # type: ignore
+    MULTITEST_AVAILABLE = True
+except ImportError:
+    multipletests = None  # type: ignore
+    MULTITEST_AVAILABLE = False
 
 # Try to import upsetplot for UpSet diagrams
 try:
@@ -153,6 +160,14 @@ def apply_holm(df_results, alpha=0.05, pval_col="p_value"):
     pvals = df_results.loc[mask, pval_col].values
     
     if len(pvals) == 0:
+        df_results["pval_adj"] = np.nan
+        df_results["reject"] = False
+        df_results["significant"] = False
+        return df_results
+
+    if not MULTITEST_AVAILABLE or multipletests is None:
+        # Allow script to run (e.g., generate UpSet diagrams) without statsmodels.
+        # We keep unadjusted p-values and mark significance as unavailable.
         df_results["pval_adj"] = np.nan
         df_results["reject"] = False
         df_results["significant"] = False
@@ -574,7 +589,42 @@ def create_upset_diagram(df_tools, tools, threshold, suffix=""):
                      show_counts=True,
                      sort_by='cardinality',
                      sort_categories_by='cardinality')
-        upset.plot(fig=fig)
+        axes = upset.plot(fig=fig)
+
+        # ---- Style request: remove black set-size bars; labels like "Tool (N)" ----
+        # In upsetplot, the left axis (often "set_sizes" or "totals") holds both the horizontal bars
+        # and the category labels. We keep the axis for labels, but hide the bars + x-axis clutter.
+        # We keep the axis for labels, but hide the bars + x-axis clutter.
+        try:
+            ax_set = axes.get("set_sizes") or axes.get("totals")
+            if ax_set is not None:
+                # Compute per-tool set sizes (bugs found by tool within threshold)
+                tool_sizes_raw = {tool: sum(1 for m in memberships if tool in m) for tool in tools}
+                tool_sizes = {k.lower(): v for k, v in tool_sizes_raw.items()}
+
+                # Hide the bar patches (the black bars)
+                for p in list(ax_set.patches):
+                    p.set_alpha(0.0)
+                    p.set_linewidth(0.0)
+
+                # Replace y tick labels with "Tool (N)" while preserving the plotted order
+                current = [t.get_text() for t in ax_set.get_yticklabels()]
+                def fmt_name(n: str) -> str:
+                    n = n.strip()
+                    return n[:1].upper() + n[1:] if n.islower() else n
+
+                new_labels = [f"{fmt_name(name)} ({tool_sizes.get(name.lower(), 0)})" for name in current]
+                ax_set.set_yticklabels(new_labels)
+
+                # Remove x-axis ticks/label and spines so it's "label-only"
+                ax_set.set_xlabel("")
+                ax_set.set_xticks([])
+                ax_set.tick_params(axis="x", which="both", bottom=False, top=False, labelbottom=False)
+                for spine in ax_set.spines.values():
+                    spine.set_visible(False)
+        except Exception as _styling_err:
+            # Styling should never break plot generation
+            pass
         
         plt.suptitle(f'Tool Intersection Analysis (Top-{threshold})', 
                     fontsize=14, fontweight='bold', y=0.98)
