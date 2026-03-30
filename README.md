@@ -13,11 +13,14 @@ bug-reports-analysis/
 │   ├── gemini_bug_categorization_overall.py
 │   ├── gemini_bug_ratings.py
 │   └── fine_grained_gemini_catg.py
+├── final_feature_set.csv               #Post pruning feature set which analysis was performed on
+├── removed_features_log.txt            #All features removed during pruning    
 ├── merge_features_and_performance.py   #Merges output from scripts above with tool performance results, and performs redundancy analysis
 ├── unified_analysis.py                 #Outputs upset diagrams, and all vs none and tool vs rest comparisons (RQ3)
 ├── predictor.py                        #Performs prediction tasks from RQ4
 ├── requirements.txt
 ├── tool_comparison_summary.csv         #Tool performance for each bug
+├── prompts_and_regex.md                #All prompts and regex used for feature extraction
 └── defects4j_xml/                      # Defects4J XML inputs (used by extraction)
 ```
 
