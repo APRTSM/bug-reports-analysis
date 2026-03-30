@@ -582,6 +582,8 @@ def create_upset_diagram(df_tools, tools, threshold, suffix=""):
     # Create UpSet plot
     try:
         upset_data = from_memberships(memberships)
+
+
         
         fig = plt.figure(figsize=(12, 6))
         upset = UpSet(upset_data, 
@@ -589,7 +591,18 @@ def create_upset_diagram(df_tools, tools, threshold, suffix=""):
                      show_counts=True,
                      sort_by='cardinality',
                      sort_categories_by='cardinality')
+        #upset.style_subsets(width=0.5)
         axes = upset.plot(fig=fig)
+
+        try:
+            ax_int = axes.get("intersections") or axes.get("subset_sizes")
+            if ax_int is not None:
+                for p in list(ax_int.patches):
+                    # Matplotlib default bar width is typically 0.8; push closer to 1.0.
+                    p.set_width(0.8)
+        except Exception:
+            # Styling should never break plot generation
+            pass
 
         # ---- Style request: remove black set-size bars; labels like "Tool (N)" ----
         # In upsetplot, the left axis (often "set_sizes" or "totals") holds both the horizontal bars

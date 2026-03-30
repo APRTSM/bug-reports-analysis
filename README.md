@@ -1,12 +1,31 @@
 # Bug Reports Analysis
 
-This repository contains tools for extracting comprehensive text features from bug reports and analyzing which tools can detect which bugs based on those features.
+This repository is a replication package for the paper 'Beyond Keywords: Understanding Bug Report Features Impact on Fault Localization'. It contains tools for extracting comprehensive text features from bug reports and analyzing which tools can detect which bugs based on those features.
 
 ## Overview
 
 The project includes:
-1. **Feature Extraction**: Extract ~70 features from bug reports (text statistics, readability, coherence, semantic similarity)
+1. **Feature Extraction**: Extract ~65 features from bug reports 
 2. **Tool Detection Clustering Analysis**: Understand which bug features predict tool detection success
+
+---
+## Full Pipeline (Recommended)
+
+Use `run_full_pipeline.py` to execute the complete workflow end-to-end:
+1. All scripts in `bug_feature_extraction/` (alphabetical)
+2. `merge_features_and_performance.py`
+3. `unified_analysis.py`
+4. `predictor.py`
+
+Run:
+```bash
+python run_full_pipeline.py
+```
+
+To preview what would run:
+```bash
+python run_full_pipeline.py --dry-run
+```
 
 ---
 
@@ -38,14 +57,14 @@ python -m spacy download en_core_web_sm
 ### Usage
 
 ```bash
-# Process Defects4J dataset (default)
-python bug_report_feature_extractor.py
+# Run the full end-to-end pipeline (recommended)
+python run_full_pipeline.py
 
-# Process GHRB dataset
-python bug_report_feature_extractor.py --dataset GHRB
-
-# Process both datasets
-python bug_report_feature_extractor.py --dataset both
+# Or run feature extraction scripts directly
+python bug_feature_extraction/extract_bug_features.py
+python bug_feature_extraction/gemini_bug_categorization_overall.py
+python bug_feature_extraction/gemini_bug_ratings.py
+python bug_feature_extraction/fine_grained_gemini_catg.py
 ```
 
 ### Output
@@ -258,15 +277,18 @@ The script may take a few minutes to initialize on first run as it downloads mod
 
 ```
 bug-reports-analysis/
-├── bug_report_feature_extractor.py      # Feature extraction script
-├── tool_detection_clustering_analysis.py # Basic clustering analysis
-├── advanced_clustering_analysis.py       # Advanced analysis
-├── textdescriptives_diagnostic.py       # Diagnostic tool
-├── requirements.txt                      # Python dependencies
-├── bug_reports/                          # Bug report datasets
-│   ├── Defects4J/                       # 835 JSON bug reports
-│   └── GHRB/                            # 97 JSON bug reports
-└── outputs/                              # Output directory
+├── run_full_pipeline.py                 # End-to-end pipeline runner
+├── bug_feature_extraction/             # Feature extraction scripts
+│   ├── extract_bug_features.py
+│   ├── gemini_bug_categorization_overall.py
+│   ├── gemini_bug_ratings.py
+│   └── fine_grained_gemini_catg.py
+├── merge_features_and_performance.py   #Merges output from scripts above with tool performance results, and performs redundancy analysis
+├── unified_analysis.py                 #Outputs upset diagrams, and all vs none and tool vs rest comparisons (RQ3)
+├── predictor.py                        #Performs prediction tasks from RQ4
+├── requirements.txt
+├── tool_comparison_summary.csv         #Tool performance for each bug
+└── defects4j_xml/                      # Defects4J XML inputs (used by extraction)
 ```
 
 ---
