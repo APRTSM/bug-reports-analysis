@@ -91,7 +91,7 @@ The predictor stage writes:
 ## Notes
 
 # 5. Review correlations_any_tool.csv
-# Find: clarity correlates 0.45 with detection (p < 0.001)
+## Find (Example): clarity correlates 0.45 with detection (p < 0.001)
 
 # 6. Action: Update bug report template to emphasize clarity
 ```
