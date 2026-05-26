@@ -182,18 +182,93 @@ Bug Report Description:
 Please evaluate this bug report on the following dimensions and return ONLY a valid JSON object with these exact fields:
 
 {{
-  "actionability": <integer 0-5>,  // How actionable is this bug report? Can a developer immediately start fixing it?
-  "clarity": <integer 0-5>,  // How clear and well-written is the description?
-  "specificity": <integer 0-5>,  // How specific are the details (versions, steps, inputs, etc.)?
-  "expected_observed_alignment": <integer 0-5>,  // How well does it describe what was expected vs what was observed?
-  "root_cause_guess": "<string>",  // Your best guess at the root cause (e.g., "null pointer", "type mismatch", "race condition", "configuration issue", etc.)
-  "technical_depth": <integer 0-5>,  // How technically detailed is the report? Does it include code, stack traces, technical context?
-  "ambiguity_types": ["<string>", ...],  // List of ambiguity types present: "missing steps", "vague inputs", "unclear error messages", "missing context", "unclear reproduction", "missing environment info", etc. (empty list if none)
-  "hidden_s2r_present": <boolean>,  // Are there implicit steps to reproduce hidden in the description (not explicitly listed)?
-  "causal_reasoning_quality": <integer 0-5>,  // How well does the reporter explain cause-and-effect relationships?
-  "contradiction_present": <boolean>,  // Are there any contradictions or conflicting information in the report?
-  "repair_difficulty": <integer 0-5>,  // How difficult would it be to fix this bug based on the information provided? (0=very easy, 5=very difficult)
-  "likely_impacted_code_concepts": ["<string>", ...]  // List of code concepts likely impacted (e.g., "JSON parsing", "UI rendering", "database queries", "authentication", etc.)
+    "actionability": <integer 0-5>,
+    // How actionable is this bug report for a developer attempting to fix it?
+    // 0 = No actionable information; cannot determine what to fix or where to start.
+    // 1 = Minimal context; bug is vaguely described with no reproduction path.
+    // 2 = Some context but missing key details (e.g., no steps, unclear component).
+    // 3 = Moderately actionable; affected component is identifiable but steps are incomplete.
+    // 4 = Mostly actionable; reproduction path is present but minor details are missing.
+    // 5 = Fully actionable; all necessary context (component, steps, environment, expected behavior) is present.
+
+    "clarity": <integer 0-5>,
+    // How unambiguous and logically structured is the bug description?
+    // 0 = Incoherent, contradictory, or completely unintelligible prose.
+    // 1 = Difficult to follow; key information is buried or inconsistently described.
+    // 2 = Partially clear; the general issue is guessable but reasoning is muddled.
+    // 3 = Mostly clear; problem is understandable but some ambiguity remains.
+    // 4 = Clear and well-structured; minor phrasing issues only.
+    // 5 = Immediately comprehensible; problem, context, and behavior are unambiguous.
+
+    "specificity": <integer 0-5>,
+    // How specific and precise are the details provided (versions, inputs, steps, environment)?
+    // 0 = No specific details whatsoever; entirely generic description.
+    // 1 = Very few specifics; missing versions, inputs, and environment information.
+    // 2 = Some specifics present but incomplete (e.g., version mentioned, steps missing).
+    // 3 = Moderate specificity; key details present but not exhaustive.
+    // 4 = Highly specific; most relevant details (versions, inputs, steps) are provided.
+    // 5 = Exhaustively specific; all relevant technical details are precisely stated.
+
+    "expected_observed_alignment": <integer 0-5>,
+    // How clearly does the report distinguish what was expected versus what actually occurred?
+    // 0 = No distinction made; expected and observed behavior are not described.
+    // 1 = One side described (e.g., only observed behavior, no expectation stated).
+    // 2 = Both present but conflated or inconsistently described.
+    // 3 = Both described but the contrast is implicit rather than explicit.
+    // 4 = Clear distinction with minor gaps in either expected or observed description.
+    // 5 = Explicit, precise contrast between expected and observed behavior.
+
+    "root_cause_guess": "<string>",
+    // Your best guess at the root cause based on the report content.
+    // Examples: "null pointer dereference", "type mismatch", "race condition",
+    // "off-by-one error", "configuration issue", "unhandled exception", "memory leak".
+    // Use "unknown" if the report provides insufficient information.
+
+    "technical_depth": <integer 0-5>,
+    // How technically detailed is the report in terms of diagnostic evidence?
+    // 0 = No technical content; purely narrative with no code, traces, or technical context.
+    // 1 = Minimal technical content; at most a brief mention of a class or method name.
+    // 2 = Some technical content; e.g., an exception type mentioned but no stack trace.
+    // 3 = Moderate depth; stack trace or code snippet present but incomplete.
+    // 4 = Good depth; stack trace and/or code present with relevant technical context.
+    // 5 = Comprehensive; full stack trace, code snippet, environment details, and version info all present.
+
+    "ambiguity_types": ["<string>", ...],
+    // List all ambiguity types present in the report. Use empty list [] if none.
+    // Choose from: "missing steps", "vague inputs", "unclear error messages",
+    // "missing context", "unclear reproduction", "missing environment info",
+    // "contradictory information", "unclear expected behavior", "vague component reference".
+
+    "hidden_s2r_present": <boolean>,
+    // Are there implicit steps to reproduce embedded in the narrative
+    // (i.e., reproducible sequence is inferable but not explicitly listed as steps)?
+
+    "causal_reasoning_quality": <integer 0-5>,
+    // How well does the reporter explain cause-and-effect relationships?
+    // 0 = No causal explanation; symptoms reported with no reasoning.
+    // 1 = Weak causal hint; vague connection implied but not articulated.
+    // 2 = Partial reasoning; cause is suggested but not logically connected to effect.
+    // 3 = Moderate reasoning; causal chain is present but incomplete or imprecise.
+    // 4 = Good reasoning; cause and effect are clearly linked with supporting evidence.
+    // 5 = Strong reasoning; coherent, complete causal explanation with evidence.
+
+    "contradiction_present": <boolean>,
+    // Are there any internal contradictions or conflicting statements in the report
+    // (e.g., says bug occurs always but later says it is intermittent)?
+
+    "repair_difficulty": <integer 0-5>,
+    // How difficult would this bug be to fix based solely on the information provided?
+    // 0 = Trivial; fix is immediately obvious from the report (e.g., typo, config value).
+    // 1 = Easy; root cause is clear and fix is straightforward.
+    // 2 = Moderate; root cause is identifiable but fix requires some investigation.
+    // 3 = Difficult; root cause is unclear or fix requires significant code changes.
+    // 4 = Very difficult; report is vague, root cause is deeply buried, or fix is complex.
+    // 5 = Intractable from report alone; insufficient information to diagnose or fix.
+
+    "likely_impacted_code_concepts": ["<string>", ...]
+    // List of code concepts or subsystems likely affected based on report content.
+    // Examples: "JSON parsing", "UI rendering", "database queries", "authentication",
+    // "file I/O", "concurrency", "memory management", "API integration", "type conversion".
 }}
 
 Important:
