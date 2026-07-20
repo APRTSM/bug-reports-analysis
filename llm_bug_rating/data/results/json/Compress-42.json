@@ -1,0 +1,1425 @@
+{
+  "bug": {
+    "bug_id": "Compress-42",
+    "project": "Compress",
+    "summary": "isUnixSymlink returns true for Zip entries with Unix permissions 177777",
+    "description": "This issue was originally reported in \nMASSEMBLY-842\n, but it seems the root cause in inside Commons Compress.\n\nConsider the attached \ninvalid-entry.jar\n, whose contents, as shown by the \nzipinfo\nutility, is:\n\n?rwsrwsrwt 2.0 unx 0 b- stor 17-Jan-15 16:06 META-INF/maven/\ndrwxr-xr-x 2.0 unx 0 b- stor 17-Jan-15 16:06 META-INF/\n\nThere are some JAR files created by the Maven Assembly Plugin with content similar to this, and the entry \nMETA-INF/maven/\nhas permissions 177777 (octal). Constructing a \nZipFile\nfrom this file, the method \nisUnixSymlink\nincorrectly returns \ntrue\nfor the entry \nMETA-INF/maven/\n(and it correctly returns \nfalse\nfor the entry \nMETA-INF/\n.\n\nHere is a sample Java code that can be used to see the behaviour:\n\npublic\n\nstatic\nvoid main(\nString\n[] args) \nthrows\nIOException {\n\ntry\n(ZipFile zipFile = \nnew\nZipFile(\nnew\nFile(\n\"invalid-entry.jar\"\n))) {\nprintAttributes(zipFile, \n\"META-INF/\"\n);\nprintAttributes(zipFile, \n\"META-INF/maven/\"\n);\n}\n}\n\nprivate\n\nstatic\nvoid printAttributes(ZipFile zipFile, \nString\nname) {\nZipArchiveEntry entry = zipFile.getEntriesInPhysicalOrder(name).iterator().next();\n\nSystem\n.out.printf(\n\"%-17s: symlink:%-5s - unixMode:%s%n\"\n, name, entry.isUnixSymlink(), entry.getUnixMode());\n}\n\nThis code outputs:\n\nMETA-INF/ : symlink:false - unixMode:16877\nMETA-INF/maven/ : symlink:true - unixMode:65535\n\nThe \n?rwsrwsrwt\npermissions show that the Zip entry is broken in the first place, but I think \nisUnixSymlink\nshould still return \nfalse\nin that case, and not consider this entry to be a symlink.\n\nIt seems the fix would be to update \nisUnixSymlink\nand check whether the unix mode is equal to \nSHORT_MASK\n, and return \nfalse\nin that case as it would indicate a broken entry. This change does not break any existing tests, but I'm not sure if this is the proper fix.\n\npublic\n\nboolean\nisUnixSymlink() {\n\nint\nunixMode = getUnixMode();\n\nreturn\nunixMode == SHORT_MASK ? \nfalse\n: (unixMode & UnixStat.LINK_FLAG) == UnixStat.LINK_FLAG;\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports observable behavior: isUnixSymlink returns true for a specific Zip entry."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected functionality is identified as ZipFile/ZipArchiveEntry.isUnixSymlink."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes sample Java code, output, and a proposed code change."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides a concrete file, entry names, and reproduction code to start investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Points to Commons Compress Zip handling and isUnixSymlink logic."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Language is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as a false positive symlink detection."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Description follows a logical flow: report, example file, code, output, proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to entries, methods, and permissions are specific and clear."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Technical terms like ZipFile, unix mode, symlink, and SHORT_MASK are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Describes the triggering condition: a Zip entry with Unix permissions 177777."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides concrete reproduction code using ZipFile and printAttributes."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No explicit library version, OS, or runtime version is given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reports specific output showing symlink:true and unixMode:65535."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes the broken 177777 entry from the normal META-INF/ entry."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: isUnixSymlink should return false for broken entries."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: isUnixSymlink returns true for META-INF/maven/."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The discrepancy between expected false and observed true is clear."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The sample code and attached jar are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No environment or dependency requirements are documented beyond the sample jar."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Proposes a cause: isUnixSymlink should special-case unixMode == SHORT_MASK."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Links the proposed cause to the false symlink result for the broken entry."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with observed unixMode:65535 and the broken permissions."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is internally consistent and matches the reported output."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References technical artifacts such as isUnixSymlink, SHORT_MASK, and UnixStat.LINK_FLAG."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Mentions ZipFile, ZipArchiveEntry, isUnixSymlink, and getUnixMode."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is Zip entry metadata handling in Commons Compress."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes sample code and printed output, though no stack trace."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References Maven Assembly Plugin and zipinfo as related external tools/components."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Some references are broad, such as 'Commons Compress' and 'broken entry'."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering condition are described concretely."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clearly stated as returning false."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Version and environment information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior is precise enough to define the needed change."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely fix location is identifiable as ZipArchiveEntry.isUnixSymlink."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "States the correct target behavior: broken entries should not be treated as symlinks."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Documents the edge case of unixMode 65535 / SHORT_MASK."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "A developer would likely still need codebase context to confirm the fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Explicitly proposes checking unixMode == SHORT_MASK as the fix."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific code constructs: SHORT_MASK and UnixStat.LINK_FLAG."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Explains that the broken mode causes the false symlink classification."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The narrative and sample code make the reproduction path inferable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is Zip entry Unix mode/symlink detection."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Symptom appears in ZipFile output, while defect is in isUnixSymlink logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one main area is identified; no multiple impacted areas are described."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report clearly describes isUnixSymlink returning true incorrectly for a specific ZIP entry with permissions 177777."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected component is explicitly identified as the isUnixSymlink method in Commons Compress's ZipArchiveEntry/ZipFile."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Sample Java code, actual output, and a proposed fix with code snippet are all provided."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report provides the file, code, output, and proposed fix \u2014 sufficient to begin investigating immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The subsystem is clearly identified as Commons Compress, specifically the ZIP handling and isUnixSymlink method."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report is well-written, grammatically coherent, and easy to follow."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem \u2014 isUnixSymlink returning true for a broken entry with unix mode 65535 \u2014 is clearly stated."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Information flows logically: context, reproduction, observed output, analysis, proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References to ZipFile, ZipArchiveEntry, isUnixSymlink, SHORT_MASK, and UnixStat.LINK_FLAG are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms like unix mode, symlink, octal permissions, SHORT_MASK, LINK_FLAG are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific triggering condition: a ZIP entry with unix permissions 177777 (octal) / 65535 (decimal)."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Concrete Java code to reproduce the behavior is provided, along with the specific JAR file reference."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No Java version, Commons Compress version, or OS information is explicitly stated."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Exact output is shown: symlink:true for META-INF/maven/ with unixMode:65535."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The specific unix mode value 65535 (SHORT_MASK) and the exact method isUnixSymlink distinguish this from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected behavior is explicitly stated: isUnixSymlink should return false for the broken entry."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: isUnixSymlink returns true for META-INF/maven/."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy between expected (false) and observed (true) is clearly identifiable."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Java code and the specific JAR file are provided; reproduction requires obtaining the attached JAR."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No explicit version of Commons Compress or Java runtime is documented as a required dependency."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report explicitly proposes that isUnixSymlink fails to handle the case where unixMode equals SHORT_MASK (65535)."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The proposed explanation (SHORT_MASK not being excluded) is directly linked to the observed symptom of returning true."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The unix mode value 65535 and the bitwise check against LINK_FLAG provide evidence supporting the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The reasoning is internally coherent: 65535 has all bits set, so the LINK_FLAG check passes incorrectly."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "References to SHORT_MASK, UnixStat.LINK_FLAG, and the isUnixSymlink method with proposed code fix are included."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ZipFile, ZipArchiveEntry, isUnixSymlink, getUnixMode, SHORT_MASK, UnixStat.LINK_FLAG are all explicitly mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected subsystem is Commons Compress's ZIP handling, specifically the isUnixSymlink method."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Code snippet, actual output, and zipinfo utility output are included as technical artifacts."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Maven Assembly Plugin is referenced as the source of the problematic JAR files."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, Java version, or Commons Compress version is explicitly stated."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific and well-defined; no vague or underspecified references detected."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The input (the specific JAR file and unix mode 177777) is clearly described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior (isUnixSymlink returns false) is clearly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Commons Compress version and Java version are not mentioned, which is relevant for reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The faulty behavior is precisely described: isUnixSymlink returns true when unixMode is SHORT_MASK (65535)."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The method isUnixSymlink in ZipArchiveEntry is explicitly identified as the location requiring a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected correct behavior (return false when unixMode equals SHORT_MASK) is explicitly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The edge case (broken entry with all bits set / SHORT_MASK) is documented, and the report notes existing tests are not broken."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A complete proposed fix with code is provided; a developer could implement it directly from the report."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root cause is explicitly proposed: isUnixSymlink does not handle the case where unixMode equals SHORT_MASK (all bits set)."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The root cause references the bitwise check (unixMode & UnixStat.LINK_FLAG) == UnixStat.LINK_FLAG and the SHORT_MASK constant."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The causal chain is articulated: 65535 has all bits set, so the LINK_FLAG bitmask check incorrectly returns true."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Steps can be inferred: obtain the attached JAR, run the provided Java code, observe the output showing symlink:true for META-INF/maven/."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The isUnixSymlink method in Commons Compress's ZIP handling is clearly identified as the affected code."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The symptom (incorrect return value) manifests in isUnixSymlink, and the defect is in the missing SHORT_MASK check within the same method."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one method and one component are identified; no cross-cutting concerns or multiple impacted areas are described."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.99
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.95
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.99
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.9574468085106383,
+  "cohens_kappa": 0.8493589743589746,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.0157987663695807,
+      "Clarity": 1.0157987663695807,
+      "Specificity": 0.3950328535881702,
+      "Reproducibility": 0.3950328535881702,
+      "ReasoningQuality": 1.0157987663695807,
+      "TechnicalContext": 0.3950328535881702,
+      "Ambiguity": 0.3950328535881702,
+      "RepairReadiness": -2.0880307975374715,
+      "RootCauseEvidence": -0.22573305919324022,
+      "HiddenReproducibility": -1.467264884756061,
+      "ImpactScope": -0.8464989719746506
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

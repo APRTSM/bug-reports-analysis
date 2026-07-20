@@ -1,0 +1,1427 @@
+{
+  "bug": {
+    "bug_id": "Closure-89",
+    "project": "Closure",
+    "summary": "Compiler removes function properties that it should not",
+    "description": "The Compiler appears to remove properties that are added to functions. I do not believe that it should do such a thing. In the following example, I add a property named &quot;alwaysCall&quot; to a function that I check later. The property appears to be stripped, which changes the behavior of the program. To see this in action run the following through http://closure-compiler.appspot.com/home:\r\n\r\n// ==ClosureCompiler==\r\n// @compilation_level ADVANCED_OPTIMIZATIONS\r\n// @output_file_name default.js\r\n// @use_closure_library true\r\n// @formatting pretty_print\r\n// ==/ClosureCompiler==\r\n\r\nvar lastMsg;\r\nvar map = {};\r\n\r\nvar addToMap = function(key, func) {\r\n  map[key] = func;\r\n};\r\n\r\nvar f1 = function() { alert('f1'); };\r\nf1.alwaysCall = true;\r\nvar f2 = function() { alert('f2'); };\r\n\r\naddToMap('f1', f1);\r\naddToMap('f2', f2);\r\n\r\nvar callFunctionByKey = function(key) {\r\n  var f = map[key];\r\n  if (f.alwaysCall) f();\r\n};\r\n\r\ncallFunctionByKey(Math.random() &gt; 0.5 ? 'f1' : 'f2');\r\n\r\n\r\nThe compiled code is:\r\n\r\n\r\nvar a = {};\r\na.f1 = function() {\r\n  alert(&quot;f1&quot;)\r\n};\r\na.f2 = function() {\r\n  alert(&quot;f2&quot;)\r\n};\r\nvar b = a[Math.random() &gt; 0.5 ? &quot;f1&quot; : &quot;f2&quot;];\r\nb.a &amp;&amp; b();\r\n\r\nNote that a.f1 does not have a property defined on it anymore, though it still appears to be checked on this line of code:\r\n\r\nb.a &amp;&amp; b();\r\n\r\nSo it looks like it is missing the following:\r\n\r\na.f1.a =  true;\r\n\r\nFor now, I can workaround this by quoting the property:\r\n\r\nf1['alwaysCall'] = true;\r\n\r\n// In callFunctionByKey:\r\nif (f['alwaysCall']) f();\r\n\r\nBut that seems as though it should not be necessary."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes observable faulty behavior: function properties are removed and program behavior changes."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected functionality is identified as the Closure Compiler under ADVANCED_OPTIMIZATIONS."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes compiled output and a concrete code example useful for debugging."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides enough context to investigate: source snippet, compiled result, and described symptom."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Likely affected subsystem is compiler optimization/property renaming or property stripping."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Language is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as removal of function properties by the compiler."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report follows a logical order: description, example, compiled output, workaround."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References to functions, properties, and compiled variables are mostly unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Technical terms like compiler, property, ADVANCED_OPTIMIZATIONS, and workaround are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific triggering condition is described: adding a property to a function and checking it later."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete reproduction steps are provided via the exact code to run in the compiler."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes compilation settings and the Closure Compiler web app, though no OS/browser version."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reports the compiled output and the missing property check in the transformed code."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Distinguishes the issue from a generic failure by showing the exact property-stripping transformation."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: the function property should remain available after compilation."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: the property appears stripped in compiled code."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The discrepancy is clear: property should exist but compiled code checks a renamed/missing property."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The provided code is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No required environment or dependency details beyond the compiler settings are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Proposes a likely cause: the compiler is stripping the function property."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The explanation is tied to the observed symptom in the compiled output."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Evidence is the source code and the transformed output showing the missing property assignment."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The explanation is internally consistent: property assignment is removed, causing the later check to fail."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References technical artifacts such as compiled code and property access expressions."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Mentions compiler behavior and specific functions/variables in the code."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The affected module is identifiable as the Closure Compiler optimization pipeline."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes a code snippet and the compiled output."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No external dependencies or integrations are relevant beyond the compiler itself."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Some references are broad, such as 'the Compiler' and 'should not'."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering conditions are sufficiently described in the example."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is reasonably clear: the property should be preserved."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Environment/version information is missing where it could matter."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Faulty behavior is precise enough: function properties are removed during compilation."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "No specific class or code location is identified."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior is stated: the property should remain on the function."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Edge case is documented: quoted property access works as a workaround."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "A developer would likely need further investigation to locate the exact fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A root cause is strongly implied: the compiler strips the property assignment."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "No specific code construct or API call in the compiler implementation is named."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report explains that removing the property causes the later conditional check to fail."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The narrative and code clearly imply how to reproduce the bug in the compiler."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected concept is identifiable as compiler property optimization/renaming."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "The report does not distinguish symptom location from underlying defect location."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Only one main area is discussed; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report clearly describes that the compiler removes function properties, changing program behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected component is the Closure Compiler's ADVANCED_OPTIMIZATIONS mode, specifically property handling on functions."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report includes the input code, the compiled output, and identifies the missing line 'a.f1.a = true'."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Input code, compiled output, compilation settings, and a workaround are all provided, giving sufficient context."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The Closure Compiler's ADVANCED_OPTIMIZATIONS subsystem is clearly identified as the affected component."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report is well-written and grammatically coherent throughout."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem\u2014compiler stripping function properties\u2014is clearly stated."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Information flows logically: problem description, input code, compiled output, analysis, and workaround."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References to the compiler, properties, and code constructs are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms like 'function properties', 'ADVANCED_OPTIMIZATIONS', and 'compilation_level' are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The specific condition is adding a property 'alwaysCall' to a function and checking it later under ADVANCED_OPTIMIZATIONS."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Concrete steps are provided: run the given code through the Closure Compiler web tool with specified settings."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Compilation level (ADVANCED_OPTIMIZATIONS), use_closure_library, and the online tool URL are specified."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The specific compiled output is shown, and the missing line 'a.f1.a = true' is explicitly identified."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report distinguishes this from a generic failure by showing the exact property that is dropped and the exact compiled output."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected behavior is stated: the property 'alwaysCall' should be preserved on the function in compiled output."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is shown: the compiled output lacks 'a.f1.a = true', so the property is stripped."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy is clearly identifiable: property set in source but absent in compiled output."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The input code and compiler settings are fully provided, enabling reproduction via the linked tool."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The online Closure Compiler tool and compilation settings are specified; no OS/browser details needed for this tool-based reproduction."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report implies the compiler incorrectly removes function properties during optimization, and identifies the missing assignment."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The proposed explanation (property removal) is directly linked to the observed symptom (missing 'a.f1.a = true' in output)."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The compiled output is provided as evidence, showing the property is absent while the check remains."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The reasoning is coherent: property is set in source, check exists in output, but assignment is missing."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report references the compiled code artifact and the specific missing line as technical evidence."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Functions, properties, and the Closure Compiler API/tool are mentioned with specific code references."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The Closure Compiler's ADVANCED_OPTIMIZATIONS subsystem is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Both input code and compiled output code snippets are included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The Closure library (use_closure_library) and the online compiler tool are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, browser, or compiler version details are provided beyond the online tool URL and compilation settings."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "References are specific and well-defined; no vague terms used."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and conditions are clearly described with full code examples."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior (property preserved in output) is clearly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Compiler version is not specified, only the online tool URL is given."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No contradictory or inconsistent statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior (dropping function property assignment) is precisely described with before/after code."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The Closure Compiler's property optimization/renaming logic is identifiable as the location needing a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The expected correct behavior (preserving 'a.f1.a = true' in output) is explicitly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The workaround (quoting the property) hints at the edge case: quoted vs. unquoted property access affects compiler behavior."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "A developer would need to investigate the compiler's property elimination logic further; the report alone is insufficient for a direct fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report strongly implies the compiler's property optimization incorrectly eliminates function property assignments."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific code construct, method, or internal API of the compiler is referenced as the root cause."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The causal link is articulated: the compiler removes the property assignment, so the runtime check finds no property and the function is never called."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The narrative provides the full input code and tool URL, making reproduction steps easily inferable even without numbered steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The Closure Compiler's ADVANCED_OPTIMIZATIONS property handling is clearly identifiable as the affected subsystem."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The report does not distinguish between where the symptom manifests (compiled output) and where the defect resides (internal compiler pass)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one impacted area (function property elimination) is identified; no cross-cutting concerns are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.22000000000000008,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "P2": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.7
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.7
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.9148936170212766,
+  "cohens_kappa": 0.7466307277628033,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.85)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.7)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.85)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.7)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 2,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 1
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 2,
+      "impact_scope": 1
+    },
+    "zscore": {
+      "Actionability": 0.8959786703810408,
+      "Clarity": 0.8959786703810408,
+      "Specificity": 0.8959786703810408,
+      "Reproducibility": 0.8959786703810408,
+      "ReasoningQuality": 0.8959786703810408,
+      "TechnicalContext": 0.31622776601683794,
+      "Ambiguity": 0.31622776601683794,
+      "RepairReadiness": -1.4230249470757708,
+      "RootCauseEvidence": -0.8432740427115679,
+      "HiddenReproducibility": -1.4230249470757708,
+      "ImpactScope": -1.4230249470757708
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

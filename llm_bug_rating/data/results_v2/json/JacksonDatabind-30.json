@@ -1,0 +1,1459 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-30",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "When using an \nObjectMapper\nto serialize/deserialize a class with an \nObject\nfield annotated with a \n@JsonSubTypes.Type\nthat indicate \nBigDecimal\n, it looks like the value is getting rounded to a double.\n\nI tried configuring \nDeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS\n, but that didn't seem to help.\n\nWhat I think is a valid repro is below, but let me know if I'm actually doing something wrong here.\n\nThanks!\n\nimport\n\norg\n.\njunit\n.\nTest\n;\n\nimport\n\norg\n.\njunit\n.\nAssert\n;\n\nimport\n\njava\n.\nmath\n.\nBigDecimal\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\nannotation\n.*;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ndatabind\n.\nDeserializationFeature\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ndatabind\n.\nObjectMapper\n;\n\npublic\n\nclass\n\nJacksonTest\n{\n\nenum\n\nType\n{ \nBIG_DECIMAL\n}\n\nstatic\n\nclass\n\nWrapper\n{\n\n@\nJsonIgnore\n\nType\n\ntypeEnum\n;\n\n@\nJsonIgnore\n\nObject\n\nvalue\n;\n\nWrapper\n() { }\n\n@\nJsonGetter\n(\nvalue\n= \n\"type\"\n)\n\nString\n\ngetTypeString\n() {\n\nreturn\n\ntypeEnum\n.\nname\n();\n}\n\n@\nJsonSetter\n(\nvalue\n= \n\"type\"\n)\n\nvoid\n\nsetTypeString\n(\nString\n\ntype\n) {\n\nthis\n.\ntypeEnum\n= \nType\n.\nvalueOf\n(\ntype\n);\n}\n\n@\nJsonGetter\n(\nvalue\n= \n\"objectValue\"\n) \n\nObject\n\ngetValue\n() {\n\nreturn\n\nvalue\n;\n}\n\n@\nJsonTypeInfo\n(\nuse\n= \nJsonTypeInfo\n.\nId\n.\nNAME\n, \ninclude\n= \nJsonTypeInfo\n.\nAs\n.\nEXTERNAL_PROPERTY\n, \nproperty\n= \n\"type\"\n)\n\n@\nJsonSubTypes\n({ \n@\nJsonSubTypes\n.\nType\n(\nname\n= \n\"BIG_DECIMAL\"\n, \nvalue\n= \nBigDecimal\n.\nclass\n) })\n\n@\nJsonSetter\n(\nvalue\n= \n\"objectValue\"\n) \n\nprivate\n\nvoid\n\nsetValue\n(\nObject\n\nvalue\n) {\n\nthis\n.\nvalue\n= \nvalue\n;\n}\n}\n\n@\nTest\n\npublic\n\nvoid\n\ntest\n() \nthrows\n\nException\n{\n\nObjectMapper\n\nm\n= \nnew\n\nObjectMapper\n();\n\nm\n.\nconfigure\n(\nDeserializationFeature\n.\nUSE_BIG_DECIMAL_FOR_FLOATS\n, \ntrue\n);\n\nWrapper\n\nw\n= \nnew\n\nWrapper\n();\n\nw\n.\ntypeEnum\n= \nType\n.\nBIG_DECIMAL\n;\n\nw\n.\nvalue\n= \nnew\n\nBigDecimal\n(\n\"-10000000000.0000000001\"\n);\n\nString\n\njson\n= \nm\n.\nwriteValueAsString\n(\nw\n);\n\nWrapper\n\nw2\n= \nm\n.\nreadValue\n(\njson\n, \nWrapper\n.\nclass\n);\n\nAssert\n.\nassertEquals\n(\nw\n.\ntypeEnum\n, \nw2\n.\ntypeEnum\n);\n\nAssert\n.\nassertTrue\n(\nString\n.\nformat\n(\n\"Expected %s = %s; got back %s = %s\"\n,\n\nw\n.\nvalue\n.\ngetClass\n().\ngetSimpleName\n(), \nw\n.\nvalue\n.\ntoString\n(), \nw2\n.\nvalue\n.\ngetClass\n().\ngetSimpleName\n(), \nw2\n.\nvalue\n.\ntoString\n()),\n\nw\n.\nvalue\n.\nequals\n(\nw2\n.\nvalue\n));\n}\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable incorrect deserialization: BigDecimal value comes back rounded to double."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Points to ObjectMapper deserialization with @JsonTypeInfo/@JsonSubTypes on an Object field."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a concrete JUnit test and the failing equality assertion showing the symptom."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides a self-contained repro using ObjectMapper, configuration, and sample JSON generation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Narrows investigation to Jackson databind polymorphic deserialization of an Object field."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A developer can understand the failure scenario from the described test and expected type/value."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The failing assertion and preserved type/value comparison are enough to write a test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is clear: serialize Wrapper with BigDecimal, then deserialize and compare."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Referenced entities like ObjectMapper, Wrapper, JsonTypeInfo, and JsonSubTypes are named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Terminology is consistent: polymorphic type info, BigDecimal, deserialization feature, and rounding."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Uses a concrete triggering value: BigDecimal(\"-10000000000.0000000001\")."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Provides ordered steps in code form: configure mapper, serialize, deserialize, assert."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No environment or version information is given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reports the exact failure mode as value being rounded to a double and the assertion message format."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The combination of external type property and Object field with BigDecimal subtype is specific."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior is implicit in the assertion: deserialized value should equal the original BigDecimal."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is stated: value appears rounded to a double after deserialization."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report contrasts expected BigDecimal equality with the observed rounded result."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The included test is sufficient to attempt reproduction directly."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or dependency versions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "The report does not explicitly propose a root cause, only a symptom and a failed configuration attempt."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No causal explanation is given linking a specific cause to the rounding."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "There is no code-level evidence or trace supporting a proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report is internally consistent: the test and described symptom do not contradict each other."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No exact log lines, method names, or code locations are cited as the cause."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names ObjectMapper, DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, Wrapper, and Jackson annotations."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is Jackson databind polymorphic serialization/deserialization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes a concrete JUnit test and assertion output format relevant to the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No external dependency or service version is mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No OS, browser, framework, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The report is somewhat vague about whether the issue is in serialization, deserialization, or type resolution."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and conditions are concrete enough to attempt reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear from the equality assertion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The correct behavior is clear: preserve BigDecimal precision through polymorphic Object field handling."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The likely fix area is identifiable as Jackson databind handling of @JsonTypeInfo/@JsonSubTypes on Object."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is explicit: deserialized value should equal the original BigDecimal."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No edge cases or constraints beyond the single repro are documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "A plausible fix could be implemented from the repro and expected behavior alone."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No specific code construct or API call is identified as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No causal chain from cause to failure is articulated."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The included test fully determines a concrete reproduction scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The affected concept is Jackson polymorphic deserialization in databind."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Symptom is in deserialized value, while likely defect is in type handling for Object field."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Only one main affected path is described; multiple impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Mentions ObjectMapper, DeserializationFeature, JsonTypeInfo, JsonSubTypes, BigDecimal, and Wrapper."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: BigDecimal value is rounded to double during deserialization, with concrete example showing loss of precision on '-10000000000.0000000001'."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specifically identifies ObjectMapper, @JsonSubTypes.Type annotation, and BigDecimal class as affected components."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Includes complete, compilable test code that demonstrates the failure with specific input values and assertions."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer can immediately run the provided test case to reproduce the issue without additional clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies Jackson's deserialization logic with @JsonTypeInfo and @JsonSubTypes annotations as the starting point for investigation."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: polymorphic deserialization of BigDecimal via @JsonSubTypes loses precision, converting to double."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provided test case is directly usable as a failing test; developer could write additional tests from this template."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: serialize BigDecimal with type hint, deserialize with type hint, precision is lost."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "All components named explicitly: ObjectMapper, Wrapper class, @JsonTypeInfo, @JsonSubTypes, BigDecimal."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology used accurately: polymorphic deserialization, type hints, precision loss, double rounding."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete input provided: BigDecimal('-10000000000.0000000001') with specific precision requirements."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete reproduction steps embedded in test: create Wrapper, set BigDecimal value, serialize, deserialize, assert equality."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No Jackson version, Java version, or other environment details provided; assumes current/default versions."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure mode is specific: BigDecimal value equals() assertion fails due to precision loss; test format shows expected vs. actual."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Combination of @JsonTypeInfo with EXTERNAL_PROPERTY and @JsonSubTypes on Object field is distinctive; distinguishes from simple BigDecimal deserialization issues."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is explicit: deserialized BigDecimal should equal original BigDecimal('-10000000000.0000000001')."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: assertion fails because deserialized value has been rounded to double precision."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: w.value.equals(w2.value) returns false due to precision loss during round-trip."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reproduction steps are complete and sufficient: test code is self-contained and executable."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific Jackson version, Java version, or JUnit version documented; assumes standard environment."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Report implicitly suggests the issue is in polymorphic deserialization logic, though not explicitly stated as a root cause hypothesis."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Causal link is suggested: @JsonSubTypes with BigDecimal type hint should preserve precision, but doesn't; mechanism is implied but not detailed."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Evidence provided: test code shows the configuration attempt (USE_BIG_DECIMAL_FOR_FLOATS) and the failure assertion."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is coherent: precision loss during deserialization is consistent with double conversion; no contradictions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References specific Jackson annotations (@JsonTypeInfo, @JsonSubTypes) and configuration (USE_BIG_DECIMAL_FOR_FLOATS), though root cause mechanism not detailed."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes named: ObjectMapper, Wrapper, BigDecimal; specific annotations: @JsonTypeInfo, @JsonSubTypes, @JsonGetter, @JsonSetter."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Affected subsystem identifiable: Jackson's polymorphic deserialization with external type property."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete, compilable code snippet provided that directly demonstrates the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Jackson library is referenced but no version specified; no other external dependencies mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, Java version, JUnit version, or other runtime environment details provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "All references are concrete and specific; no vague terminology."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs are fully specified: BigDecimal value, type enum, JSON structure are all concrete."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clear: round-trip serialization/deserialization should preserve BigDecimal equality."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Jackson version, Java version, and other environment details are missing and could affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions; report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Correct behavior is clear (preserve BigDecimal precision), and the issue is in polymorphic deserialization logic, though exact code location requires investigation."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Jackson's @JsonTypeInfo/@JsonSubTypes deserialization path is identifiable, though specific method/class requires code inspection."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected correct behavior is concrete: w.value.equals(w2.value) should return true after round-trip."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Edge case is documented: BigDecimal with fractional precision beyond double range; external type property configuration is relevant."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Developer could likely implement a fix targeting polymorphic BigDecimal deserialization, though investigation of Jackson internals would be needed."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.65,
+        "reason": "Report suggests polymorphic deserialization is the issue, but does not explicitly propose a specific root cause mechanism."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "References @JsonTypeInfo, @JsonSubTypes, and EXTERNAL_PROPERTY configuration, but does not pinpoint the exact code construct causing the failure."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.65,
+        "reason": "Causal chain is implied: type hint should guide deserialization to BigDecimal, but precision is lost; mechanism not explicitly articulated."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Test code provides complete, deterministic reproduction steps: instantiate Wrapper, set BigDecimal value, serialize, deserialize, assert equality."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson's polymorphic deserialization subsystem is identifiable as the affected area."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Symptom manifests in deserialized value; underlying defect likely in Jackson's type-guided deserialization logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Multiple concerns identified: @JsonTypeInfo, @JsonSubTypes, BigDecimal handling, external type properties."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Four or more distinct technical concepts: ObjectMapper, @JsonTypeInfo, @JsonSubTypes, BigDecimal, polymorphic deserialization, external type property."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.75
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.26,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.7
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.75
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.32999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.65
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.27,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.7
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.30999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.65
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.7916666666666666,
+  "cohens_kappa": 0.46428571428571414,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.97 > 0.75)"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.7)"
+      },
+      "Q3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.75)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.8)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.65)"
+      },
+      "RC2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.97 > 0.7)"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.65)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.75)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Selected judge1 (higher confidence: 0.97 > 0.75)"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.7)"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.75)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.8)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.65)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Selected judge1 (higher confidence: 0.97 > 0.7)"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.65)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.75)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 1,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 1.177621523593293,
+      "Clarity": 1.177621523593293,
+      "Specificity": 0.5607721540920443,
+      "Reproducibility": 0.5607721540920443,
+      "ReasoningQuality": -1.2897759544117016,
+      "TechnicalContext": -0.05607721540920437,
+      "Ambiguity": 0.5607721540920443,
+      "RepairReadiness": 0.5607721540920443,
+      "RootCauseEvidence": -1.9066253239129503,
+      "HiddenReproducibility": -1.2897759544117016,
+      "ImpactScope": -0.05607721540920437
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

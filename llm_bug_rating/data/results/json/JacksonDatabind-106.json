@@ -1,0 +1,1430 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-106",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "Similar to \n#1729\n, \nTreeTraversingParser\ndoes not perform bounds checks on \nsome\nJSON values bound to ints.\n\nUsing Jackson version 2.9.7, here are several comparisons generated with the following code:\n\npublic\n\nstatic\n\nclass\n\nIntClass\n{\n\npublic\n\nint\n\nx\n;\n\n@\nOverride\n\npublic\n\nString\n\ntoString\n() {\n\nreturn\n\nString\n.\nvalueOf\n(\nx\n);\n}\n}\n\nObjectMapper\n\nmapper\n= \nnew\n\nObjectMapper\n();\n\nvoid\n\nreadAndPrint\n(\nString\n\n_example\n) {\n\nString\n\nfromTree\n;\n\ntry\n{\n\nJsonNode\n\ntree\n= \nmapper\n.\nreadTree\n(\n_example\n);\n\nfromTree\n= \nmapper\n.\nreaderFor\n(\nIntClass\n.\nclass\n).\nreadValue\n(\ntree\n).\ntoString\n();\n} \ncatch\n(\nIOException\n\n_e\n) {\n\nfromTree\n= \n_e\n.\ngetClass\n().\ngetSimpleName\n();\n}\n\nString\n\nfromString\n;\n\ntry\n{\n\nfromString\n= \nmapper\n.\nreaderFor\n(\nIntClass\n.\nclass\n).\nreadValue\n(\n_example\n).\ntoString\n();\n} \ncatch\n(\nIOException\n\n_e\n) {\n\nfromString\n= \n_e\n.\ngetClass\n().\ngetSimpleName\n();\n}\n\nSystem\n.\nout\n.\nprintf\n(\n\"|%30s | %30s | %-30s|\n\\n\n\"\n, \n_example\n, \nfromTree\n, \nfromString\n);\n}\n\n@\nTest\n\npublic\n\nvoid\n\ncompareFromTree\n() {\n\nSystem\n.\nout\n.\nprintf\n(\n\"|%30s | %30s | %-30s|\n\\n\n\"\n, \n\"json input\"\n, \n\"read from tree\"\n, \n\"read from string\"\n);\n\nSystem\n.\nout\n.\nprintln\n(\n\"|-------------------------------|--------------------------------|-------------------------------|\"\n);\n\nreadAndPrint\n(\n\"{\n\\\"\nx\n\\\"\n: 0}\"\n);\n\n// etc.\n\n}\n\njson input\n\nread from tree\n\nread from string\n\n{\"x\": 0}\n\n0\n\n0\n\n{\"x\": 10}\n\n10\n\n10\n\n{\"x\": 1e4}\n\n10000\n\n10000\n\n{\"x\": 1e10}\n\n2147483647\n\nJsonMappingException\n\n{\"x\": 1e-1}\n\n0\n\n0\n\n{\"x\": 2147483648}\n\n-2147483648\n\nJsonMappingException\n\n{\"x\": 2147483649}\n\n-2147483647\n\nJsonMappingException\n\n{\"x\": -2147483649}\n\n2147483647\n\nJsonMappingException\n\n{\"x\": -4294967295}\n\n1\n\nJsonMappingException\n\n{\"x\": 0.1}\n\n0\n\n0\n\n{\"x\": 1.9}\n\n1\n\n1\n\n{\"x\": 1.9999999999999999}\n\n2\n\n2\n\n{\"x\": true}\n\nMismatchedInputException\n\nMismatchedInputException\n\n{\"x\": {}}\n\nMismatchedInputException\n\nMismatchedInputException\n\n{\"x\": []}\n\nMismatchedInputException\n\nMismatchedInputException\n\n{\"x\": [0]}\n\nMismatchedInputException\n\nMismatchedInputException\n\n{\"x\": \"0\"}\n\n0\n\n0\n\n{\"x\": \"10\"}\n\n10\n\n10\n\n{\"x\": \"1e4\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"1e10\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"1e-1\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"2147483648\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"2147483649\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"-2147483649\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"-4294967295\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"0.1\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"1.9\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"1.9999999999999999\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"true\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"{}\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"[]\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\n{\"x\": \"[0]\"}\n\nInvalidFormatException\n\nInvalidFormatException\n\nWithout digging further into the code, it appears if the JSON value is numeric, \nTreeTraversingParser\nsilently overflows. Maybe this is expected behavior, but to me the inconsistency between reading from a non-tree (reader/string/file, etc) versus directly from a tree seems like a bug. At the very least, it makes it less convenient to do manipulations on a JSON document before binding.\n\nI would expect an exception thrown for the all but the first three examples above, but I do understand there are use-cases for coercing values. Even so, I would expect the coercion logic to be\n\nconsistent between the parsers (or clearly documented otherwise)\n\nconsistent between quoted and unquoted values\n\nI'm also curious about the expected behavior when converting non-integral values. Why is \ntrue\n\nMismatchedInput\n, but \n0.1\nis converted? Similarly, why are \n0.1\n, \n1e4\n, and \n1e-1\nacceptable, but not when in quotes, even though \n\"10\"\nand other quote integers are acceptable?\n\nThanks for all your hard work on this. I hope this issue doesn't come off as condescending. For our specific use case, we read the value as a tree, validating it against a schema, then using Jackson to bind the tree to an object. While it's true that we can specify type, minimum, and maximum values in the schema, it is prone to mistakes, and there's not necessarily a reason to tie the schema to the language implementation, provided things like overflow consistently result in an exception. Thus, I'm trying to better understand the expectations and limits Jackson has when using the tree parser."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: TreeTraversingParser overflows or differs from string parsing."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected functionality is identified as TreeTraversingParser and binding JSON tree values to int fields."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes concrete comparison output and exception names such as JsonMappingException and InvalidFormatException."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides code, version, and a comparison table sufficient to start investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Likely affected subsystem is Jackson tree parsing/binding, specifically TreeTraversingParser."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The problem is clearly identified as inconsistent int conversion and overflow when reading from tree."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It follows a logical structure: setup, test code, results, then expected behavior."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References to TreeTraversingParser, ObjectMapper, and IntClass are specific and clear."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Terminology like coercion, overflow, parser, and binding is used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific triggering inputs are listed, including values like 1e10, 2147483648, and -4294967295."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report includes code that reproduces the issue and a comparison test method."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "Jackson version 2.9.7 is explicitly stated."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reports concrete failures and outputs, including silent overflow and exception class names."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes tree parsing behavior from direct string parsing and compares quoted versus unquoted values."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: overflow should throw an exception for most out-of-range cases."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly shown in the table, including silent overflow and differing exceptions."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The discrepancy between expected exceptions and observed overflow/inconsistency is clear."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The provided code and sample inputs are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Jackson version is given; no other environment dependencies are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Proposes that TreeTraversingParser silently overflows and may be inconsistent with other parsers."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is tied to the observed mismatch between tree and string parsing results."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "No internal code evidence or logs are provided beyond the comparison table."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation is coherent: numeric tree values are coerced differently and may overflow."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References technical artifacts such as TreeTraversingParser and parser behavior."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions ObjectMapper, TreeTraversingParser, JsonNode, and IntClass."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The affected subsystem is identifiable as Jackson tree-to-object binding."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes code and a results table, though no stack trace or screenshot."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "No external dependencies or integrations are referenced."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson version 2.9.7 is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are broad, such as 'some JSON values' and 'expected behavior'."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Not all triggering conditions are fully specified beyond the sample inputs."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Expected behavior is discussed but not fully formalized for all numeric coercions."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Only Jackson version is given; broader environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior is precise: out-of-range numeric tree values are coerced instead of failing."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "TreeTraversingParser is the identifiable component likely needing a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report states the target behavior: consistent exceptions or consistent coercion."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Documents edge cases for integral, non-integral, quoted, and unquoted numeric values."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "A developer would likely need further investigation into Jackson coercion rules and code paths."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Explicitly suggests TreeTraversingParser silently overflows."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.42,
+        "reason": "No specific code construct or API call is identified as the root cause."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The proposed overflow explanation is linked to the observed incorrect int results."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The narrative and code clearly imply how to trigger the bug by reading specific JSON values from a tree."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected concept is Jackson tree parsing and int coercion."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom appears in read-from-tree binding, while the underlying defect is in TreeTraversingParser behavior."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "Only one main subsystem is discussed; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report clearly describes observable faulty behavior: TreeTraversingParser silently overflows on out-of-range int values instead of throwing an exception."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected component is explicitly identified as TreeTraversingParser and its handling of JSON numeric values bound to int fields."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report includes a full code snippet, a detailed comparison table of inputs vs. outputs from both tree and string parsing paths, and version information."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report provides version, code, reproduction steps, and a table of results, giving sufficient context to begin investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The subsystem is clearly identified: TreeTraversingParser in Jackson's databind module, specifically integer bounds checking."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report is well-written, grammatically coherent, and clearly articulates the problem and observations."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The problem is clearly stated: TreeTraversingParser does not perform bounds checks on numeric JSON values bound to int, unlike the string-based parser."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Information flows logically: context, code, results table, analysis, and expected behavior are presented in order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to TreeTraversingParser, ObjectMapper, JsonNode, and specific exception types are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Technical terms (TreeTraversingParser, JsonMappingException, MismatchedInputException, InvalidFormatException) are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific JSON inputs (e.g., {\"x\": 1e10}, {\"x\": 2147483648}) and conditions (reading from tree vs. string) are described."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete reproduction steps are provided via the full code snippet and the readAndPrint method."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Jackson version 2.9.7 is explicitly stated."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific outputs are reported in the table, including overflow values (e.g., 2147483647, -2147483648) and exception types."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report distinguishes this issue from a generic failure by providing a detailed comparison table and referencing issue #1729."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is stated: exceptions should be thrown for out-of-range values, consistent with the string-based parser."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicitly shown in the comparison table (e.g., silent overflow producing wrong int values)."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The discrepancy is clearly shown: 'read from tree' silently overflows while 'read from string' throws JsonMappingException."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The code snippet and table provide sufficient information to attempt reproduction."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson version 2.9.7 is documented; OS/JVM details are absent but the issue is likely version-specific to Jackson."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report proposes that TreeTraversingParser silently overflows because it lacks bounds checks on numeric values."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The proposed explanation (missing bounds checks) is directly linked to the observed overflow values in the table."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The comparison table provides empirical evidence supporting the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The explanation is internally coherent: missing bounds checks in TreeTraversingParser leads to silent overflow, unlike the string parser."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report references TreeTraversingParser by name and compares its behavior to the string-based parser path."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "TreeTraversingParser, ObjectMapper, JsonNode, readerFor, and specific exception classes are all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected subsystem (Jackson databind, TreeTraversingParser) is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A full code snippet and a detailed results table are included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson 2.9.7 is referenced as the external library; no other external dependencies are relevant here."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Jackson version is provided but OS, JVM version, and other environment details are absent."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "References are specific and unambiguous; TreeTraversingParser and the comparison are clearly described."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and conditions are well-specified in the table and code."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior is stated: exceptions for out-of-range values, consistent behavior between parsers."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "JVM version and OS are not provided, which could be relevant for numeric behavior."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The faulty behavior (no bounds check in TreeTraversingParser for numeric int values) is described precisely enough to know what needs to change."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "TreeTraversingParser is identified as the component requiring a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior is stated: throw an exception (like JsonMappingException) for out-of-range values, consistent with the string parser."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Edge cases are documented in the table (overflow, floating-point coercion, quoted vs. unquoted values)."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "A developer would still need to locate the exact code path in TreeTraversingParser and understand the coercion logic before implementing a fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report strongly implies the root cause: TreeTraversingParser lacks bounds checks on numeric values, unlike the string-based parser."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The root cause references TreeTraversingParser specifically and the absence of bounds checking logic."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The causal relationship is articulated: missing bounds checks in TreeTraversingParser cause silent integer overflow instead of exceptions."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reproduction steps can be inferred from the code snippet and the readAndPrint method, even without explicit numbered steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "TreeTraversingParser and its integer deserialization logic are clearly identified as the affected subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The symptom (wrong int values) manifests at the application level, while the defect resides in TreeTraversingParser's bounds checking logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "The report focuses on a single area (int deserialization in TreeTraversingParser); multiple cross-cutting concerns are not identified."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 1.0,
+        "judge2_confidence": 0.97
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.38,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.93
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.93
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.5,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.3,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.45,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.93
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.46,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.42,
+        "judge2_confidence": 0.88
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.98
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.45000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.851063829787234,
+  "cohens_kappa": 0.37571157495256174,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.93 > 0.55)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.4)"
+      },
+      "T5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.42)"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Selected judge2 (higher confidence: 0.93 > 0.55)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.4)"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.42)"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 0.7951465679458909,
+      "Clarity": 0.7951465679458909,
+      "Specificity": 0.7951465679458909,
+      "Reproducibility": 0.7951465679458909,
+      "ReasoningQuality": 0.7951465679458909,
+      "TechnicalContext": 0.7951465679458909,
+      "Ambiguity": 0.1703885502741196,
+      "RepairReadiness": -1.7038855027411943,
+      "RootCauseEvidence": -0.4543694673976517,
+      "HiddenReproducibility": -1.7038855027411943,
+      "ImpactScope": -1.079127485069423
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

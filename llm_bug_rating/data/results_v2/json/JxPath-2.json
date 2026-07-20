@@ -1,0 +1,1461 @@
+{
+  "bug": {
+    "bug_id": "JxPath-2",
+    "project": "JxPath",
+    "summary": "does not properly handle NodeSet returned by extension function",
+    "description": "Per the documentation, my function is returning a BasicNodeSet containing zero\n\nor more pointers:\n\npublic static NodeSet observations(ExpressionContext context) {\n\n// the cast below shouldn't break, as this is the only pointer type that\n\n// makes sense in this context\n\nList<NodePointer> ptrs = extractObservations(\n\n(NodePointer)context.getContextNodePointer(), \n\nnew ArrayList<NodePointer>());\n\nBasicNodeSet result = new BasicNodeSet();\n\nfor (NodePointer ptr : ptrs) \n\n{\nresult.add(ptr);\n}\n\nreturn result;\n\n}\n\nHowever, if I call JXPathContext.selectNodes(\"ems:observations()\"), I'm getting\n\na single node containing the BasicNodeSet. I notice that there is a testcase for\n\nfunctions that return NodeSets, but that it uses expressions that actually\n\nreturn the children of the NodeSet (\"test:nodeSet()/name\").\n\nThere appear to be two problems. First, Expression.iterate() and\n\nExpression.iteratePointers() do not correctly recognize a NodeSet as something\n\niterable. I've resolved this by reaching into the NodeSet and getting an\n\niterator over its pointers.\n\nSecond, Expression.PointerIterator doesn't recognize when it already has a\n\npointer, and instead tries to wrap it in a new pointer. This ends up treating\n\nthe pointer as a bean.\n\nI've made these changes, and written a testcase that uses an unadorned NodeSet\n\nfunction. I also found a class that used a variable named \"enum\", and changed\n\nthis so that it would compile under 1.5.\n\nThe patch is attached. It's relative to \"commons-jxpath-1.2\" (root of extract\n\ndirectory)."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Describes observable faulty behavior: selectNodes on an extension function returns a single node containing the BasicNodeSet instead of the nodes."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Identifies specific code paths: Expression.iterate(), Expression.iteratePointers(), and Expression.PointerIterator."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "No stack trace or error log is provided; only behavioral description and code-level diagnosis."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer can reproduce using JXPathContext.selectNodes(\"ems:observations()\") and the described extension function."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Points to concrete components in commons-jxpath: Expression and Expression.PointerIterator."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The failure scenario is explained clearly enough for a developer unfamiliar with the codebase."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A failing test could be written from the described selectNodes call and expected node-set behavior."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is explicit: extension function returns BasicNodeSet, selectNodes wraps it as one node, then iteration/pointer handling fails."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Named entities and components are specific enough to locate in the codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology like NodeSet, NodePointer, Expression.iteratePointers, and PointerIterator is used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Concrete trigger is given: an extension function returning a BasicNodeSet and calling selectNodes(\"ems:observations()\")."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "The report gives an example call but not a fully ordered reproduction procedure."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Only the patch target mentions commons-jxpath-1.2; no clear runtime/environment version is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The observed failure is stated: a single node containing the BasicNodeSet is returned."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The issue is distinguished by the unadorned NodeSet-returning function, unlike the existing child-selection testcase."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Expected behavior is implicit and concrete: the NodeSet contents should be returned, not the NodeSet object as one node."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: selectNodes returns a single node containing the BasicNodeSet."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy is clear from the report: expected iterable nodes vs. actual wrapped BasicNodeSet."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Reproduction is suggested but not fully step-by-step or self-contained."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "No specific environment or dependency setup beyond commons-jxpath-1.2 is documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report explicitly proposes causes: iterate()/iteratePointers() not recognizing NodeSet and PointerIterator wrapping an existing pointer."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The causal link is stated: these issues cause the NodeSet to be treated as a bean and wrapped incorrectly."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Evidence is provided through the described testcase behavior and the specific methods implicated."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The explanation is internally consistent and matches the observed symptom."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References concrete artifacts: Expression.iterate(), Expression.iteratePointers(), PointerIterator, and BasicNodeSet."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes and methods are named: JXPathContext, Expression, PointerIterator, BasicNodeSet."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected module is identifiable as commons-jxpath."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report includes code snippets and a concrete failing call, though no stack trace."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "No external dependency or library version beyond the project itself is relevantly detailed."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.52,
+        "reason": "Environment details are minimal; only a mention of 1.5 compilation and commons-jxpath-1.2 appears."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are broad, such as 'extension function' and 'NodeSet', without full surrounding context."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Inputs and setup are not fully specified beyond the example function and XPath call."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Expected behavior is reasonably inferable: the returned NodeSet should be iterated as nodes."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Version/environment information that could affect reproduction is largely missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report states the correct behavior and suggests the needed fix in iteration and pointer handling."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The likely fix locations are directly identified: Expression.iterate(), iteratePointers(), and PointerIterator."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Acceptance criterion is clear: unadorned NodeSet-returning functions should yield their contained nodes."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "Edge cases are only lightly mentioned; constraints are not comprehensively documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "A plausible fix can be implemented from the described failure and proposed code paths."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report explicitly proposes two root causes."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The root cause references specific constructs: Expression.iterate(), iteratePointers(), and PointerIterator wrapping a pointer."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report explains the causal chain from these bugs to the NodeSet being treated as a bean and returned incorrectly."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A concrete scenario is given from which direct reproduction steps can be derived: extension function returns BasicNodeSet and is queried via selectNodes."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected concepts are identifiable: NodeSet handling, iteration, and pointer wrapping."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The symptom appears in selectNodes, while the underlying defect is in Expression and PointerIterator."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "The report does not clearly identify multiple distinct impacted areas beyond the iteration/pointer path."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "It names several technical concepts: BasicNodeSet, NodeSet, NodePointer, Expression.iteratePointers(), PointerIterator, JXPathContext."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: calling JXPathContext.selectNodes() with a NodeSet-returning extension function returns a single node containing the BasicNodeSet instead of iterating over its contents."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes identified: Expression.iterate(), Expression.iteratePointers(), Expression.PointerIterator, BasicNodeSet, NodePointer, JXPathContext."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Code snippet provided showing the extension function implementation; problem areas explicitly named (Expression.iterate, Expression.iteratePointers, Expression.PointerIterator)."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could attempt reproduction by creating an extension function returning BasicNodeSet and calling selectNodes(); the specific method call and expected vs. actual behavior are clear."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes and methods pinpointed: Expression.iterate(), Expression.iteratePointers(), Expression.PointerIterator, BasicNodeSet; developer knows where to start investigating."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: extension function returns BasicNodeSet, but selectNodes() wraps it in a single node instead of iterating over pointers."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "A developer could write a test case: create extension function returning BasicNodeSet with multiple NodePointers, call selectNodes(), verify iteration over pointers rather than wrapping."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: extension function returns BasicNodeSet \u2192 selectNodes() called \u2192 result is single node wrapping BasicNodeSet instead of iterating."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Classes and methods are named precisely; a developer unfamiliar with codebase could locate Expression, BasicNodeSet, PointerIterator in source."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology used accurately: NodeSet, NodePointer, BasicNodeSet, iterate, PointerIterator; no misleading language."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific input described: extension function returning BasicNodeSet with zero or more NodePointers; specific method call: JXPathContext.selectNodes('ems:observations()')."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Reproduction steps derivable: create extension function returning BasicNodeSet, call selectNodes() with that function, observe wrapping behavior instead of iteration."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Version specified: 'commons-jxpath-1.2'; Java version mentioned: 1.5 compatibility issue noted."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific failure mode described: single node containing BasicNodeSet returned instead of iterated pointers; expected behavior implied (iteration over pointers)."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report distinguishes this from similar issues by specifying that existing test uses expressions returning children ('/name'), whereas this uses unadorned NodeSet function."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior stated implicitly: selectNodes() should iterate over NodePointers in the returned BasicNodeSet, not wrap the NodeSet itself."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior explicitly stated: single node containing BasicNodeSet is returned instead of multiple nodes from iteration."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Discrepancy is clear: expected iteration over pointers vs. observed wrapping of BasicNodeSet in a single node."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Reproduction steps are sufficient: create extension function returning BasicNodeSet, call selectNodes() with it; steps are complete enough to attempt reproduction."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version (commons-jxpath-1.2) and Java version (1.5) specified; extension function API documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report explicitly proposes two specific root causes: (1) Expression.iterate/iteratePointers don't recognize NodeSet as iterable, (2) PointerIterator wraps pointers instead of recognizing them."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposed explanations are directly linked to symptoms: NodeSet not recognized as iterable \u2192 wrapping occurs; PointerIterator treats pointer as bean \u2192 incorrect wrapping."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Evidence provided: code snippet of extension function, identification of problematic methods (iterate, iteratePointers, PointerIterator), mention of patch with fixes."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is internally coherent: two distinct problems identified, each with plausible mechanism; no contradictions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific technical artifacts referenced: Expression.iterate(), Expression.iteratePointers(), Expression.PointerIterator, BasicNodeSet, NodePointer."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes and methods named: Expression, BasicNodeSet, NodePointer, JXPathContext, ExpressionContext, PointerIterator."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Affected subsystem identifiable: Expression evaluation and iteration logic; BasicNodeSet handling in JXPath."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Code snippet provided showing extension function implementation; specific method names and classes referenced."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Library context clear: commons-jxpath; no external dependencies explicitly mentioned but framework is identified."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Environment details provided: commons-jxpath-1.2, Java 1.5 compatibility mentioned."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No vague references; all classes and methods are specifically named."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Inputs are sufficiently described: extension function returning BasicNodeSet with NodePointers; method call is explicit."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior is clear from context: iteration over NodePointers in the BasicNodeSet, not wrapping the set itself."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Version and Java version specified; sufficient for reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictions detected; problem statement is consistent throughout."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Correct behavior is determinable: iterate over NodePointers in BasicNodeSet instead of wrapping the set; code changes needed in iterate/iteratePointers and PointerIterator."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific components identified: Expression.iterate(), Expression.iteratePointers(), Expression.PointerIterator; developer knows where to apply fixes."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior stated concretely: selectNodes() should return multiple nodes from BasicNodeSet iteration, not a single wrapped node."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Edge cases mentioned: BasicNodeSet with zero or more pointers; existing test case pattern noted (expressions returning children)."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could implement fix: modify iterate/iteratePointers to recognize NodeSet and extract iterator; modify PointerIterator to avoid wrapping existing pointers. Patch mentioned as attached."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Two specific root causes explicitly proposed: (1) Expression.iterate/iteratePointers don't recognize NodeSet as iterable, (2) PointerIterator wraps pointers instead of recognizing them."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root causes reference specific code constructs: Expression.iterate(), Expression.iteratePointers(), Expression.PointerIterator, BasicNodeSet, NodePointer."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Causal chain articulated: NodeSet not recognized as iterable \u2192 PointerIterator treats it as bean \u2192 wraps pointer in new pointer \u2192 single node returned instead of iteration."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Concrete scenario provided: extension function returning BasicNodeSet with NodePointers; calling selectNodes('ems:observations()'); complete and unambiguous reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystems identified: Expression evaluation logic, BasicNodeSet handling, PointerIterator implementation."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom manifests in selectNodes() return value; underlying defect resides in Expression.iterate/iteratePointers and PointerIterator."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple impacted areas identified: extension function evaluation, NodeSet iteration, pointer wrapping logic."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "More than three distinct technical concepts named: Expression, BasicNodeSet, NodePointer, PointerIterator, JXPathContext, ExpressionContext, iterate, iteratePointers."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": false,
+        "confidence_diff": 0.27,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.85
+      },
+      "S2": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.8
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.35,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.9
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.8
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.35,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.5,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.35000000000000003,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.45,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.32999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.52,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.22000000000000008,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.75,
+  "cohens_kappa": 0.12462006079027325,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.62)"
+      },
+      "S3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.55)"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.6)"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.5)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.45)"
+      },
+      "T5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.52)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.58)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.55)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.62)"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.55)"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.6)"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.5)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.45)"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.52)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.58)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.55)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.5996253511966894,
+      "Clarity": 0.5996253511966894,
+      "Specificity": 0.5996253511966894,
+      "Reproducibility": 0.5996253511966894,
+      "ReasoningQuality": 0.5996253511966894,
+      "TechnicalContext": 0.5996253511966894,
+      "Ambiguity": -0.22485950669875823,
+      "RepairReadiness": 0.5996253511966894,
+      "RootCauseEvidence": -1.0493443645942058,
+      "HiddenReproducibility": -2.698314080385101,
+      "ImpactScope": -0.22485950669875823
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

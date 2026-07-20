@@ -1,0 +1,1427 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-2",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "I have a class, more or less:\n\nclass X<T> {\nString s;\nList<T> items;\n};\n\nIt has a custom serializer.\n\nWhen I serialize to a tree, the entire list ends up as a\n\nVALUE_EMBEDDED_OBJECT: the ArrayList itself.\n\nHere's the serializer class, note the use of writeObjectField.\n\npublic class ListAttributeSerializer extends JsonSerializer<ListAttribute> {\n@Override\npublic void serialize(ListAttribute value, JsonGenerator jgen,\nSerializerProvider provider) throws IOException {\njgen.writeStartObject();\njgen.writeStringField(\"itemType\", value.getItemJsonKey());\njgen.writeObjectField(\"items\", value.getItems());\njgen.writeEndObject();\n}\n\n@Override\npublic void serializeWithType(ListAttribute value, JsonGenerator\njgen, SerializerProvider provider, TypeSerializer typeSer) throws\nIOException {\ntypeSer.writeTypePrefixForObject(value, jgen);\njgen.writeStringField(\"itemType\", value.getItemJsonKey());\njgen.writeObjectField(\"items\", value.getItems());\ntypeSer.writeTypeSuffixForObject(value, jgen);\n}\n}\n\nAnd Tatu wrote me:\n\nOk. valueToTree() uses TokenBuffer as target, so it probably then simply retains Object passed as-is, to defer conversion/serialization, for common use case of buffering. But in your case you would rather get actual serialization into JsonNodes.\n\nYou will probably want to write conversion out then, something like:\n\nbyte[] json = mapper.writeValueAsBytes(referenceText);\n\nJsonNode tree = mapper.readTree(json);\n\nThis is just the work-around on short term.\n\nBut this is one thing where configurability might be needed; or possibly different methods. One that forces full serialization into JSON with no POJONodes, other that leaves things as is."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Describes faulty behavior: valueToTree produces VALUE_EMBEDDED_OBJECT for the list."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Affected component is identified as a custom serializer for ListAttribute/X<T> and Jackson tree serialization."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes serializer code and a quoted explanation from Tatu about TokenBuffer/valueToTree behavior."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Provides enough context to investigate: class shape, serializer implementation, and the failing tree conversion path."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Likely affected subsystem is Jackson serialization/tree conversion, specifically valueToTree/TokenBuffer handling."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Language is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The problem is clearly identified as list serialization becoming VALUE_EMBEDDED_OBJECT."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Information is presented in a mostly logical order: class, symptom, serializer, then workaround."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References to items like valueToTree, TokenBuffer, and writeObjectField are specific and mostly unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Technical terms such as JsonGenerator, JsonNode, TokenBuffer, and VALUE_EMBEDDED_OBJECT are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Triggering condition is described: serializing to a tree with writeObjectField on a list."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No numbered or explicit reproduction steps are provided."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environment, library version, OS, or framework version is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Specific failure output is reported: VALUE_EMBEDDED_OBJECT for the ArrayList."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "Mentions the custom serializer and valueToTree/TokenBuffer behavior, which distinguishes it from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Expected behavior is implied by the workaround, but not stated explicitly in the report."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: the list becomes VALUE_EMBEDDED_OBJECT."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "The discrepancy is inferable, but not directly stated as expected vs observed."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "There are no sufficient step-by-step reproduction instructions."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No required environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A potential cause is proposed: valueToTree uses TokenBuffer and retains the object as-is."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation is linked to the symptom of the list becoming an embedded object."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Evidence is provided via Tatu's quoted explanation and the suggested workaround."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally consistent and does not contradict the reported behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "References technical artifacts such as valueToTree, TokenBuffer, and writeObjectField."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Mentions serializer class, JsonGenerator, SerializerProvider, TypeSerializer, and valueToTree."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Affected subsystem is Jackson JSON serialization/tree conversion."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Includes code snippets and a quoted technical explanation."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No external dependencies or integrations are mentioned beyond Jackson itself."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References like 'more or less' and 'the entire list' are somewhat underspecified."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Inputs and exact triggering conditions are not fully described."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "Expected behavior is not explicitly stated in the report."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment and version information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "The report is consistent and does not contain clear contradictions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The faulty behavior is specific enough to identify the serialization path that needs change."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The likely fix area is identifiable: Jackson valueToTree/TokenBuffer handling or custom serializer usage."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.76,
+        "reason": "A concrete expected correct behavior is not explicitly stated."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "Edge cases and constraints are not documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would likely need more investigation because the report lacks full reproduction details and explicit expected behavior."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A root cause is explicitly proposed: valueToTree with TokenBuffer retains the object as-is."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The explanation references specific constructs: TokenBuffer, valueToTree, and writeObjectField."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The causal link is stated: TokenBuffer retention leads to embedded object output instead of full JsonNode serialization."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A reproduction path can be inferred from serializing the shown class with valueToTree and writeObjectField."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected concept is Jackson tree serialization of list-valued properties."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The symptom appears in the tree output, while the suspected defect is in TokenBuffer/valueToTree handling."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Only one main subsystem is discussed; multiple impacted areas are not identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report describes observable faulty behavior: the list ends up as VALUE_EMBEDDED_OBJECT instead of being serialized into JSON nodes."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The affected functionality is identified as valueToTree() serialization with a custom serializer using writeObjectField."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Code snippets of the custom serializer and a quote from Tatu explaining the root cause are provided."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report provides the serializer code, the class structure, the observed behavior, and a developer explanation, giving enough context to begin investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The subsystem is identifiable as Jackson's valueToTree() / TokenBuffer serialization pipeline."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The report is written in understandable English with coherent sentences, though it lacks a title."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The problem is clear: serializing to a tree via valueToTree() leaves the list as a VALUE_EMBEDDED_OBJECT instead of proper JSON nodes."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report presents the class, the serializer, the observed issue, and a developer explanation in a logical order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References to VALUE_EMBEDDED_OBJECT, TokenBuffer, writeObjectField, and valueToTree() are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Technical terms like VALUE_EMBEDDED_OBJECT, TokenBuffer, JsonNode, and writeObjectField are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The triggering condition is using valueToTree() with a custom serializer that calls writeObjectField on a List."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No explicit numbered reproduction steps are provided; the scenario is described narratively but not as a step-by-step guide."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No version information for Jackson or the environment is mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The specific failure is stated: the list ends up as VALUE_EMBEDDED_OBJECT (the ArrayList itself) in the tree."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The report distinguishes the issue as specific to valueToTree() with TokenBuffer deferring serialization, not a generic serialization failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Expected behavior (a proper JSON array node) is implied but not explicitly stated."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is explicitly stated: the list becomes a VALUE_EMBEDDED_OBJECT (the ArrayList itself)."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The discrepancy is identifiable: the list should be serialized into JSON nodes but instead remains as a raw Java object."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "No explicit reproduction steps are provided; a developer would need to infer the setup from the code snippets."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No environmental conditions, Jackson version, or dependencies are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A potential cause is explicitly proposed: valueToTree() uses TokenBuffer which retains objects as-is instead of fully serializing them."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation (TokenBuffer deferring conversion) is directly linked to the symptom (VALUE_EMBEDDED_OBJECT in the tree)."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The workaround (serialize to bytes then read as tree) supports the explanation by bypassing TokenBuffer."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally coherent: TokenBuffer's deferred behavior explains why the object is not serialized into nodes."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The explanation references TokenBuffer, valueToTree(), VALUE_EMBEDDED_OBJECT, and writeObjectField as specific technical artifacts."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Classes and methods mentioned include JsonSerializer, JsonGenerator, writeObjectField, valueToTree(), TokenBuffer, and JsonNode."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is Jackson's tree serialization pipeline, specifically valueToTree() and TokenBuffer."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Code snippets of the custom serializer class are included."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No external dependencies beyond Jackson itself are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, framework version, or environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "References are mostly specific; VALUE_EMBEDDED_OBJECT, TokenBuffer, and writeObjectField are well-defined terms."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The inputs (a generic class with a List, a custom serializer) are described with code snippets."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Expected behavior is not explicitly stated; it is only implied that the list should serialize into proper JSON array nodes."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "No Jackson version or environment information is provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The faulty behavior (TokenBuffer retaining objects as-is instead of serializing them) is described precisely enough to understand what needs to change."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The component requiring a fix is identifiable as valueToTree() / TokenBuffer in Jackson's serialization pipeline."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "The expected correct behavior is implied (full serialization into JsonNodes) but not explicitly stated as a concrete target."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The report notes the trade-off: configurability may be needed, with one mode forcing full serialization and another leaving objects as-is."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would need further investigation to implement a fix; the report lacks version info, explicit expected behavior, and reproduction steps."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The root cause is explicitly proposed: valueToTree() uses TokenBuffer which retains the ArrayList as a VALUE_EMBEDDED_OBJECT instead of serializing it."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The root cause references TokenBuffer's behavior of deferring conversion and the writeObjectField API call."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The causal chain is articulated: TokenBuffer defers serialization \u2192 ArrayList retained as-is \u2192 VALUE_EMBEDDED_OBJECT in the resulting tree."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "From the narrative, one can infer: create a class with a List, attach the custom serializer, call mapper.valueToTree(), and observe VALUE_EMBEDDED_OBJECT in the result."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is clearly Jackson's valueToTree() / TokenBuffer serialization pipeline."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The symptom (VALUE_EMBEDDED_OBJECT in the tree) is distinguished from the defect location (TokenBuffer's deferred serialization behavior)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one area is identified; no multiple impacted areas or cross-cutting concerns are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.7
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.7
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": false,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.8
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.65
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.7
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.7
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.7
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.65
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.75
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.75
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.7
+      }
+    }
+  },
+  "percent_agreement": 0.9148936170212766,
+  "cohens_kappa": 0.7873303167420814,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.74)"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.8 > 0.75)"
+      },
+      "M2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.82 > 0.7)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.68)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.74)"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge1 (higher confidence: 0.8 > 0.75)"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge1 (higher confidence: 0.82 > 0.7)"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.76,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.68)"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 2,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 4,
+      "RepairReadiness": 3,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 2,
+      "ambiguity_count": 4,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.4488638132020377,
+      "Clarity": 1.4488638132020377,
+      "Specificity": 0.06299407883487115,
+      "Reproducibility": -0.6299407883487121,
+      "ReasoningQuality": 1.4488638132020377,
+      "TechnicalContext": 0.06299407883487115,
+      "Ambiguity": -1.3228756555322954,
+      "RepairReadiness": -0.6299407883487121,
+      "RootCauseEvidence": 0.06299407883487115,
+      "HiddenReproducibility": -1.3228756555322954,
+      "ImpactScope": -0.6299407883487121
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

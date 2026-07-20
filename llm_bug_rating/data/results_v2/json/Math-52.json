@@ -1,0 +1,1458 @@
+{
+  "bug": {
+    "bug_id": "Math-52",
+    "project": "Math",
+    "summary": "numerical problems in rotation creation",
+    "description": "building a rotation from the following vector pairs leads to NaN:\n\nu1 = -4921140.837095533, -2.1512094250440013E7, -890093.279426377\n\nu2 = -2.7238580938724895E9, -2.169664921341876E9, 6.749688708885301E10\n\nv1 = 1, 0, 0\n\nv2 = 0, 0, 1\n\nThe constructor first changes the (v1, v2) pair into (v1', v2') ensuring the following scalar products hold:\n\n<v1'|v1'> == <u1|u1>\n\n<v2'|v2'> == <u2|u2>\n\n<u1 |u2> == <v1'|v2'>\n\nOnce the (v1', v2') pair has been computed, we compute the cross product:\n\nk = (v1' - u1)^(v2' - u2)\n\nand the scalar product:\n\nc = <k | (u1^u2)>\n\nBy construction, c is positive or null and the quaternion axis we want to build is q = k/\n[2*sqrt(c)]\n.\n\nc should be null only if some of the vectors are aligned, and this is dealt with later in the algorithm.\n\nHowever, there are numerical problems with the vector above with the way these computations are done, as shown\n\nby the following comparisons, showing the result we get from our Java code and the result we get from manual\n\ncomputation with the same formulas but with enhanced precision:\n\ncommons math: k = 38514476.5, -84., -1168590144\n\nhigh precision: k = 38514410.36093388..., -0.374075245201180409222711..., -1168590152.10599715208...\n\nand it becomes worse when computing c because the vectors are almost orthogonal to each other, hence inducing additional cancellations. We get:\n\ncommons math c = -1.2397173627587605E20\n\nhigh precision: c = 558382746168463196.7079627...\n\nWe have lost ALL significant digits in cancellations, and even the sign is wrong!"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observable faulty behavior is described: building a rotation from given vector pairs leads to NaN."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The report identifies the rotation constructor and the computations for k and c, though not a specific class or method name."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "It includes concrete numeric comparisons for k and c from commons math versus high precision."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The vector inputs and formulas are specific enough to attempt reproduction or investigation directly."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "The rotation constructor and its internal k/c computation are pinpointed as the starting component."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer unfamiliar with the codebase can understand the failure scenario from the described vector pairs and NaN result."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The report is detailed enough to derive a failing test from the provided inputs and expected numerical stability."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is explicit: transform v1,v2 to v1',v2', compute k, then c, then quaternion axis."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Referenced entities like rotation constructor, vector pairs, cross product k, and scalar product c are described precisely enough to locate code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Technical terms such as scalar product, cross product, quaternion axis, and cancellations are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete triggering inputs are provided as exact vector values."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.42,
+        "reason": "No ordered reproduction steps are given beyond the mathematical setup."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "No environment or version information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific failure values for k and c are reported, including the wrong sign for c."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The combination of inputs and numerical cancellation issue uniquely identifies this bug."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.46,
+        "reason": "Expected behavior is implied numerically but not stated as a direct correctness criterion."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: the computation yields NaN and incorrect k and c values."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy between commons math and high precision results is clearly stated."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "The report lacks step-by-step reproduction instructions."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "No environment or dependency setup details are provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A specific cause is proposed: numerical cancellation in the k and c computations."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report links the cancellation to the wrong sign and NaN outcome."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "It supports the explanation with concrete computed values from commons math and high precision."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is internally consistent and matches the described numerical instability."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "It references specific artifacts like k, c, v1, v2, u1, u2, and the quaternion axis formula."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": false,
+        "confidence": 0.38,
+        "reason": "No exact class, method, or file names are given."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "The affected subsystem is the rotation creation constructor and its vector/quaternion computation path."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report includes relevant computed values for k and c."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.12,
+        "reason": "No external dependencies or library versions are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.1,
+        "reason": "No OS, runtime, or framework environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.62,
+        "reason": "The exact constructor/class location is vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "The triggering inputs are fully specified."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.58,
+        "reason": "Expected behavior is not stated explicitly, only that c should be null in aligned cases."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Environment and version information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.08,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report indicates the fix should address numerical cancellation in the rotation construction."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.68,
+        "reason": "The rotation constructor and its k/c computation are identifiable as the fix location."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.44,
+        "reason": "A concrete acceptance criterion is not explicitly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.66,
+        "reason": "The edge case of nearly orthogonal vectors causing cancellation is explicitly described."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "A plausible fix can be inferred from the report: improve numerical stability in the k and c calculations."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report explicitly proposes numerical cancellation as the cause."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "It references specific operations: cross product k and scalar product c."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The causal chain from cancellation to lost digits and wrong sign in c is clearly explained."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The concrete vector pair scenario is sufficient to derive complete reproduction steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "The rotation creation constructor and quaternion axis computation are identifiable affected concepts."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The symptom appears in rotation creation, while the defect is likely in the internal numerical computation."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.28,
+        "reason": "Only one main affected path is described; multiple impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report mentions several technical concepts: rotation constructor, vector pairs, cross product k, scalar product c, and quaternion axis."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior (NaN in rotation creation) with concrete vector inputs that trigger the failure."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Identifies rotation constructor and specific computational steps (cross product, scalar product, quaternion axis calculation) but not exact class/method names."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes concrete debugging artifacts: specific vector values, intermediate computation results (k and c values) from both Java and high-precision calculations showing the discrepancy."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer can immediately attempt to reproduce using provided vector inputs and formulas, though exact class location would require brief codebase search."
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Report identifies 'rotation constructor' and algorithm steps but does not name the specific class (e.g., Rotation.java) or package location."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clearly described: numerical precision loss during vector transformations in rotation creation."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer could write a test case using the provided vector inputs and expected vs. actual output comparison."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Sequence of events is unambiguous: vector pair transformation \u2192 cross product computation \u2192 scalar product computation \u2192 quaternion axis calculation."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Report references 'rotation constructor' and algorithm steps generically; exact class and method names are not provided."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Technical terminology (cross product, scalar product, quaternion, cancellation) is used accurately and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific input vectors are provided with full precision, directly usable in a test case."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Reproduction steps are described (construct rotation from vector pairs) but lack explicit step-by-step instructions; algorithm description serves as implicit steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "No version information, Java version, or environment details are provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific output failures are reported verbatim: k and c values from both implementations, showing sign error and loss of significant digits."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report uniquely identifies this issue through specific vector values and the particular numerical cancellation problem that occurs with nearly orthogonal vectors."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior is implicitly stated: c should be positive or null, and quaternion axis should be computable without NaN."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Observed behavior is explicitly stated with detailed intermediate values showing NaN/incorrect results."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Discrepancy is unambiguously identifiable: commons math produces wrong sign and loses all significant digits compared to high-precision computation."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Reproduction steps are sufficient (provide vector inputs to rotation constructor) but lack explicit procedural detail."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "No environment details (Java version, OS, commons-math version) are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report explicitly proposes root cause: numerical cancellation due to nearly orthogonal vectors during scalar product computation."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Proposed explanation (cancellation in nearly orthogonal case) is directly linked to observed symptoms (sign error, loss of significant digits in c)."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete evidence provided: side-by-side comparison of commons math vs. high-precision results showing the magnitude of error."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is internally coherent: nearly orthogonal vectors \u2192 cancellation \u2192 loss of precision \u2192 sign error."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References specific computational steps (cross product k, scalar product c) and shows exact numerical values from both implementations."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Report references 'rotation constructor' and algorithm steps generically; specific class and method names are not provided."
+      },
+      "T2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Affected subsystem is identifiable as rotation-related but exact module/file location is not specified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical artifacts included: specific vector values, intermediate computation results (k and c), and side-by-side numerical comparisons."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "No external dependencies or library versions are mentioned; only 'commons math' is referenced without version."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "No environment details provided: Java version, OS, commons-math version, or hardware specifications are missing."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report references 'rotation constructor' and algorithm steps without naming the exact class, requiring brief codebase search."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs are fully specified with concrete vector values; parameters are unambiguous."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior is clear: c should be positive/null and quaternion axis should be computable without NaN."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Version and environment information is missing, which could affect reproduction and diagnosis."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Report is internally consistent; no contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Faulty behavior is described precisely; correct behavior should avoid cancellation errors and produce positive c value."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Specific component is identifiable as rotation constructor but exact class/method name is not provided."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected correct behavior is stated: c should be positive/null and match high-precision computation results."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Relevant constraint is documented: nearly orthogonal vectors cause cancellation; algorithm should handle this case."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could implement a fix using higher precision arithmetic or reformulated computation to avoid cancellation, though exact class location requires brief search."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific root cause is explicitly proposed: numerical cancellation in scalar product computation when vectors are nearly orthogonal."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root cause references specific operations: scalar product computation (c = <k | (u1^u2)>) and cross product (k = (v1' - u1)^(v2' - u2))."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Causal chain is articulated: nearly orthogonal vectors \u2192 cancellation in scalar product \u2192 loss of significant digits \u2192 sign error \u2192 NaN in quaternion axis."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report describes a specific, concrete scenario (four vector inputs) from which complete reproduction steps can be directly derived without ambiguity."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Affected subsystem is identifiable as rotation constructor/creation logic, though exact class is not named."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report distinguishes between symptom (NaN in quaternion axis) and underlying defect (numerical cancellation in scalar product computation)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Report focuses on single issue (rotation creation); does not identify multiple impacted areas or cross-cutting concerns."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report names multiple relevant technical concepts: rotation constructor, cross product, scalar product, quaternion axis, vector transformation, cancellation."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.88
+      },
+      "A5": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "C4": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.7
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": false,
+        "confidence_diff": 0.43,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.42,
+        "judge2_confidence": 0.85
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.42,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.6
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.38999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.46,
+        "judge2_confidence": 0.85
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "R4": {
+        "agreement": false,
+        "confidence_diff": 0.4,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.8
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.4,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.55
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.93
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.31999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.38,
+        "judge2_confidence": 0.7
+      },
+      "T2": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.65
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.38,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.12,
+        "judge2_confidence": 0.5
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.30000000000000004,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.1,
+        "judge2_confidence": 0.4
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.85
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.7,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.30000000000000004,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.88
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.8400000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.08,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": false,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.7
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.41,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.44,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.66,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.85
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.37,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.28,
+        "judge2_confidence": 0.65
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.8125,
+  "cohens_kappa": 0.5135135135135135,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.7)"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.42)"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.46)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.4)"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.58)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.44)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.7)"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.42)"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.46)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.4)"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.58)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.44)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 4,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 2,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 0.36860489038724287,
+      "Clarity": 1.179535649239177,
+      "Specificity": 0.36860489038724287,
+      "Reproducibility": 0.36860489038724287,
+      "ReasoningQuality": 1.179535649239177,
+      "TechnicalContext": -1.2532566273166255,
+      "Ambiguity": -0.44232586846469135,
+      "RepairReadiness": 1.179535649239177,
+      "RootCauseEvidence": -0.44232586846469135,
+      "HiddenReproducibility": -2.06418738616856,
+      "ImpactScope": -0.44232586846469135
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,1426 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-110",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "I'm sorry to bring that one up again, but I'm under the impression that the issue about unmodifiable collections (\n#1880\n) is still not solved completely.\n\nIn fact, the way the \nCLASS_UNMODIFIABLE_LIST\nis retrieved \nhere\nyields \nCollections$UnmodifiableRandomAccessList\n, and therefore only this type is currently supported by Jackson 2.9.8.\n\nHowever, using \nCollections.unmodifiableList()\non a \nList\nimplementation that doesn't implement \nRandomAccess\nwill yield a \nCollections$UnmodifiableList\ninstead, which is not deserialized properly and fails with:\n\ncom.fasterxml.jackson.databind.exc.InvalidDefinitionException: Cannot construct instance of `java.util.Collections$UnmodifiableList` (no Creators, like default constructor, exist): no default no-arguments constructor found\n\nThis can be reproduced by adding the following test case in \nTestDefaultForUtilCollections1868\n:\n\npublic\n\nvoid\n\ntestUnmodifiableNonRandomAccessList\n() \nthrows\n\nException\n{\n\n_verifyCollection\n(\nCollections\n.\nunmodifiableList\n(\nnew\n\nLinkedList\n<>(\nArrays\n.\nasList\n(\n\"first\"\n, \n\"second\"\n))));\n}\n\nOr more generally for outside the project:\n\npublic\n\nvoid\n\ntestUnmodifiableNonRandomAccessList\n() \nthrows\n\nException\n{\n\nCollection\n<?> \nexp\n= \nCollections\n.\nunmodifiableList\n(\nnew\n\nLinkedList\n<>(\nArrays\n.\nasList\n(\n\"first\"\n, \n\"second\"\n)));\n\nObjectMapper\n\nmapper\n= \nnew\n\nObjectMapper\n();\n\nmapper\n.\nenableDefaultTyping\n(\nDefaultTyping\n.\nNON_FINAL\n, \nJsonTypeInfo\n.\nAs\n.\nPROPERTY\n);\n\nString\n\njson\n= \nmapper\n.\nwriteValueAsString\n(\nexp\n);\n\nCollection\n<?> \nact\n= \nmapper\n.\nreadValue\n(\njson\n, \nCollection\n.\nclass\n);\n\nassertEquals\n(\nexp\n, \nact\n);\n\nassertEquals\n(\nexp\n.\ngetClass\n(), \nact\n.\ngetClass\n());\n}\n\nCurrently \njava.util.Collections.unmodifiableList()\ncan only return these 2 types of unmodifiable lists, so I believe it is safe for now to just hardcode yet another special case for this class.\n\nThis can currently be solved on user side by adding a mixin, but since \nCollections$UnmodifiableRandomAccessList\nis supported, I would find it natural to also support the non-random access variant."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes observable failure: deserialization of Collections$UnmodifiableList fails with InvalidDefinitionException."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected functionality is identified as unmodifiable collections / Collections.unmodifiableList deserialization."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes an exception message and a concrete test case showing the failure."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides enough context to investigate: class names, failing type, and reproduction code."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Points to the unmodifiable collections handling in Jackson 2.9.8, specifically CLASS_UNMODIFIABLE_LIST."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report is understandable and grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as unsupported deserialization of Collections$UnmodifiableList."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It moves from issue description to exception, then reproduction, then suggested fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References to classes and types are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terms like RandomAccess, ObjectMapper, DefaultTyping, and mixin are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specifies the triggering condition: unmodifiableList wrapping a LinkedList without RandomAccess."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides explicit test code and reproduction steps."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Includes Jackson 2.9.8, but no broader environment details."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports the exact InvalidDefinitionException and its message."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Distinguishes the non-RandomAccess unmodifiable list case from the already-supported RandomAccess variant."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied by the assertEquals checks and the claim that the type should deserialize properly."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: deserialization fails with InvalidDefinitionException."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy is clear: expected support for the unmodifiable list, but actual failure to construct it."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The provided test code is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "No required environment or dependency conditions beyond Jackson 2.9.8 are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposes a likely cause: only Collections$UnmodifiableRandomAccessList is currently supported."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Links the proposed cause to the observed failure on Collections$UnmodifiableList."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Supports the explanation by contrasting supported and unsupported unmodifiable list implementations."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The explanation is coherent: a missing special case causes the deserialization failure."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "References technical artifacts such as CLASS_UNMODIFIABLE_LIST, ObjectMapper, and the exception."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions ObjectMapper, DefaultTyping, JsonTypeInfo, and TestDefaultForUtilCollections1868."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected module is identifiable as Jackson's unmodifiable collections handling."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes an exception message and concrete test code."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "No external dependencies or integrations are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "No OS, browser, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "References like 'here' and '#1880' are somewhat underspecified."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The exact triggering inputs are limited to one example and broader conditions are not fully described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is reasonably clear from the asserts and discussion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Environment/version information is mostly missing except for Jackson 2.9.8."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The faulty behavior is specific enough to identify the missing support case."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The relevant area is identifiable as the unmodifiable collection type handling."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "States the target behavior: support deserialization of Collections$UnmodifiableList like the RandomAccess variant."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Documents the key condition that the wrapped list does not implement RandomAccess."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "A developer would likely still need to inspect the code path, despite the strong hint."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Explicitly proposes that another special case is needed for Collections$UnmodifiableList."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References the specific class type returned by Collections.unmodifiableList and the CLASS_UNMODIFIABLE_LIST handling."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Explains that unsupported type handling leads directly to the deserialization failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The narrative clearly implies a reproducible path using Collections.unmodifiableList on a LinkedList and Jackson deserialization."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is Jackson's unmodifiable collections deserialization support."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It distinguishes the symptom at deserialization time from the underlying type-detection/support gap."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Only one subsystem is discussed; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Report describes a concrete deserialization failure with an exception message for Collections$UnmodifiableList."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected component is Jackson's handling of unmodifiable collections, specifically Collections$UnmodifiableList deserialization."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides exception message, code references (CLASS_UNMODIFIABLE_LIST retrieval), and test case code snippets."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Sufficient context including the issue history, exception, reproduction steps, and suggested fix direction."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies Jackson databind's collection deserialization subsystem as the affected area."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report is well-written and grammatically coherent throughout."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Problem is clearly stated: Collections$UnmodifiableList (non-RandomAccess) fails deserialization while Collections$UnmodifiableRandomAccessList works."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Information flows logically: background, problem description, reproduction, and suggested fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to specific classes (Collections$UnmodifiableList, Collections$UnmodifiableRandomAccessList) are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Technical terminology (RandomAccess, deserialization, Creators, mixin) is used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific triggering condition: using Collections.unmodifiableList() on a List that doesn't implement RandomAccess (e.g., LinkedList)."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete test case code is provided both for the project's test suite and as a standalone example."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson version 2.9.8 is mentioned; OS/JDK details are absent but less critical here."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Exact exception message is provided: InvalidDefinitionException about Collections$UnmodifiableList."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Distinguishes between the two unmodifiable list subtypes and explains why only one is currently handled."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is stated: Collections$UnmodifiableList should deserialize properly, same as Collections$UnmodifiableRandomAccessList."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicitly stated: deserialization fails with InvalidDefinitionException."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Discrepancy is clear: RandomAccess variant works, non-RandomAccess variant fails."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Complete test code is provided that can be directly run to reproduce the issue."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson version 2.9.8 and ObjectMapper with NON_FINAL typing are documented; JDK version not specified."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report explicitly proposes that CLASS_UNMODIFIABLE_LIST is retrieved as UnmodifiableRandomAccessList, leaving UnmodifiableList unsupported."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The proposed cause (only RandomAccess variant registered) is directly linked to the deserialization failure."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References the specific code location (CLASS_UNMODIFIABLE_LIST retrieval) and the resulting type as evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explanation is coherent: retrieving the class via a RandomAccess list means only that subtype is registered."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific code location ('here' link) and class names as technical artifacts."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Mentions CLASS_UNMODIFIABLE_LIST, Collections$UnmodifiableRandomAccessList, Collections$UnmodifiableList, ObjectMapper, DefaultTyping, JsonTypeInfo."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Jackson databind's collection deserialization/type handling subsystem is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Exception message and code snippets are included; no stack trace but exception class and message are provided."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external dependencies beyond Jackson itself are referenced; Jackson is the subject, not an external dependency."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Jackson version 2.9.8 is mentioned but OS, JDK version, and other environment details are absent."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "References are specific (class names, version, test class name); 'here' link is the only vague reference."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and conditions are well described: LinkedList wrapped in unmodifiableList with NON_FINAL typing."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clearly stated: same deserialization support as the RandomAccess variant."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "JDK version is not specified, which could be relevant for internal class behavior."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements found in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Faulty behavior is precisely described: Collections$UnmodifiableList not registered as a supported type for deserialization."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The fix location is implied: where CLASS_UNMODIFIABLE_LIST is retrieved/registered, likely in a collections deserializer module."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected correct behavior stated: both UnmodifiableList and UnmodifiableRandomAccessList should be supported."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report notes there are only 2 unmodifiable list types currently, suggesting hardcoding is safe."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The exact code location requires navigating the codebase; 'here' link is not accessible in this context, so some investigation is still needed."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Root cause explicitly proposed: CLASS_UNMODIFIABLE_LIST is obtained via a RandomAccess list, so only that subtype is registered."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific code construct: the retrieval of CLASS_UNMODIFIABLE_LIST and the resulting class type."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Causal chain articulated: wrong class registered \u2192 Collections$UnmodifiableList not recognized \u2192 no constructor found \u2192 deserialization fails."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Complete standalone test code is provided, making reproduction steps fully inferable even without numbered steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Jackson databind's unmodifiable collection type registration/deserialization module is clearly identifiable."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom (deserialization failure) is distinguished from defect location (CLASS_UNMODIFIABLE_LIST registration logic)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one specific issue (UnmodifiableList deserialization) is identified; no multiple cross-cutting areas mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.97
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.9361702127659575,
+  "cohens_kappa": 0.7622259696458685,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 0.933138949631687,
+      "Clarity": 0.933138949631687,
+      "Specificity": 0.933138949631687,
+      "Reproducibility": 0.933138949631687,
+      "ReasoningQuality": 0.933138949631687,
+      "TechnicalContext": -0.3499271061118826,
+      "Ambiguity": 0.2916059217599022,
+      "RepairReadiness": -1.632993161855452,
+      "RootCauseEvidence": -0.3499271061118826,
+      "HiddenReproducibility": -1.632993161855452,
+      "ImpactScope": -0.9914601339836674
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,1430 @@
+{
+  "bug": {
+    "bug_id": "Jsoup-46",
+    "project": "Jsoup",
+    "summary": "No title",
+    "description": "I've been using EscapeMode.xhtml with JSoup to avoid encoding things which don't (from my perspective) need to be encoded, like egrave in a UTF-8 document for example.\n\nWhile upgrading from JSoup 1.7.2 to 1.8.1 however, I've noticed a problem with a shift-jis related test I have. Here's a simplified/reduced version.\n\npackage test;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.InputStream;\nimport java.nio.charset.Charset;\n\nimport org.jsoup.Jsoup;\nimport org.jsoup.nodes.Document;\nimport org.jsoup.nodes.Entities.EscapeMode;\nimport org.junit.Assert;\nimport org.junit.Test;\n\npublic class ShiftJisTest {\n\n@Test\npublic void testShiftJisRoundtrip() throws Exception {\nString input = \n\"<html>\"\n+ \"<head>\"\n+ \"<meta http-equiv=\\\"content-type\\\" content=\\\"text/html; charset=Shift_JIS\\\" />\"\n+ \"</head>\"\n+ \"<body>\"\n+ \"before&nbsp;after\"\n+ \"</body>\"\n+ \"</html>\";\nInputStream is = new ByteArrayInputStream(input.getBytes(Charset.forName(\"ASCII\")));\n\nDocument doc = Jsoup.parse(is, null, \"http://example.com\");\ndoc.outputSettings().escapeMode(EscapeMode.xhtml);\n\nString output = new String(doc.html().getBytes(doc.outputSettings().charset()), doc.outputSettings().charset());\n\nSystem.out.println(output);\n\nAssert.assertFalse(\"Should not have contained a '?'.\", output.contains(\"?\"));\nAssert.assertTrue(\"Should have contained a '&#xa0;' or a '&nbsp;'.\", \noutput.contains(\"&#xa0;\") || output.contains(\"&nbsp;\"));\n}\n\n}\n\nUnder JSoup 1.7.2, the body of the output in this test is \"before\u00a0after\" (which looks as expected when rendered in Firefox), where as under 1.8.1 it is \"before?after\".\n\nI assume the issue here is that I've asked JSoup to escape only XHTML characters (i.e. not nbsp), and it's producing a charset where (I assume) there's no character to represent 'non-breaking space'.\n\nThe upshot of this is that, as a result of upgrading JSoup, I end up with '?' replaced in for what used to be shown as a non breaking space.\n\nIt seems like the old behaviour was to fall back to providing an escaped numeric character (odd if there's no valid character for that in Shift_JIS, but it still rendered correctly). From my perspective, the old behaviour was better - Is there any way it can be reinstated (or an escape mode provided for it)?\n\nObviously using EscapeMode.base instead of EscapeMode.xhtml is a possible workaround, however I would really prefer not to have characters unnecessarily escaped if possible."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty output: Shift_JIS roundtrip produces '?' instead of a non-breaking space."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies JSoup output settings, specifically EscapeMode.xhtml during HTML serialization."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes a reduced Java test case and the observed output, though no stack trace or logs."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides version comparison, input HTML, parsing call, and expected vs observed behavior to start investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Likely affected area is JSoup entity escaping/output encoding in HTML serialization."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The problem is clearly identified as a regression in JSoup output for nbsp under Shift_JIS."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report follows a logical flow: context, test case, observed behavior, expected behavior, workaround."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "References to JSoup, EscapeMode.xhtml, Shift_JIS, and nbsp are specific and mostly unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Technical terms like UTF-8, Shift_JIS, XHTML, and numeric character reference are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specifies the triggering condition: parsing HTML with a Shift_JIS meta charset and EscapeMode.xhtml."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides concrete reproduction code in a JUnit test."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes JSoup versions 1.7.2 and 1.8.1, but no OS or browser details."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reports the specific failure output as 'before?after' instead of a non-breaking space."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Distinguishes this from a generic failure by tying it to entity escaping and Shift_JIS encoding behavior."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Expected behavior is stated: no '?' and a '&#xa0;' or '&nbsp;'."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicitly stated: output becomes 'before?after'."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The discrepancy between expected non-breaking space and observed '?' is clear."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The included test code is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "Charset and JSoup version are given, but broader environment/dependency conditions are not fully documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposes a cause: EscapeMode.xhtml plus Shift_JIS leads to an unrepresentable character being replaced."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Links the explanation to the observed '?' in the output."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "The report gives an assumption and comparison to older behavior, but no direct evidence of the internal cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation is coherent: XHTML escaping omits nbsp, causing charset conversion to substitute '?'."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "No logs, traces, or code locations are referenced beyond the API usage."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions Jsoup.parse, Document, outputSettings, and Entities.EscapeMode."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The affected subsystem is JSoup HTML parsing/output entity escaping."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Includes code snippet and output, but no logs, stack traces, or screenshots."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.52,
+        "reason": "No external libraries or services beyond JSoup are relevantly referenced."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Includes charset/version details such as Shift_JIS, ASCII input bytes, and JSoup versions."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are vague, such as 'from my perspective' and 'old behaviour'."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Inputs and triggering conditions are fairly well described in the test case."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Expected behavior is clearly stated as preserving nbsp via entity escaping."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "Environment details beyond JSoup version and charset are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior is precise enough to identify the needed change in escaping/serialization."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The fix area is identifiable as JSoup entity escaping/output encoding, though not a specific line."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "States the desired behavior: use '&#xa0;' or '&nbsp;' instead of '?' in output."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Documents the key condition that matters: Shift_JIS output with EscapeMode.xhtml."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "A developer would likely need to inspect JSoup internals to implement the fix correctly."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The report explicitly proposes that XHTML escaping omits nbsp and causes charset substitution."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "No specific code construct or internal API call beyond EscapeMode.xhtml is identified as the root cause."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report explains the causal chain from escaping choice to unrepresentable character to '?' output."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A reproducible scenario can be inferred from the provided test code and description."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The affected concept is JSoup's entity escaping and HTML output serialization."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "The report does not clearly separate symptom location from underlying defect location."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "Only one main area is discussed; no multiple impacted subsystems are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observable faulty behavior described: '?' appears instead of non-breaking space in JSoup 1.8.1 output."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected functionality identified: EscapeMode.xhtml handling of non-breaking space in Shift_JIS documents."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Full code snippet provided as a JUnit test, showing exact inputs and assertions."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Version comparison (1.7.2 vs 1.8.1), code, and expected vs actual output all provided."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Subsystem identified: JSoup's Entities/EscapeMode handling, specifically xhtml escape mode with Shift_JIS charset."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report is well-written, grammatically coherent, and easy to follow."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Problem clearly identified: EscapeMode.xhtml produces '?' instead of a valid escape for nbsp in Shift_JIS."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Information flows logically: context, code, observed vs expected, hypothesis, and workaround."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to EscapeMode.xhtml, Shift_JIS, nbsp, and version numbers are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Technical terms (EscapeMode, xhtml, Shift_JIS, nbsp, charset) used consistently throughout."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific conditions: EscapeMode.xhtml, Shift_JIS charset, input containing &nbsp;, JSoup 1.8.1."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete reproduction steps provided as a complete JUnit test case."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "JSoup versions 1.7.2 and 1.8.1 explicitly mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific output difference stated: 'before after' (1.7.2) vs 'before?after' (1.8.1)."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Issue is specific to EscapeMode.xhtml + Shift_JIS + nbsp combination, not a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected behavior stated: output should contain '&#xa0;' or '&nbsp;', not '?'."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior stated: output contains '?' instead of non-breaking space representation."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Discrepancy clearly identifiable: '?' vs '&#xa0;'/'&nbsp;' in output."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Self-contained JUnit test provided; sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "JSoup version mentioned; JUnit dependency implied. OS/JDK not specified but likely not critical."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reporter proposes that xhtml escape mode doesn't encode nbsp and Shift_JIS has no character for non-breaking space, causing '?'."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Proposed explanation linked to symptom: no fallback numeric escape leads to '?' substitution."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Evidence provided via version comparison and test output showing the regression."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is coherent: xhtml mode skips nbsp encoding, Shift_JIS can't represent it, result is '?'."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References EscapeMode.xhtml, charset encoding, and numeric character references as technical artifacts."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Classes mentioned: Jsoup, Document, Entities.EscapeMode, outputSettings(), charset()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected subsystem: JSoup's entity escaping/encoding module (Entities.EscapeMode)."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Full code snippet provided as a JUnit test; output strings shown."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "JSoup library referenced with specific versions; JUnit referenced as test framework."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "JSoup versions mentioned but OS, JDK version, and other environment details are absent."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "References are specific: versions, escape modes, charset, and input/output are all clearly described."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and conditions are well-described with a complete code example."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is explicitly stated in assertions and narrative."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "OS and JDK version are not specified, which could be relevant for charset handling."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements found in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Faulty behavior precisely described: xhtml escape mode should fall back to numeric escape when charset can't represent a character."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Component identifiable: Entities/EscapeMode handling in JSoup, specifically the xhtml escape mode output path."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected correct behavior stated: fall back to numeric character reference (e.g., &#xa0;) when character can't be encoded."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Edge case documented: Shift_JIS charset with xhtml escape mode and characters not representable in that charset."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would need to investigate the specific code change between 1.7.2 and 1.8.1 to implement a fix; report doesn't pinpoint the exact code location."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Root cause implied: xhtml escape mode doesn't encode nbsp, and no fallback to numeric escape when charset can't represent it."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific code construct, method, or commit referenced as the root cause; only behavioral description provided."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Causal chain articulated: xhtml mode skips nbsp \u2192 Shift_JIS can't encode it \u2192 '?' substitution in output."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Complete JUnit test provided; reproduction steps can be directly inferred and executed from the code."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected subsystem clearly identifiable: JSoup's Entities.EscapeMode.xhtml with non-ASCII charset encoding."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Report does not clearly distinguish between where symptom manifests (output) and where defect resides (encoding logic internals)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Only one impacted area identified; no cross-cutting concerns or multiple modules mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.96
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.28,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.30000000000000004,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.88
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.32999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.88
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "T3": {
+        "agreement": false,
+        "confidence_diff": 0.35,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.38,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.52,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.1499999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.7
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.65
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.5,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.851063829787234,
+  "cohens_kappa": 0.5732814526588846,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.62)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.58)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.55)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.6)"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.52)"
+      },
+      "T5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.62)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.58)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.55)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.6)"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.52)"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 2,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 1
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 2,
+      "impact_scope": 1
+    },
+    "zscore": {
+      "Actionability": 0.8186312161546414,
+      "Clarity": 0.8186312161546414,
+      "Specificity": 0.8186312161546414,
+      "Reproducibility": 0.8186312161546414,
+      "ReasoningQuality": 0.8186312161546414,
+      "TechnicalContext": 0.8186312161546414,
+      "Ambiguity": 0.25582225504832545,
+      "RepairReadiness": -1.4326046282706224,
+      "RootCauseEvidence": -0.8697956671643065,
+      "HiddenReproducibility": -1.4326046282706224,
+      "ImpactScope": -1.4326046282706224
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

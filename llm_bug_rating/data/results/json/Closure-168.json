@@ -1,0 +1,1437 @@
+{
+  "bug": {
+    "bug_id": "Closure-168",
+    "project": "Closure",
+    "summary": "Wrong argument count error not reported on this aliasing (on function with @this annotation)",
+    "description": "The following code (attached as test2-1.js) when compiled with:\r\njava -jar build/compiler.jar --compilation_level=ADVANCED_OPTIMIZATIONS --jscomp_error=accessControls --jscomp_error=checkTypes --jscomp_error=checkVars --jscomp_error=uselessCode --jscomp_off=globalThis --js ~/Desktop/test2.js \r\n\r\ncorrectly fails with:\r\n\r\n/Users/dolapo/Desktop/test2.js:28: ERROR - Function Person.prototype.getName: called with 1 argument(s). Function requires at least 0 argument(s) and no more than 0 argument(s).\r\n\r\nHowever, if the say function is modified such that this is aliased and the function is called within a setTimeout (test2-2.js), the error is not caught\r\n\r\n\r\n\r\n\r\n\r\ntest2-1.js:\r\nvar makeClass = function(protoMethods) {\r\n  var clazz = function() {\r\n    this.initialize.apply(this, arguments);\r\n  }\r\n  for (var i in protoMethods) {\r\n    clazz.prototype[i] = protoMethods[i];\r\n  }\r\n\r\n  return clazz;\r\n}\r\n\r\n/** @constructor */\r\nvar Person = function(name){};\r\nPerson = makeClass(/** @lends Person.prototype */ {\r\n  /** @this {Person} */\r\n  initialize: function(name) {\r\n    this.name = name;\r\n  },\r\n\r\n  /** @this {Person} */\r\n  getName: function() { return this.name; },\r\n\r\n  /**\r\n   * @param {string} message\r\n   * @this {Person}\r\n   */\r\n  say: function(message) {\r\n    window.console.log(this.getName(1) + ' says: ' + message);\r\n  }\r\n});\r\n\r\n\r\nvar joe = new Person('joe');\r\njoe.say('hi');\r\nvar jane = new Person('jane');\r\njane.say('hello');\r\n\r\n\r\n\r\ntest2-2.js:\r\n\r\nvar makeClass = function(protoMethods) {\r\n  var clazz = function() {\r\n    this.initialize.apply(this, arguments);\r\n  }\r\n  for (var i in protoMethods) {\r\n    clazz.prototype[i] = protoMethods[i];\r\n  }\r\n\r\n  return clazz;\r\n}\r\n\r\n/** @constructor */\r\nvar Person = function(name){};\r\nPerson = makeClass(/** @lends Person.prototype */ {\r\n  /** @this {Person} */\r\n  initialize: function(name) {\r\n    this.name = name;\r\n  },\r\n\r\n  /** @this {Person} */\r\n  getName: function() { return this.name; },\r\n\r\n  /**\r\n   * @param {string} message\r\n   * @this {Person}\r\n   */\r\n  say: function(message) {\r\n    // window.console.log(this.getName(1) + ' says: ' + message);\r\n    var self = this;\r\n    setTimeout(function() {\r\n      window.console.log(self.getName(1) + ' says: ' + message);\r\n    }, 500); \r\n  }\r\n});\r\n\r\n\r\nvar joe = new Person('joe');\r\njoe.say('hi');\r\nvar jane = new Person('jane');\r\njane.say('hello');"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reports observable faulty behavior: a wrong-argument-count error is reported in one case and missed in another."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected functionality is identified as function call argument checking on an aliased method inside setTimeout."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes a concrete compiler error message and code snippets showing the failing and non-failing cases."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides enough code and compiler flags to start investigating the issue."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Likely affected area is the compiler's type checking/access control or call-argument validation for aliased methods."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report is understandable and grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The problem is clearly identified as a missing wrong-argument-count error in the aliased case."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It presents setup, then the working case, then the modified failing case in a consistent order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References to Person.prototype.getName, say, and setTimeout are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Technical terms like aliasing, @this annotation, and ADVANCED_OPTIMIZATIONS are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The triggering condition is described: calling getName(1) directly versus through an alias inside setTimeout."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete reproduction code is provided for both cases."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes compiler invocation and flags, though no browser/OS version beyond file path context."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reports the exact compiler error message for the direct case and that the error is not caught in the aliased case."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Distinguishes this from a generic failure by tying it to aliasing and setTimeout with @this annotations."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Expected behavior is implied by the direct case but not explicitly stated as a separate expectation."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is explicitly stated: the error is not caught in the aliased setTimeout case."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy is clear: direct call reports the error, aliased call does not."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The code and compiler command are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "No explicit environment or dependency details are given beyond compiler flags."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report does not explicitly propose a root cause."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No causal explanation is provided linking a cause to the missed error."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "The report gives examples but no evidence for a specific explanation."
+      },
+      "Q4": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "There is no explicit explanation to assess for coherence."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.89,
+        "reason": "No technical artifacts are cited as part of a proposed explanation."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions specific code elements such as Person.prototype.getName, say, initialize, and setTimeout."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is identifiable as the compiler's type/argument checking on method calls."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes code snippets and a compiler error message."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "References the browser global window and setTimeout, which are relevant external APIs."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No OS, browser, framework, or compiler version is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Some references are underspecified, such as 'this aliasing' and 'the say function' in the summary."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The exact triggering conditions are not fully enumerated beyond the code example."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.62,
+        "reason": "Expected behavior is not stated directly, only inferred from the direct-case error."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior is precise enough: the compiler misses an argument-count error in the aliased call."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "The exact code location to fix is not identified."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "The correct behavior is implied but not explicitly stated as a target."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The key condition is documented: aliasing the method and invoking it inside setTimeout."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "A developer would likely need further investigation to locate the defect."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No root cause is explicitly proposed."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific code construct or API is identified as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report does not articulate a causal chain, only the symptom difference."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reproducible steps can be inferred from compiling the provided test2-1.js and test2-2.js with the given flags."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely affected concept is compiler argument checking/type analysis for method calls."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The symptom appears at compilation time, while the underlying defect is in the compiler's analysis of aliased calls."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one main area is implicated; no multiple impacted subsystems are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report clearly describes that a wrong argument count error is not reported when it should be."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected functionality is type checking with @this annotation when aliasing 'this' inside setTimeout."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Two concrete JS files are provided along with the compiler command and expected vs actual output."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report provides compiler flags, code examples, and a clear comparison between working and broken cases."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected subsystem is the Closure Compiler's type checker, specifically argument count checking with @this annotations."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report is well-written and grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The problem is clearly stated: wrong argument count error is not reported when 'this' is aliased in a setTimeout callback."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Information flows logically: context, working case, broken case, code examples."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to test files, functions, and annotations are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Technical terms like @this, aliasing, setTimeout, ADVANCED_OPTIMIZATIONS are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The triggering condition is specifically aliasing 'this' to 'self' and calling getName(1) inside a setTimeout callback."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The compiler command and two JS files are provided as concrete reproduction steps."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The compiler jar and compilation flags are specified, though the exact version number is not explicitly stated."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The expected error message is quoted verbatim, and the absence of error in the broken case is noted."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report distinguishes the issue specifically to the combination of @this annotation, aliasing, and setTimeout."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Expected behavior is explicitly stated: the compiler should report a wrong argument count error."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicitly stated: the error is not caught in test2-2.js."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The discrepancy is clear: error reported in test2-1.js but not in test2-2.js despite the same invalid call."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The compiler command and both JS files are provided, making reproduction straightforward."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The compiler flags and JS files are documented; OS path hints at macOS but no explicit OS requirement stated."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report implies the cause is that aliasing 'this' to 'self' causes the type checker to lose track of the @this annotation."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The aliasing pattern is directly linked to the failure to detect the argument count error."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The two test files serve as evidence: one triggers the error, the other (with aliasing) does not."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation is coherent: aliasing 'this' breaks type inference for the @this annotation."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No stack traces, internal compiler logs, or code location references are provided beyond the user-facing error message."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Functions like getName, say, initialize, makeClass, and annotations like @this, @constructor are mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The Closure Compiler's type checking subsystem (checkTypes) is identifiable as the affected module."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The expected error message is included; full code snippets are provided."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Google Closure Compiler is referenced as the external tool; setTimeout is a browser API dependency."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No explicit OS, Java version, or Closure Compiler version number is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "References are specific and well-defined; both test files are fully provided."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The inputs (compiler flags, JS code) are fully described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior (error should be reported) is clearly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The exact Closure Compiler version is not specified, which could be relevant."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior (missing argument count check when 'this' is aliased) is precisely described."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The Closure Compiler's type checker (checkTypes) is identifiable as the component needing a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The expected correct behavior is stated: the compiler should report the argument count error."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The specific condition (aliasing 'this' to 'self' inside setTimeout with @this annotation) is documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "A developer would need to investigate the type inference logic for aliased 'this' in the compiler internals, which is not detailed in the report."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The root cause is strongly implied: aliasing 'this' causes the type checker to lose @this type information."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific code construct, API call, or logic error within the compiler is referenced."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The causal chain is implied: aliasing 'this' -> type checker loses @this context -> argument count check not performed."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The compiler command and both JS files are fully provided, making reproduction steps easily inferable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The Closure Compiler's type checking subsystem (checkTypes, argument count validation) is clearly identifiable."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "The report does not explicitly distinguish between where the symptom manifests (missing error output) and where the defect resides (type inference logic)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Only one affected area (argument count checking with @this aliasing) is identified; no cross-cutting concerns are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.26,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.98
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": false,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.19000000000000006,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.7
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.30000000000000004,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.92
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P2": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.24,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.92
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.88
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.82
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.65
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.7021276595744681,
+  "cohens_kappa": 0.2705099778270511,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.98 > 0.72)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.68)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.62)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.68)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.93 > 0.88)"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.82)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.84 > 0.65)"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Selected judge2 (higher confidence: 0.98 > 0.72)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.68)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.62)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.68)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Selected judge1 (higher confidence: 0.93 > 0.88)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.82)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Selected judge1 (higher confidence: 0.84 > 0.65)"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 4,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 0.9523839435224624,
+      "Clarity": 0.9523839435224624,
+      "Specificity": 0.9523839435224624,
+      "Reproducibility": 0.9523839435224624,
+      "ReasoningQuality": 0.4010037656936683,
+      "TechnicalContext": 0.4010037656936683,
+      "Ambiguity": 0.4010037656936683,
+      "RepairReadiness": -1.2531367677927139,
+      "RootCauseEvidence": -1.804516945621508,
+      "HiddenReproducibility": -1.2531367677927139,
+      "ImpactScope": -0.7017565899639199
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

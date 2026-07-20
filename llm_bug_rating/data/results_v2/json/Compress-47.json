@@ -1,0 +1,1451 @@
+{
+  "bug": {
+    "bug_id": "Compress-47",
+    "project": "Compress",
+    "summary": "ZipArchiveInputStream#getNextZipEntry should verify compressed size is known for bzip2, implode etc.",
+    "description": "if\n(current.entry.getCompressedSize() != ArchiveEntry.SIZE_UNKNOWN) {\n\nif\n(current.entry.getMethod() == ZipMethod.UNSHRINKING.getCode()) {\ncurrent.in = \nnew\nUnshrinkingInputStream(\nnew\nBoundedInputStream(in, current.entry.getCompressedSize()));\n} \nelse\n\nif\n(current.entry.getMethod() == ZipMethod.IMPLODING.getCode()) {\ncurrent.in = \nnew\nExplodingInputStream(\ncurrent.entry.getGeneralPurposeBit().getSlidingDictionarySize(),\ncurrent.entry.getGeneralPurposeBit().getNumberOfShannonFanoTrees(),\n\nnew\nBoundedInputStream(in, current.entry.getCompressedSize()));\n} \nelse\n\nif\n(current.entry.getMethod() == ZipMethod.BZIP2.getCode()) {\ncurrent.in = \nnew\nBZip2CompressorInputStream(\nnew\nBoundedInputStream(in, current.entry.getCompressedSize()));\n}\n}\n\nnever sets \ncurrent.in\nif the compressed size is unknown which probably leads to a NullPointerException in \nread\nlater. We should fail early with a useful error message instead."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes faulty behavior: current.in stays null when compressed size is unknown, leading to a later NullPointerException."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names the affected code path: ZipArchiveInputStream#getNextZipEntry and specific method branches for UNSHRINKING, IMPLODING, and BZIP2."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes concrete code snippets showing the conditional and the current.in assignments, directly implicating the fault location."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer can investigate immediately from the described null current.in path and the named method without extra clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Pinpoints ZipArchiveInputStream and its getNextZipEntry logic as the place to start reading code."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The failure scenario is clear: unknown compressed size for certain methods leaves current.in unset."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A failing test could assert that getNextZipEntry rejects entries with unknown compressed size for these methods."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The condition and consequence are unambiguous: if compressed size is unknown, current.in is never set and read may NPE."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Referenced entities are specific: ZipArchiveInputStream, ZipMethod.UNSHRINKING, IMPLODING, BZIP2, BoundedInputStream."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Terminology is used consistently and accurately, describing compressed size, decompression streams, and NullPointerException."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "The triggering condition is concrete: entries with unknown compressed size for bzip2/implode/unshrinking methods."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No ordered reproduction steps are provided, only the problematic code path and condition."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No environment or version information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The report states the likely failure mode as a NullPointerException in read, though not verbatim stack trace."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The combination of methods and unknown compressed size uniquely identifies this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Expected behavior is explicit: fail early with a useful error message instead of later NPE."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is explicit: current.in remains null and read later may throw NullPointerException."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The discrepancy is clear: should reject unknown compressed size, but currently proceeds until a null read path."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Reproduction steps are not fully spelled out; only the code condition is described."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No environment or dependency setup details are provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes a cause: current.in is never set when compressed size is unknown."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Links the cause to the symptom by explaining that read later may hit a NullPointerException."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with code snippets showing the conditional and stream construction."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is coherent and matches the described control flow."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References concrete artifacts: current.entry.getCompressedSize(), ZipMethod codes, BoundedInputStream, current.in."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names specific methods and classes: ZipArchiveInputStream#getNextZipEntry, UnshrinkingInputStream, ExplodingInputStream, BZip2CompressorInputStream."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected module is identifiable as ZIP archive input/decompression handling."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Includes relevant code snippets showing the conditional and stream setup."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References external decompression components by name, including BZip2CompressorInputStream."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No OS, browser, framework, or runtime version details are given."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific rather than vague."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Inputs and reproduction conditions are incomplete; no full steps are provided."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior is stated: fail early with a useful error message."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "The report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report states the needed behavior change: validate compressed size before creating the decompression stream."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The fix location is identifiable: ZipArchiveInputStream#getNextZipEntry."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Acceptance criterion is concrete: unknown compressed size should fail early with a useful error."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The edge case is explicit: methods UNSHRINKING, IMPLODING, and BZIP2 require known compressed size."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A plausible fix can be implemented from the report alone by adding a precondition check in getNextZipEntry."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes the root cause: current.in is never set when compressed size is unknown."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific constructs: current.entry.getCompressedSize(), current.in, BoundedInputStream, and method codes."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explains the causal chain from missing current.in assignment to a later NullPointerException in read."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The scenario is concrete enough to derive reproduction: a ZIP entry using these methods with unknown compressed size."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem is identifiable: ZIP archive input and decompression handling."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Distinguishes symptom location (read/NPE) from defect location (getNextZipEntry setup)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "Only one impacted path is clearly described; multiple cross-cutting areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Mentions several distinct technical concepts: ZipArchiveInputStream, ZipMethod, BoundedInputStream, and decompressor streams."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: NullPointerException when compressed size is unknown for specific compression methods, distinguishable from normal operation."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specifically identifies ZipArchiveInputStream#getNextZipEntry method and the conditional logic block handling UNSHRINKING, IMPLODING, and BZIP2 methods."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes relevant code snippet showing the problematic conditional structure and identifies the NullPointerException that occurs in the read method."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer can immediately locate the issue in ZipArchiveInputStream#getNextZipEntry and understand the problem: missing initialization of current.in when compressed size is unknown."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Precisely identifies ZipArchiveInputStream class and getNextZipEntry method as the location to investigate."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clear: when compressed size is unknown for bzip2/implode/unshrinking, current.in is not initialized, causing later NullPointerException."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer could write a test case: create a zip entry with bzip2/implode/unshrinking method and unknown compressed size, then call read()."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Sequence is unambiguous: getNextZipEntry checks compressed size, skips initialization if unknown, then read() fails with NullPointerException."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "All referenced entities are precisely identified: ZipArchiveInputStream, getNextZipEntry, ZipMethod enum values, BoundedInputStream, and specific decompressor classes."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terminology is accurate: compressed size, compression methods, BoundedInputStream, decompressor streams are used correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific condition identified: compressed size equals ArchiveEntry.SIZE_UNKNOWN for BZIP2, IMPLODING, or UNSHRINKING methods."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Reproduction steps are not explicitly provided; developer must infer: create zip with unknown compressed size for bzip2/implode/unshrinking, then read."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No version information, environment details, or specific library versions are mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific failure identified: NullPointerException in read method due to uninitialized current.in."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Report uniquely identifies this issue: the specific combination of unknown compressed size with three particular compression methods and the missing initialization."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is implied: should fail early with a useful error message instead of NullPointerException."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is explicit: NullPointerException occurs in read method when current.in is not initialized."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Discrepancy is clear: expected early failure with error message vs. observed NullPointerException later."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Reproduction steps are not fully spelled out; developer must infer how to create a zip entry with unknown compressed size."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No environmental conditions, dependencies, or version information provided to set up reproduction environment."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Report explicitly proposes root cause: missing initialization of current.in when compressed size is unknown."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Causal mechanism is clear: uninitialized current.in \u2192 NullPointerException in read() method."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Concrete evidence provided: code snippet showing the conditional that fails to initialize current.in."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explanation is internally coherent and consistent with the code structure shown."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific technical artifacts: method names (getNextZipEntry, read), class names (ZipArchiveInputStream), and specific ZipMethod enum values."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods named: ZipArchiveInputStream, getNextZipEntry, ZipMethod.UNSHRINKING/IMPLODING/BZIP2, BoundedInputStream, UnshrinkingInputStream, ExplodingInputStream, BZip2CompressorInputStream."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Affected subsystem is clearly identifiable: ZipArchiveInputStream class in the archive module."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Relevant code snippet is included showing the problematic conditional logic and initialization pattern."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "External dependencies referenced: BZip2CompressorInputStream (from commons-compress), BoundedInputStream."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No environment details provided: OS, Java version, commons-compress version, or other runtime information."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "All references are specific: class names, method names, and enum values are precisely identified."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "How to create a zip entry with unknown compressed size is not explicitly described; developer must infer from context."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior is reasonably clear: fail early with useful error message instead of NullPointerException."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version information and environment details are missing, though the bug appears version-independent."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements; the report is logically coherent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Correct behavior is clear: should throw an early, informative exception when compressed size is unknown for these methods."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific location identified: the conditional block in ZipArchiveInputStream#getNextZipEntry that handles these three compression methods."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is concrete: throw a descriptive exception early instead of allowing NullPointerException later."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Relevant constraint identified: compressed size must be known for BZIP2, IMPLODING, and UNSHRINKING methods."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer could implement a fix: add an else clause or additional check to throw an exception when compressed size is unknown for these methods."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Root cause is explicitly proposed: the conditional structure only initializes current.in when compressed size is known."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific code construct: the if statement checking current.entry.getCompressedSize() != ArchiveEntry.SIZE_UNKNOWN."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Causal chain is clear: missing initialization \u2192 uninitialized current.in \u2192 NullPointerException in read()."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "While the scenario is concrete (unknown compressed size for bzip2/implode/unshrinking), complete reproduction steps cannot be fully derived without knowing how to construct such a zip entry."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific subsystem identified: ZipArchiveInputStream class and its getNextZipEntry method."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Report distinguishes: symptom manifests in read() method, but defect resides in getNextZipEntry initialization logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Multiple impacted areas identified: three compression methods (BZIP2, IMPLODING, UNSHRINKING) and the general initialization pattern."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names multiple technical concepts: ZipArchiveInputStream, ZipMethod enum, BoundedInputStream, BZip2CompressorInputStream, ExplodingInputStream, UnshrinkingInputStream, ArchiveEntry.SIZE_UNKNOWN."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.96
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.1499999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.92
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.88
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.26,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.96
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.88
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.88
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.96
+      }
+    }
+  },
+  "percent_agreement": 0.9583333333333334,
+  "cohens_kappa": 0.8632478632478634,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.7)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.74)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.7)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.74)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 1.0493443645942062,
+      "Clarity": 1.0493443645942062,
+      "Specificity": -0.599625351196689,
+      "Reproducibility": -0.599625351196689,
+      "ReasoningQuality": 1.0493443645942062,
+      "TechnicalContext": 0.2248595066987586,
+      "Ambiguity": -0.599625351196689,
+      "RepairReadiness": 1.0493443645942062,
+      "RootCauseEvidence": -0.599625351196689,
+      "HiddenReproducibility": -2.2485950669875843,
+      "ImpactScope": 0.2248595066987586
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

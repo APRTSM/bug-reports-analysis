@@ -1,0 +1,1430 @@
+{
+  "bug": {
+    "bug_id": "Closure-175",
+    "project": "Closure",
+    "summary": "Erroneous optimization in ADVANCED_OPTIMIZATIONS mode",
+    "description": "<b>What steps will reproduce the problem?</b>\n\r\n1. Create a file input.js with the following &quot;minimal&quot; test case:\r\n\r\n    window[&quot;anchor&quot;] = function (obj, modifiesProp) {\r\n        return (function (saved) {\r\n            return modifiesProp(obj) + saved;\r\n        })(obj[&quot;prop&quot;]);\r\n    }\r\n\r\n2. Compile it with:\r\n\r\n    java -jar .../build/compiler.jar                    \\\r\n        --compilation_level ADVANCED_OPTIMIZATIONS      \\\r\n        --warning_level VERBOSE                         \\\r\n        --externs window.js                             \\\r\n        --js input.js                                   \\\r\n        --js_output_file output.js\r\n\r\n3. That's all!\r\n\r\nWhat is the expected output?\r\n\r\n    window.foo=function(a,b){var HOLD=a.prop;return b(a)+HOLD};\r\n\r\nWhat do you see instead?\r\n\r\n    window.foo=function(a,b){return b(a)+a.prop};\r\n\r\nNote how this is semantically very different if modifiesProp/b (whose\r\nsemantics are unknown to the compiler) side-effects a.prop.\r\n\r\nThe evaluation order of + is well-defined in EcmaScript 5, but even\r\nthen, this happens even if one substitutes the , (comma) operator.\r\n\r\n<b>What version of the product are you using? On what operating system?</b>\n\r\nGit HEAD\r\n\r\n    commit 4a62ee4bca02169dd77a6f26ed64a624b3f05f95\r\n    Author: Chad Killingsworth &lt;chadkillingsworth@missouristate.edu&gt;\r\n    Date:   Wed Sep 25 14:52:28 2013 -0500\r\n    \r\n        Add history.state to html5 externs\r\n\r\non Linux."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes incorrect compiler output in ADVANCED_OPTIMIZATIONS mode."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies the compiler and ADVANCED_OPTIMIZATIONS compilation level as the affected feature."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a minimal test case, command line, expected output, and actual output."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides a reproducible example, compiler flags, and environment/version context to start investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Points to the compiler optimization pass in ADVANCED_OPTIMIZATIONS as the likely subsystem."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report is clear and grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as an erroneous optimization changing semantics."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "It follows a logical structure: steps, expected output, actual output, version."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References to window, input.js, output.js, and compiler flags are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terms like ADVANCED_OPTIMIZATIONS, externs, and evaluation order are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Gives a specific minimal input program and condition involving side effects on a.prop."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides explicit reproduction steps with file creation and compiler invocation."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "Includes version info: Git HEAD commit and Linux."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Shows concrete expected and actual compiled outputs."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The issue is distinguished by the unsafe reordering of obj['prop'] relative to modifiesProp(obj)."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected output is explicitly stated."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed output is explicitly stated."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy between preserving obj.prop in a temp and inlining it is clearly shown."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The numbered steps are sufficient to reproduce the compiler behavior."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment details are given as Git HEAD on Linux, though not more specific."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Suggests the optimization is erroneous because it changes semantics when modifiesProp has side effects."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Links the proposed issue to the observed reordered property access in the output."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Uses the minimal test case and differing outputs as evidence for the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is coherent: evaluation order matters, so hoisting is required."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References technical artifacts such as the compiled output and the evaluation order of operators."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions compiler.jar, ADVANCED_OPTIMIZATIONS, externs, and generated output.js."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected subsystem is the compiler optimization pipeline."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes concrete code snippets and compiled output."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No external dependency or service is referenced beyond the compiler itself."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Provides OS information as Linux and version context as a specific Git commit."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.2,
+        "reason": "Some references are abbreviated, but the main issue is specific."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "Inputs and triggering conditions are well described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.1,
+        "reason": "Expected behavior is explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Only broad environment info is given; detailed version/platform data is limited."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.05,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The faulty behavior is precise: unsafe reordering of property access across a call."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The fix is likely in the compiler optimization that rewrites the expression."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The correct behavior is given by the expected output using a temporary variable."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Documents the edge case where the called function may side-effect obj.prop."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "A developer would likely still need to inspect the compiler pass to locate the exact code change."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Strongly implies an optimization bug due to changed evaluation order."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.25,
+        "reason": "No specific code construct or source location is named."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Explains that inlining a.prop before/after the call can change behavior if the call mutates obj.prop."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The narrative and steps clearly imply how to trigger the bug."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The compiler optimization subsystem is identifiable as the impacted area."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom is in generated output, while the defect is in optimization logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Only one main area is implicated; no multiple subsystems are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report clearly describes an incorrect optimization output that changes program semantics."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected functionality is ADVANCED_OPTIMIZATIONS mode in the Closure Compiler."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Exact input code, compiler command, expected output, and actual output are all provided."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Full reproduction steps, code, compiler flags, and version info are included."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The subsystem is clearly identified as the ADVANCED_OPTIMIZATIONS compilation pass in the Closure Compiler."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report is well-written, grammatically coherent, and easy to follow."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly stated: an optimization incorrectly inlines a variable, changing evaluation order and semantics."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Information flows logically: steps, expected output, actual output, explanation, version info."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References to variables, compiler flags, and behavior are unambiguous and well-labeled."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms like ADVANCED_OPTIMIZATIONS, side-effects, evaluation order, EcmaScript 5 are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific input code, compiler flags, and the exact triggering condition (ADVANCED_OPTIMIZATIONS) are described."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Three explicit numbered reproduction steps are provided including exact code and command."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Git commit hash, author, date, and OS (Linux) are all specified."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Both expected and actual compiler output are shown verbatim."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report pinpoints the specific optimization (variable inlining affecting evaluation order) that distinguishes this from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected output is explicitly stated as the version that preserves the saved variable."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Actual output is explicitly shown as the incorrectly optimized version."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy is clearly explained: inlining removes the saved value, changing evaluation order."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Steps include exact input file content and exact compiler command, sufficient to reproduce."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Git commit, OS, and compiler jar path pattern are documented; window.js externs file is referenced but not provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report implies the optimizer incorrectly inlines the IIFE argument, ignoring potential side-effects of modifiesProp."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The explanation directly links the inlining optimization to the changed evaluation order in the output."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The concrete before/after output and the note about EcmaScript 5 evaluation order serve as evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The reasoning is internally consistent: if b(a) modifies a.prop, inlining changes the result."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific code location, stack trace, or internal compiler artifact is referenced; only input/output is shown."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No specific internal classes, methods, or files of the compiler are mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The ADVANCED_OPTIMIZATIONS compilation level is clearly identified as the affected subsystem."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No stack traces or logs are included; only input/output code snippets are provided."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external libraries or services beyond the Closure Compiler itself are referenced."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "OS (Linux) and exact git commit hash with date are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific and well-defined; no vague terms are used."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and compiler parameters are fully specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is explicitly stated with the exact expected output."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Version information (git commit, OS) is provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior (incorrect inlining of IIFE argument ignoring side-effects) is precisely described."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific class, method, or file in the compiler source is identified as needing a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The expected correct output is explicitly stated, providing a concrete target."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The side-effect condition and EcmaScript 5 evaluation order are noted as relevant constraints."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Without knowing which internal optimization pass to modify, a developer would need further investigation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The root cause is strongly implied: the optimizer inlines the IIFE-captured variable without considering side-effects of the function argument."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific code construct, API call, or logic error in the compiler source is referenced."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report articulates that inlining changes evaluation order, which causes incorrect results when modifiesProp has side-effects on obj.prop."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Explicit numbered steps with exact code and command make reproduction straightforward even without a formal steps list."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The ADVANCED_OPTIMIZATIONS pass (variable/IIFE inlining) is clearly identified as the affected subsystem."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "The report does not distinguish between where the symptom manifests (output) and where the defect resides (specific optimization pass)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one optimization behavior is identified; no multiple cross-cutting areas are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 1.0,
+        "judge2_confidence": 0.99
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": false,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.75
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.7,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.75,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.85,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.1,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.95
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.8999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.05,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "P2": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.4,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.44999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.25,
+        "judge2_confidence": 0.7
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.65
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.851063829787234,
+  "cohens_kappa": 0.584070796460177,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.75)"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.97 > 0.85)"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.2)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.7)"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.65)"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.75)"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Selected judge1 (higher confidence: 0.97 > 0.85)"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.2)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.7)"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.65)"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 0,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 2,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 0,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 2,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 0.8183170883849715,
+      "Clarity": 0.8183170883849715,
+      "Specificity": 0.8183170883849715,
+      "Reproducibility": 0.8183170883849715,
+      "ReasoningQuality": 0.8183170883849715,
+      "TechnicalContext": 0.21821789023599245,
+      "Ambiguity": 0.8183170883849715,
+      "RepairReadiness": -1.5820797042109447,
+      "RootCauseEvidence": -0.9819805060619656,
+      "HiddenReproducibility": -1.5820797042109447,
+      "ImpactScope": -0.9819805060619656
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

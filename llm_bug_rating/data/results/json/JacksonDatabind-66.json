@@ -1,0 +1,1426 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-66",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "Normally the \nJsonParser\nand the \nDeserializationContext\nis passed to a \nModule\n's \nJsonDeserializer\n.\n\nHowever, in the \nMapDeserializer\n, when deserializing a \nMap\nwith an \nEnum\nkey, the \nKeyDeserializer\ndoesn't accept the \nJsonParser\nas an argument:\n\nhttps://github.com/FasterXML/jackson-databind/blob/master/src/main/java/com/fasterxml/jackson/databind/deser/std/MapDeserializer.java#L453\n\nObject key = keyDes.deserializeKey(keyStr, ctxt);\n\nand the \nStdKeyDeserializer.DelegatingKD\nuses the context's parser\n\nhttps://github.com/FasterXML/jackson-databind/blob/master/src/main/java/com/fasterxml/jackson/databind/deser/std/StdKeyDeserializer.java#L315\n\nObject result = _delegate.deserialize(ctxt.getParser(), ctxt);\n\nWhen the type info field is missing from the json, the \nDeserializationContext\n's \nJsonParser\n's token is \nEND_OBJECT\n(presumably because it \nnextToken\n'd through the object to find type and whiffed).\n\nThis makes the module fail since the \nJsonParser\nin the \nModule\nis wrong, i.e. not the same as the \nJsonParser\nin the \nMapDeserializer\n.\n\nClass:\n\nimport com.fasterxml.jackson.annotation.JsonTypeInfo;\n\nimport java.util.Map;\n\nimport static com.fasterxml.jackson.annotation.JsonTypeInfo.Id.NAME;\n\n@JsonTypeInfo(use = NAME, property = \"@type\", defaultImpl = SuperType.class)\npublic class SuperType {\nprivate Map<SuperTypeEnum, String> someMap;\n\npublic Map<SuperTypeEnum, String> getSomeMap() {\nreturn someMap;\n}\n\npublic void setSomeMap(Map<SuperTypeEnum, String> someMap) {\nthis.someMap = someMap;\n}\n}\n\nEnum:\n\npublic enum SuperTypeEnum {\nFOO\n}\n\nTest:\n\nimport com.fasterxml.jackson.core.JsonParser;\nimport com.fasterxml.jackson.databind.DeserializationContext;\nimport com.fasterxml.jackson.databind.JsonDeserializer;\nimport com.fasterxml.jackson.databind.ObjectMapper;\nimport com.fasterxml.jackson.databind.module.SimpleModule;\nimport org.junit.*;\n\nimport java.io.IOException;\n\nimport static org.junit.Assert.assertEquals;\n\npublic class TestDeserializeType {\n\n@Test\npublic void testNoTypeShouldDeserialize() throws IOException {\nString json = \"{\\\"someMap\\\": {\\\"FOO\\\": \\\"bar\\\"}}\";\nObjectMapper mapper = new ObjectMapper();\nSuperType superType = mapper.readValue(json, SuperType.class);\nassertEquals(\"Deserialized someMap.FOO should equal bar\", \"bar\", superType.getSomeMap().get(SuperTypeEnum.FOO));\n}\n\n@Test\npublic void testNoTypeWithModuleShouldDeserialize() throws IOException {\nString json = \"{\\\"someMap\\\": {\\\"FOO\\\": \\\"bar\\\"}}\";\nObjectMapper mapper = new ObjectMapper();\nSimpleModule simpleModule = new SimpleModule();\nsimpleModule.addDeserializer(SuperTypeEnum.class, new JsonDeserializer<SuperTypeEnum>() {\n@Override\npublic SuperTypeEnum deserialize(JsonParser jsonParser, DeserializationContext deserializationContext)\nthrows IOException {\n\nreturn SuperTypeEnum.valueOf(jsonParser.getText());\n}\n});\nmapper.registerModule(simpleModule);\n\nSuperType superType = mapper.readValue(json, SuperType.class);\nassertEquals(\"Deserialized someMap.FOO should equal bar\", \"bar\", superType.getSomeMap().get(SuperTypeEnum.FOO));\n}\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes faulty deserialization behavior for Map with Enum keys when type info is missing."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies MapDeserializer, KeyDeserializer, StdKeyDeserializer.DelegatingKD, and module JsonDeserializer behavior."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes code references, GitHub line links, and a failing test case."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides class, enum, test code, and the condition that triggers the failure."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points to Jackson databind deserialization, especially MapDeserializer and key deserialization."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Language is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Problem is clearly about wrong JsonParser passed during enum key deserialization."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explains normal behavior, then the MapDeserializer issue, then the failing test."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References to JsonParser, DeserializationContext, MapDeserializer, and Module are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Uses Jackson terminology consistently, such as JsonParser, DeserializationContext, and KeyDeserializer."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specifies the trigger: deserializing a Map<Enum,String> when type info field is missing."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "Provides JUnit test methods that reproduce the issue."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No OS, browser, framework version, or runtime environment details are given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Describes the failure as the module failing because the parser token is END_OBJECT."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes the bug as a parser-context mismatch during enum key deserialization, not a generic map failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: the map should deserialize and contain FOO -> bar."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is stated: the module fails because the parser in the module is wrong."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report contrasts expected successful deserialization with the observed failure."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The included test code is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environment or dependency conditions beyond Jackson usage are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes that the wrong JsonParser is used in the module."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Links the parser mismatch to the failure when type info is missing."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Supports the explanation with code links and the END_OBJECT token observation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The explanation is internally consistent: context parser differs from MapDeserializer parser."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References technical artifacts such as MapDeserializer, StdKeyDeserializer, and JsonParser.getParser()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Mentions MapDeserializer, StdKeyDeserializer.DelegatingKD, JsonDeserializer, and ObjectMapper."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The affected subsystem is Jackson databind deserialization, specifically map key handling."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes code snippets and GitHub source line references."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "No external libraries or services beyond Jackson are referenced as relevant dependencies."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Some references are broad, such as 'Module' and 'wrong JsonParser'."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The exact conditions around missing type info are described but not fully parameterized."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clear from the test assertions."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The faulty behavior is specific enough to identify the parser-context mismatch."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "MapDeserializer and StdKeyDeserializer are identifiable fix locations."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The correct behavior is stated by the passing test expectation."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The missing type-info condition is documented as the triggering edge case."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "A developer would likely need further investigation into Jackson internals to implement the fix safely."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report explicitly says the JsonParser in the module is wrong."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References the specific call ctxt.getParser() inside StdKeyDeserializer.DelegatingKD."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explains that the wrong parser token END_OBJECT causes the module failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The narrative and test code imply a reproducible deserialization scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected concept is map key deserialization for enum keys in Jackson databind."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom in the module deserializer from the underlying MapDeserializer/context parser issue."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Only one main area is described; no multiple cross-cutting impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report describes a concrete deserialization failure when using a Module with an Enum key in a Map under JsonTypeInfo."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "MapDeserializer, StdKeyDeserializer.DelegatingKD, and the Module/JsonDeserializer interaction are explicitly identified."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific code file URLs, line numbers, and a full reproducible test case with classes are provided."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report includes class definitions, test code, JSON input, and a code-level explanation of the failure path."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "MapDeserializer and StdKeyDeserializer in jackson-databind are explicitly identified as the affected subsystem."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report is written in clear, grammatically coherent English with well-structured explanations."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The problem\u2014wrong JsonParser being used in DelegatingKD when type info is missing\u2014is clearly stated."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report flows logically: describes normal behavior, identifies the deviation, explains the root cause, and provides test code."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to MapDeserializer, StdKeyDeserializer.DelegatingKD, JsonParser, and DeserializationContext are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Technical terms like KeyDeserializer, JsonParser, DeserializationContext, END_OBJECT token are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific triggering condition: Map with Enum key, JsonTypeInfo with defaultImpl, and missing type field in JSON."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Full test cases with JSON input, class definitions, and ObjectMapper setup are provided."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No Jackson version or Java/OS environment information is mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The failure mode (wrong parser token END_OBJECT causing module to fail) is described, though no explicit exception message is shown."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The issue is specifically about DelegatingKD using ctxt.getParser() instead of the MapDeserializer's parser, distinguishing it from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is stated: the map should deserialize correctly with 'bar' as the value for FOO."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is described: the module fails because the JsonParser has END_OBJECT token instead of the correct token."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The discrepancy between expected successful deserialization and actual failure due to wrong parser is clearly identifiable."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Complete test code with all necessary classes is provided, sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific Jackson version or dependency versions are documented, though the GitHub URL implies master branch."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report explicitly proposes that DelegatingKD uses ctxt.getParser() which returns the wrong parser when type info is missing."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The explanation links the wrong parser (END_OBJECT token) directly to the module failure."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Code references with line numbers and GitHub URLs support the proposed explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The causal chain (missing type \u2192 nextToken through object \u2192 END_OBJECT on ctxt parser \u2192 wrong parser in module) is internally coherent."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific file paths, line numbers, and method calls (ctxt.getParser(), deserializeKey, nextToken) are referenced."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "MapDeserializer, StdKeyDeserializer.DelegatingKD, KeyDeserializer, JsonParser, DeserializationContext are all explicitly mentioned with file paths and line numbers."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The jackson-databind deserialization subsystem, specifically map and key deserialization, is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Code snippets from the source and test code are included; no stack traces or logs are provided."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson annotations (JsonTypeInfo), SimpleModule, and jackson-databind are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, Java version, or Jackson version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "References are specific and well-defined with code links and line numbers."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Inputs (JSON string, class structure) and conditions (missing type field, Enum key, Module) are clearly described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior (successful deserialization returning 'bar') is clearly stated in the test assertions."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Jackson version and Java/environment details are not provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The faulty behavior (DelegatingKD using ctxt.getParser() instead of the actual parser) is precisely described."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "StdKeyDeserializer.DelegatingKD at line 315 and MapDeserializer at line 453 are explicitly identified."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The fix should pass the correct JsonParser to the key deserializer rather than using ctxt.getParser()."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The condition (missing type info field with defaultImpl) that triggers the issue is documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "While the report is detailed, the exact fix (how to pass the correct parser through KeyDeserializer API) may require further investigation of the API design."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Root cause is explicitly stated: DelegatingKD uses ctxt.getParser() which returns the wrong parser when type info is missing."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific code: StdKeyDeserializer.DelegatingKD line 315 calling ctxt.getParser() and MapDeserializer line 453 calling deserializeKey without passing JsonParser."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The causal chain is articulated: missing type \u2192 parser advances to END_OBJECT \u2192 ctxt.getParser() returns wrong parser \u2192 module deserializer fails."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Full test code with JSON, class definitions, and ObjectMapper setup allows reproduction steps to be directly inferred and executed."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "MapDeserializer and StdKeyDeserializer in jackson-databind are clearly identified as the affected components."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The symptom (module deserializer failure) is distinguished from the defect location (DelegatingKD using wrong parser from context)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The report focuses on a single interaction path; multiple cross-cutting areas are not explicitly identified."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 1.0,
+        "judge2_confidence": 0.97
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.65
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.7
+      }
+    }
+  },
+  "percent_agreement": 0.9361702127659575,
+  "cohens_kappa": 0.784732824427481,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.82)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.82)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 3,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 3,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.164964745021435,
+      "Clarity": 1.164964745021435,
+      "Specificity": 0.49051147158797254,
+      "Reproducibility": 0.49051147158797254,
+      "ReasoningQuality": 1.164964745021435,
+      "TechnicalContext": 0.49051147158797254,
+      "Ambiguity": -0.8583950752789523,
+      "RepairReadiness": -1.5328483487124147,
+      "RootCauseEvidence": -0.1839418018454899,
+      "HiddenReproducibility": -1.5328483487124147,
+      "ImpactScope": -0.8583950752789523
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

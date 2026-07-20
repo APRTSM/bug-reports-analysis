@@ -1,0 +1,1465 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-61",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "When running the following test app\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\nannotation\n.\nJsonTypeInfo\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ncore\n.\nJsonFactory\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ndatabind\n.\nObjectMapper\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ndatabind\n.\nSerializationFeature\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ndatabind\n.\njsontype\n.\nimpl\n.\nStdTypeResolverBuilder\n;\n\nimport\n\njava\n.\nio\n.\nIOException\n;\n\nimport\n\njava\n.\nutil\n.\nHashMap\n;\n\nimport\n\njava\n.\nutil\n.\nMap\n;\n\npublic\n\nclass\n\nMain\n{\n\npublic\n\nstatic\n\nvoid\n\nmain\n(\nString\n[] \nargs\n) \nthrows\n\nIOException\n{\n\n// Create test data\n\nData\n\ndata\n= \nnew\n\nData\n();\n\ndata\n.\nkey\n= \n1\n;\n\nMap\n<\nString\n, \nObject\n> \nmapData\n= \nnew\n\nHashMap\n<>();\n\nmapData\n.\nput\n(\n\"longInMap\"\n, \n2L\n);\n\nmapData\n.\nput\n(\n\"longAsField\"\n, \ndata\n);\n\n// Configure Jackson to preserve types\n\nJsonFactory\n\nfactory\n= \nnew\n\nJsonFactory\n();\n\nObjectMapper\n\nmapper\n= \nnew\n\nObjectMapper\n(\nfactory\n);\n\nStdTypeResolverBuilder\n\nresolver\n= \nnew\n\nStdTypeResolverBuilder\n();\n\nresolver\n.\ninit\n(\nJsonTypeInfo\n.\nId\n.\nCLASS\n, \nnull\n);\n\nresolver\n.\ninclusion\n(\nJsonTypeInfo\n.\nAs\n.\nPROPERTY\n);\n\nresolver\n.\ntypeProperty\n(\n\"__t\"\n);\n\nmapper\n.\nsetDefaultTyping\n(\nresolver\n);\n\nmapper\n.\nenable\n(\nSerializationFeature\n.\nINDENT_OUTPUT\n);\n\n// Serialize\n\nString\n\njson\n= \nmapper\n.\nwriteValueAsString\n(\nmapData\n);\n\nSystem\n.\nout\n.\nprintln\n(\n\"json = \"\n+ \njson\n);\n\n// Deserialize\n\nMap\n\ndeserializedData\n= \nmapper\n.\nreadValue\n(\njson\n, \nMap\n.\nclass\n);\n}\n\nstatic\n\nclass\n\nData\n{\n\npublic\n\nlong\n\nkey\n;\n}\n}\n\nI get this output and exception\n\njson\n= {\n\n\"__t\"\n: \n\"java.util.HashMap\"\n,\n\n\"longInMap\"\n: [ \n\"java.lang.Long\"\n, \n2\n],\n\n\"longAsField\"\n: {\n\n\"__t\"\n: \n\"com.pinkmatter.bean.serialization.Main$Data\"\n,\n\n\"key\"\n: [ \n\"java.lang.Long\"\n, \n1\n]\n}\n}\n\nException\n\nin\n\nthread\n\n\"main\"\n\ncom\n.\nfasterxml\n.\njackson\n.\ndatabind\n.\nJsonMappingException\n: \nClass\n\njava\n.\nlang\n.\nLong\n\nnot\n\nsubtype\n\nof\n[\nsimple\n\ntype\n, \nclass\nlong] (\nthrough\n\nreference\n\nchain\n: \njava\n.\nutil\n.\nHashMap\n[\"\nlongAsField\n\"]->com.pinkmatter.bean.serialization.Data[\"\nkey\n\"])\nat com.fasterxml.jackson.databind.JsonMappingException.wrapWithPath(JsonMappingException.java:379)\nat com.fasterxml.jackson.databind.JsonMappingException.wrapWithPath(JsonMappingException.java:339)\nat com.fasterxml.jackson.databind.deser.BeanDeserializerBase.wrapAndThrow(BeanDeserializerBase.java:1591)\nat com.fasterxml.jackson.databind.deser.BeanDeserializer.vanillaDeserialize(BeanDeserializer.java:278)\n...\nCaused by: java.lang.IllegalArgumentException: Class java.lang.Long not subtype of [simple type, class long]\nat com.fasterxml.jackson.databind.type.TypeFactory.constructSpecializedType(TypeFactory.java:359)\nat com.fasterxml.jackson.databind.jsontype.impl.ClassNameIdResolver._typeFromId(ClassNameIdResolver.java:72)\nat com.fasterxml.jackson.databind.jsontype.impl.ClassNameIdResolver.typeFromId(ClassNameIdResolver.java:42)\n...\n\nI am trying to serialize a bunch of basic plain old java objects from libraries we are using (so we cannot modify the classes or add annotations), while also trying to preserve the types of values in collections (\"longInMap\" in the above example must stay a Long object).\n\nThe problem is that Jackson throws the above exception when trying to deserialize the primitive \npublic long key\nin the \nData\nclass. If I change the type to \npublic int key\nthen no exception is thrown and deserialization works.\n\nAlso, since there are many different types of objects and I don't know at compile time exactly what will be serialized I don't think using mix-ins will work.\n\nI am using Jackson 2.8.3."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes a concrete failure: deserialization throws JsonMappingException for primitive long field."
+      },
+      "A2": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No specific internal method or code path is identified beyond Jackson default typing and deserialization."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes a stack trace and exact exception message implicating ClassNameIdResolver and TypeFactory."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides a self-contained test app and the observed output/exception, enough to reproduce."
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Identifies Jackson generally, but not a precise module/class/component to start from beyond stack trace frames."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A developer can understand the failure scenario from the sample app and exception."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sample app is concrete enough to turn into a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The sequence is clear: serialize map with default typing, then deserialize and fail on long field."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Some referenced entities are generic, and the report does not precisely locate the faulty code in the codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is used consistently: default typing, primitive long, subtype, JsonMappingException."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Concrete inputs are given: HashMap with a Long value and a Data object with long key."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report includes ordered reproduction steps in code form: serialize then deserialize."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson 2.8.3 is explicitly stated."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Provides the exact exception text and stack trace excerpt."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The primitive long field versus int field behavior distinguishes this issue from a generic serialization failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: deserialize successfully while preserving Long values in collections."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicit: JsonMappingException with Class java.lang.Long not subtype of long."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The mismatch is clear: Long in JSON causes failure for primitive long field, while int works."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The code sample is sufficient to attempt reproduction without extra clarification."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Only Jackson version is given; no broader environment details are provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report does not explicitly propose a root cause, only describes the symptom."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No causal explanation is provided linking a specific cause to the failure."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The stack trace provides evidence pointing to ClassNameIdResolver and TypeFactory."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report is internally consistent: Long values in maps and primitive long field failure align with the trace."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "References concrete artifacts such as JsonMappingException, TypeFactory.constructSpecializedType, and ClassNameIdResolver."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names specific classes and APIs: ObjectMapper, JsonFactory, StdTypeResolverBuilder, Data."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson databind serialization/deserialization subsystem is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes stack trace and serialized JSON output."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No external dependency or service beyond Jackson is relevantly named with version details."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "Jackson 2.8.3 is provided, which is the key environment/version detail."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The exact faulty Jackson component is not pinpointed beyond stack trace frames."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and conditions are sufficiently described in the sample code."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is reasonably clear: preserve types and deserialize successfully."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Only Jackson version is given; other environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The failure and desired behavior are clear enough to infer a fix direction."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No exact code location is identified in the report itself."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: deserialize the sample without exception while preserving Long values."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "The primitive long versus int behavior is an explicit edge case."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "A developer would likely need to inspect Jackson internals to implement the fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific code construct is named as the cause, only stack trace locations."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report does not articulate a causal chain beyond the observed exception."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The sample app fully determines a reproducible scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson databind default typing and deserialization are the affected subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The symptom appears during deserialization, while the likely issue is in type resolution."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one main impacted path is described, not multiple distinct areas."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions ObjectMapper, StdTypeResolverBuilder, TypeFactory, ClassNameIdResolver, and JsonMappingException."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report includes complete, runnable test code that demonstrates the faulty behavior (deserialization exception) and contrasts it with expected behavior (successful serialization)."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes identified: ClassNameIdResolver, TypeFactory, BeanDeserializer, and the Data class with its 'long key' field."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Complete stack trace provided showing exact exception path through ClassNameIdResolver.typeFromId() and TypeFactory.constructSpecializedType()."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Developer can immediately copy and run the provided test code to reproduce the issue without clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Stack trace pinpoints ClassNameIdResolver._typeFromId() and TypeFactory.constructSpecializedType() as the fault locations."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clear: deserialization fails when a primitive long field is serialized with type information as java.lang.Long."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "A developer could write a failing test by following the exact code provided and attempting deserialization."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Sequence is unambiguous: serialize with default typing enabled \u2192 deserialize \u2192 exception occurs during Data.key deserialization."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "All entities precisely identified: Main class, Data inner class, HashMap, Long type, and the 'key' field."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is accurate: 'primitive long', 'java.lang.Long', 'type information', 'deserialization' used correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete inputs provided: HashMap with Long values, Data object with long key field, specific Jackson configuration with CLASS type and PROPERTY inclusion."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Complete, ordered reproduction steps: create data \u2192 configure mapper \u2192 serialize \u2192 deserialize. Steps are directly executable."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Jackson version explicitly stated as 2.8.3."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Exact exception message provided verbatim: 'Class java.lang.Long not subtype of [simple type, class long]'."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Report distinguishes this from general deserialization issues by noting that 'int key' works but 'long key' fails, uniquely identifying the primitive type mismatch."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior is implicit but clear: successful round-trip serialization/deserialization of the data structure with type preservation."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior explicitly stated: JsonMappingException with root cause 'Class java.lang.Long not subtype of [simple type, class long]'."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is clear: serialization succeeds and produces valid JSON, but deserialization fails on the 'key' field."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reproduction steps are complete and sufficient; the provided code can be executed directly."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Jackson 2.8.3 version specified; no other external dependencies mentioned that would affect reproduction."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report implicitly proposes that type preservation logic incorrectly maps primitive 'long' to java.lang.Long during deserialization."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Causal link is suggested: serialization preserves Long type in JSON, but deserializer expects primitive long and rejects Long as invalid subtype."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Stack trace provides evidence pointing to ClassNameIdResolver and TypeFactory as the source of the type mismatch validation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is coherent: the int/long distinction and the JSON output showing type information are consistent with the proposed mechanism."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "References specific methods: ClassNameIdResolver._typeFromId(), TypeFactory.constructSpecializedType(), and the exact error message."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific classes named: ObjectMapper, StdTypeResolverBuilder, ClassNameIdResolver, TypeFactory, BeanDeserializer, Data."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Affected subsystem identifiable: Jackson databind type resolution and deserialization, specifically the jsontype.impl package."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Stack trace is directly relevant and shows the exact call chain leading to the failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Jackson library referenced by name with specific version (2.8.3) and specific modules (databind, annotation, core)."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "OS, JVM version, and other runtime environment details are not provided, though they may not be critical for this bug."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No vague references; all classes, methods, and fields are explicitly named or shown in code."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Inputs are fully specified: exact data structure, exact Jackson configuration, exact serialization/deserialization calls."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior is clear from context: successful round-trip serialization/deserialization without exceptions."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Jackson version is specified; JVM/OS details would be helpful but are not critical for this type-related bug."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions; the report is internally consistent (int works, long fails; serialization succeeds, deserialization fails)."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Correct behavior is implied: primitive long fields should deserialize successfully when serialized with type information as java.lang.Long."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Faulty component is identifiable: ClassNameIdResolver._typeFromId() or TypeFactory.constructSpecializedType() validation logic."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Expected behavior is concrete: deserialization should succeed and 'key' should be assigned the value 1 as a long."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Report mentions the constraint that classes cannot be modified and mix-ins are not viable, affecting fix approach."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "A developer could plausibly implement a fix to allow java.lang.Long to be accepted as a valid subtype for primitive long fields, though the exact mechanism requires code inspection."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Report implicitly proposes that type resolution logic incorrectly rejects java.lang.Long as a subtype of primitive long."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Root cause references specific code: TypeFactory.constructSpecializedType() at line 359 and ClassNameIdResolver._typeFromId() at line 72."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Causal chain is articulated: serializer writes java.lang.Long type info \u2192 deserializer reads it \u2192 TypeFactory rejects Long as invalid subtype of primitive long \u2192 exception."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Complete, unambiguous reproduction steps can be directly derived from the provided test code; no guessing or partial inference required."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystem identified: Jackson's type resolution and deserialization, specifically ClassNameIdResolver and TypeFactory."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report distinguishes symptom (deserialization exception on 'key' field) from likely defect location (type validation in TypeFactory/ClassNameIdResolver)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Multiple impacted areas suggested: primitive type handling, type resolution, and deserialization of annotated types."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Four or more distinct technical concepts identified: ClassNameIdResolver, TypeFactory, BeanDeserializer, primitive long, java.lang.Long, type information, and default typing."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": false,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "A5": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.94
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "C4": {
+        "agreement": false,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.91
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.96
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.89
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.96
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.93
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.82
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.87
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.94
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.94
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "M4": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": false,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.82
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.78
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.1100000000000001,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.82
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.78
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      }
+    }
+  },
+  "percent_agreement": 0.6666666666666666,
+  "cohens_kappa": 0.11111111111111127,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.86)"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.94 > 0.82)"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.91 > 0.8)"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.93 > 0.78)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.82)"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.94 > 0.72)"
+      },
+      "T5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.94 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.8)"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.93 > 0.82)"
+      },
+      "RC2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.8)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.78 > 0.7)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.86)"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Selected judge2 (higher confidence: 0.94 > 0.82)"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Selected judge2 (higher confidence: 0.91 > 0.8)"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Selected judge2 (higher confidence: 0.93 > 0.78)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.82)"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Selected judge2 (higher confidence: 0.94 > 0.72)"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Selected judge2 (higher confidence: 0.94 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.8)"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Selected judge1 (higher confidence: 0.93 > 0.82)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.8)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Selected judge2 (higher confidence: 0.78 > 0.7)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 3,
+      "TechnicalContext": 5,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.6968731476445665,
+      "Clarity": 0.6968731476445665,
+      "Specificity": 0.6968731476445665,
+      "Reproducibility": 0.6968731476445665,
+      "ReasoningQuality": -0.48245064067700777,
+      "TechnicalContext": 0.6968731476445665,
+      "Ambiguity": 0.10721125348377938,
+      "RepairReadiness": 0.6968731476445665,
+      "RootCauseEvidence": -2.251436323159369,
+      "HiddenReproducibility": -1.661774428998582,
+      "ImpactScope": 0.10721125348377938
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

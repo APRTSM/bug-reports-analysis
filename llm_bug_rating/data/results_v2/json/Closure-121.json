@@ -1,0 +1,1460 @@
+{
+  "bug": {
+    "bug_id": "Closure-121",
+    "project": "Closure",
+    "summary": "Overzealous optimization confuses variables",
+    "description": "The following code:\r\n\r\n\t// ==ClosureCompiler==\r\n\t// @compilation_level ADVANCED_OPTIMIZATIONS\r\n\t// ==/ClosureCompiler==\r\n\tvar uid;\r\n\tfunction reset() {\r\n\t\tuid = Math.random();\r\n\t}\r\n\tfunction doStuff() {\r\n\t\treset();\r\n\t\tvar _uid = uid;\r\n\r\n\t\tif (uid &lt; 0.5) {\r\n\t\t\tdoStuff();\r\n\t\t}\r\n\r\n\t\tif (_uid !== uid) {\r\n\t\t\tthrow 'reset() was called';\r\n\t\t}\r\n\t}\r\n\tdoStuff();\r\n\r\n...gets optimized to:\r\n\r\n\tvar a;function b(){a=Math.random();0.5&gt;a&amp;&amp;b();if(a!==a)throw&quot;reset() was called&quot;;}b();\r\n\r\nNotice how _uid gets optimized away and (uid!==_uid) becomes (a!==a) even though doStuff() might have been called and uid's value may have changed and become different from _uid.\r\n\r\nAs an aside, replacing the declaration with &quot;var _uid = +uid;&quot; fixes it, as does adding an extra &quot;uid = _uid&quot; after &quot;var _uid = uid&quot;."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Shows observable faulty behavior: optimized code changes the meaning of the comparison and can miss the 'reset() was called' throw."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Identifies the affected path as Closure Compiler ADVANCED_OPTIMIZATIONS and the variable optimization in doStuff/reset."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes concrete optimized output code snippet showing '_uid' removed and 'a!==a' generated."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Provides a self-contained repro snippet and the observed transformed output, enough to investigate immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Points to Closure Compiler's optimization pass that incorrectly folds the variable comparison."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The failure scenario is described clearly with source and transformed code."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "A failing test could assert that '_uid !== uid' must not be optimized to 'a!==a' across the recursive call."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The sequence is explicit: reset, save uid, recurse conditionally, then compare saved and current uid."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Closure Compiler, ADVANCED_OPTIMIZATIONS, doStuff, reset, and uid/_uid are all named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent: optimization, variable confusion, and comparison folding are used correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete trigger is given: recursive call when 'uid < 0.5' after 'var _uid = uid'."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The code snippet itself serves as ordered reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No version, OS, or runtime environment information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reports the exact incorrect output fragment 'if(a!==a)throw\"reset() was called\";'."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The bug is uniquely characterized by the optimizer turning a live variable comparison into self-comparison after recursion."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit: the throw should occur if reset changes uid after saving _uid."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is explicitly shown as the incorrect optimized code."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The discrepancy is clear: '_uid !== uid' becomes 'a !== a', which is always false."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The provided snippet is sufficient to attempt reproduction in Closure Compiler."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or dependency details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "The report does not explicitly propose a root cause, only demonstrates the bad optimization."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No causal explanation is given beyond the incorrect transformed code."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The optimized output itself is concrete evidence supporting the bug."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The description is internally consistent and the workaround examples align with the symptom."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No exact log lines, method names, or code locations are cited."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Names the Closure Compiler compilation level and the functions doStuff and reset."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The affected subsystem is identifiable as Closure Compiler advanced optimization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes a relevant transformed code snippet showing the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No external dependency or library version is specified beyond Closure Compiler generally."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No OS, browser, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The exact compiler pass or internal location is not specified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The input code and trigger condition are concrete enough to reproduce."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is inferable: preserve the comparison semantics."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Missing environment/version information could affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The correct behavior is clear: do not fold the saved value comparison across possible recursive mutation."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The fix area is identifiable as Closure Compiler's optimization of variable aliases and comparisons."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: output must preserve '_uid !== uid' semantics."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The recursive call and mutation timing are the key edge case and are explicitly shown."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "A plausible fix can be inferred from the report: avoid eliminating the alias or invalidly assuming uid is unchanged."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No specific code construct is named as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "The causal chain is implied by the bad transform but not articulated as a root-cause explanation."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The snippet fully determines a concrete scenario for reproduction."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The affected concept is Closure Compiler variable optimization/comparison folding."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The symptom appears in generated code, while the defect is in the optimizer."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Only one main affected area is described."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References multiple technical concepts: ADVANCED_OPTIMIZATIONS, doStuff, reset, uid, _uid, and recursive call."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: optimized code produces incorrect comparison (a!==a) instead of (_uid!==uid), causing logic error."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Identifies specific code path: variable assignment and comparison in doStuff() function, with explicit mention of Closure Compiler optimization level."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes concrete debugging artifacts: original source code, optimized output showing (a!==a), and explanation of variable renaming."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer can immediately reproduce by running code through Closure Compiler with ADVANCED_OPTIMIZATIONS and observing the incorrect optimization."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Pinpoints Closure Compiler's optimization logic as the fault location, specifically variable aliasing and dead code elimination."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clear: variable _uid is optimized away incorrectly, causing comparison to become tautological."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer could write a test: compile code with ADVANCED_OPTIMIZATIONS and verify that _uid !== uid check is preserved correctly."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Sequence is unambiguous: reset() called, _uid assigned, recursive call may change uid, then comparison should detect change but doesn't."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "All entities identified: Closure Compiler, ADVANCED_OPTIMIZATIONS flag, variable names (uid, _uid), and function names (reset, doStuff)."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology accurate: 'optimization', 'variable aliasing', 'dead code elimination' used correctly to describe the fault."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific inputs provided: Math.random() call, comparison threshold 0.5, recursive call condition."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Ordered steps clear: declare uid, call reset(), assign _uid, check condition, compare values."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specifies Closure Compiler with ADVANCED_OPTIMIZATIONS flag; version not mentioned but compilation level is explicit."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Exact failure shown: (a!==a) comparison in optimized output, which is always false."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Distinguishes from similar bugs by showing specific variable aliasing issue and providing workarounds (var _uid = +uid)."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior explicit: _uid should retain original value and comparison (_uid !== uid) should detect changes from recursive calls."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Observed behavior explicit: _uid optimized away, comparison becomes (a!==a), exception never thrown despite recursive call."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Discrepancy clear: expected exception 'reset() was called' is not thrown due to incorrect optimization."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Steps sufficient: provide code to Closure Compiler with ADVANCED_OPTIMIZATIONS flag and execute."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Closure Compiler tool required; specific version not mentioned but compilation level specified."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explicitly proposes cause: Closure Compiler's optimization incorrectly eliminates _uid variable and treats comparison as tautological."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal link clear: variable aliasing optimization assumes _uid and uid are identical, but recursive call changes uid."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Evidence provided: original code, optimized output showing (a!==a), and explanation of variable renaming."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explanation coherent: optimization logic is sound in isolation but fails to account for side effects from recursive calls."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References specific artifacts: variable names (a, uid, _uid), comparison operator (!==), and function names (doStuff, reset)."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific names provided: functions (reset, doStuff), variables (uid, _uid), methods (Math.random)."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Subsystem identified: Closure Compiler's optimization phase, specifically variable aliasing and dead code elimination."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Includes original source code and optimized output directly relevant to the failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "External tool named: Closure Compiler with ADVANCED_OPTIMIZATIONS flag specified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Closure Compiler version not specified; OS, browser, or runtime environment not mentioned."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all code entities and optimization behavior explicitly shown."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Inputs and conditions fully specified: Math.random(), 0.5 threshold, recursive call condition."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior clear: exception should be thrown when uid changes, but optimization prevents this."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Closure Compiler version not specified; could affect reproducibility."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictions; workarounds (var _uid = +uid) are consistent with root cause explanation."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Correct behavior clear: preserve variable aliasing only when no side effects can occur; detect recursive calls."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Fault location identifiable: Closure Compiler's variable aliasing optimization logic in ADVANCED_OPTIMIZATIONS."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion explicit: exception 'reset() was called' must be thrown when uid changes."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Constraints documented: recursive calls and side effects must be considered; workarounds suggest fix approaches."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could implement fix: add side-effect analysis to prevent aliasing when function calls may modify variables."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explicitly proposes root cause: Closure Compiler's variable aliasing optimization incorrectly assumes _uid and uid remain identical."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific constructs: variable assignment (var _uid = uid), comparison operator (!==), and recursive function call (doStuff())."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Causal chain articulated: aliasing optimization \u2192 _uid eliminated \u2192 comparison becomes (a!==a) \u2192 always false \u2192 exception never thrown."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Concrete scenario fully determinable: provide source code to Closure Compiler with ADVANCED_OPTIMIZATIONS, execute, observe missing exception."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystem identified: Closure Compiler's variable aliasing optimization in ADVANCED_OPTIMIZATIONS mode."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Distinguishes symptom (missing exception) from defect (incorrect aliasing optimization)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Multiple concerns identified: variable aliasing, dead code elimination, side effect analysis, recursive calls."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Names four+ concepts: Closure Compiler, ADVANCED_OPTIMIZATIONS, variable aliasing, dead code elimination, recursive calls, side effects."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.85
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.92
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.88
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      }
+    }
+  },
+  "percent_agreement": 0.7708333333333334,
+  "cohens_kappa": 0.3160621761658032,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.99 > 0.85)"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.8)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.9)"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.88)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.9)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.92)"
+      },
+      "RC2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.97 > 0.9)"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.88)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "Selected judge1 (higher confidence: 0.99 > 0.85)"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.8)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.9)"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.88)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.9)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.92)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Selected judge1 (higher confidence: 0.97 > 0.9)"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.88)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 3,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9914601339836674,
+      "Clarity": 0.9914601339836674,
+      "Specificity": 0.3499271061118826,
+      "Reproducibility": 0.3499271061118826,
+      "ReasoningQuality": -0.2916059217599022,
+      "TechnicalContext": -0.2916059217599022,
+      "Ambiguity": 0.3499271061118826,
+      "RepairReadiness": 0.9914601339836674,
+      "RootCauseEvidence": -2.2162050053752567,
+      "HiddenReproducibility": -1.5746719775034717,
+      "ImpactScope": 0.3499271061118826
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

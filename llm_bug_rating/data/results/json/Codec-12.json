@@ -1,0 +1,1426 @@
+{
+  "bug": {
+    "bug_id": "Codec-12",
+    "project": "Codec",
+    "summary": "Base64InputStream.skip skips underlying stream, not output",
+    "description": "Base64InputStream.skip() skips within underlying stream, leading to unexpected behaviour.\n\nThe following code will reproduce the issue:\n\n@Test\n\npublic void testSkip() throws Throwable {\n\nInputStream ins =\n\nnew ByteArrayInputStream(\"AAAA////\".getBytes(\"ISO-8859-1\"));//should decode to \n\n{0, 0, 0, 255, 255, 255}\n\nBase64InputStream instance = new Base64InputStream(ins);\n\nassertEquals(3L, instance.skip(3L)); //should skip 3 decoded characters, or 4 encoded characters\n\nassertEquals(255, instance.read()); //Currently returns 3, as it is decoding \"A/\", not \"//\" \n\n}\n\nThe following code, if added to Base64InputStream, or (BaseNCodecInputStream in the dev build) would resolve the issue:\n\n@Override\n\npublic long skip(long n) throws IOException {\n\n//delegate to read()\n\nlong bytesRead = 0;\n\nwhile ((bytesRead < n) && (read() != -1)) \n\n{\nbytesRead++;\n}\n\nreturn bytesRead;\n\n}\n\nMore efficient code may be possible."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes faulty skip behavior in Base64InputStream with a concrete failing example."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Identifies the affected component as Base64InputStream, and mentions BaseNCodecInputStream."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes a test case, observed assertion result, and a proposed code fix."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides enough context to investigate: method, behavior, sample input, and expected vs actual result."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Likely affected subsystem is the Base64/BaseN codec input stream skip logic."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report is understandable and grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as skip() operating on the underlying stream instead of decoded output."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "It presents summary, description, reproduction code, then a suggested fix in a logical order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References to Base64InputStream, BaseNCodecInputStream, skip(), and read() are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terms like decoded characters, underlying stream, and Base64InputStream are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Gives a specific input string: \"AAAA////\"."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides concrete reproduction code in a JUnit test."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No OS, library version, or runtime environment information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reports a concrete failure: after skip(3), read() returns 3 instead of 255."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes this from a generic failure by explaining the mismatch between decoded and encoded skipping."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Expected behavior is stated: skip 3 decoded characters, or 4 encoded characters."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is stated: read() returns 3 because it decodes \"A/\"."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The discrepancy between expected 255 and observed 3 is explicit."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The included test code is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "No environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes a cause: skip() should delegate to read() instead of skipping the underlying stream."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is tied to the symptom that read() returns the wrong decoded byte after skip()."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The failing test case serves as evidence for the proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The explanation is internally consistent and matches the described behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References technical artifacts such as skip(), read(), Base64InputStream, and BaseNCodecInputStream."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Mentions Base64InputStream and BaseNCodecInputStream."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected module is identifiable as the Base64/BaseN codec input stream implementation."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Includes a JUnit test snippet and concrete assertion results."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "No external dependencies or integrations are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.2,
+        "reason": "Most references are specific, but the dev-build mention is somewhat broad."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering conditions are clearly described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clearly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The faulty behavior is precise: skip() advances the wrong stream position."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The fix location is identifiable as Base64InputStream or BaseNCodecInputStream skip()."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The correct behavior is stated: skip decoded bytes, not raw encoded bytes."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report notes the decoded/encoded distinction and mentions a possible more efficient implementation."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A developer could implement the basic fix from the report, though efficiency details may need review."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A potential root cause is explicitly proposed: skip() delegates to the underlying stream instead of read()."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References the specific operation skip() and the suggested read()-based implementation."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The report explains that this causes decoding of \"A/\" and the wrong returned byte."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The narrative and test code make the reproduction steps inferable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is the Base64/BaseN codec input stream."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It distinguishes the symptom in read() from the defect in skip()."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "Only one main component is discussed; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report clearly describes faulty behavior: skip() skips the underlying stream bytes instead of decoded output bytes."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected component is explicitly identified as Base64InputStream.skip() (and BaseNCodecInputStream in dev build)."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "A concrete test case with code is provided, along with a proposed fix, making debugging straightforward."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report provides the input, expected output, actual output, and a proposed fix \u2014 sufficient context to begin investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The subsystem is clearly identified: Base64InputStream / BaseNCodecInputStream in Apache Commons Codec."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report is well-written, grammatically coherent, and easy to understand."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly stated: skip() operates on the encoded stream rather than the decoded output."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Information flows logically: problem statement, reproduction code, expected vs actual, and proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References to Base64InputStream, skip(), read(), and the encoded/decoded distinction are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms (skip, decoded, encoded, underlying stream) are used consistently throughout."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific input ('AAAA////' encoded as ISO-8859-1) and triggering condition (calling skip(3)) are described."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "A complete JUnit test case is provided as reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No version number or environment details (OS, Java version, library version) are mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific actual output (returns 3 instead of 255) is reported with explanation of why."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report distinguishes this from a generic failure by explaining the encoded vs decoded byte offset mismatch."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected behavior is explicitly stated: skip(3) should skip 3 decoded bytes, and read() should return 255."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: read() returns 3 because skip operates on the encoded stream."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy (255 expected vs 3 actual) is clearly identifiable from the test assertions."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The provided JUnit test is self-contained and sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific library version, Java version, or environment dependencies are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report explicitly proposes that skip() delegates to the underlying stream rather than operating on decoded output."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The explanation is directly linked to the symptom: skipping 3 encoded bytes misaligns the decoding window."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The test case demonstrates the symptom, and the comment 'it is decoding A/ not //' provides evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The explanation is internally coherent: skipping encoded bytes shifts the decode boundary, causing wrong output."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific method (skip, read) and class (Base64InputStream, BaseNCodecInputStream) as technical artifacts."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Base64InputStream, BaseNCodecInputStream, skip(), and read() are explicitly mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected subsystem (Base64/BaseN codec input stream) is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A code snippet (JUnit test and proposed fix) is included as a technical artifact."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external libraries or dependencies beyond the codec itself are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, Java version, or library version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific and unambiguous; no vague terms used."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Input ('AAAA////'), encoding (ISO-8859-1), and skip count (3) are all precisely specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Expected behavior is clearly stated: skip 3 decoded bytes, read() returns 255."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Library version and Java/environment version are not mentioned, which is relevant for a codec bug."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The faulty behavior (skip operates on encoded stream) is precisely described, making the needed change clear."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The fix location is explicitly identified: Base64InputStream.skip() or BaseNCodecInputStream.skip()."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected correct behavior is stated: skip n decoded bytes by delegating to read()."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Edge cases (e.g., EOF handling, partial skips) are not thoroughly documented beyond the basic fix."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A complete proposed fix is provided in the report, enabling a developer to implement it directly."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root cause is explicitly stated: skip() delegates to the underlying (encoded) stream instead of decoded output."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The root cause references the skip() method operating on the raw InputStream rather than decoded bytes."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The causal chain is articulated: skipping encoded bytes shifts the decode window, causing wrong decoded values."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "A complete JUnit test case is provided, making reproduction steps fully inferable even without numbered steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected code concept (Base64InputStream / BaseNCodecInputStream skip method) is clearly identifiable."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "The report does not explicitly distinguish between symptom location and defect location; both are implied to be in skip()."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Only one area (skip method in codec stream) is identified; no cross-cutting concerns are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.7,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.65
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.65
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.9361702127659575,
+  "cohens_kappa": 0.8033472803347281,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.2)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.65)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.65)"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.2)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.65)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.65)"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.079127485069423,
+      "Clarity": 1.079127485069423,
+      "Specificity": 0.4543694673976517,
+      "Reproducibility": 0.4543694673976517,
+      "ReasoningQuality": 1.079127485069423,
+      "TechnicalContext": -0.1703885502741196,
+      "Ambiguity": 0.4543694673976517,
+      "RepairReadiness": -2.0446626032894337,
+      "RootCauseEvidence": -0.1703885502741196,
+      "HiddenReproducibility": -1.4199045856176622,
+      "ImpactScope": -0.7951465679458909
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

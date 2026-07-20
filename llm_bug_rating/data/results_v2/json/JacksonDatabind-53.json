@@ -1,0 +1,1464 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-53",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "If I have json that looks like\n\n{\n\"something\": [\n{\n\"id\": \"a uuid\",\n\"property\": \"value\"\n}\n]\n}\n\nAnd I have a java pojo with an annotation like this:\n\n@JsonDeserialize(as = MyHashMap.class)\nprivate void setSomething(Map<UUID, Foo> incomingValue) {\n\nWhere MyHashMap.java has some custom logic using generics that allow us to map the array json above into a Map where \"id\" is the key and everything else serializes into the value. We use generics on MyHashMap to enforce that every value implements a certain interface that respects the contract of returning an \"id\" property. In this example Foo.java implements this interface MyCustomIdInterface.java.\n\nWhen using 2.6.6 this worked fine, but if I switch to 2.7.x then it breaks with the error:\n\nCan not construct instance of MyCustomIdInterface, problem: abstract types either need to be mapped to concrete types, have custom deserializer, or be instantiated with additional type information\n\nin 2.7.x, it looks like jackson resolves to using AbstractDeserializer based on MyCustomIdInterface but in 2.6.6 it resolves to using BeanDeserializer based on Foo.java.\n\nIs this a bug or is there some default/feature flag that changed here?"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Describes a concrete failure: 2.7.x throws an abstract type construction error when deserializing the JSON into the POJO."
+      },
+      "A2": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No specific Jackson class or method is named; only versions and generic custom map logic are mentioned."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes the exact error message about not constructing MyCustomIdInterface and AbstractDeserializer vs BeanDeserializer behavior."
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "The report lacks full reproduction details such as exact code, annotations, and setup needed to immediately reproduce."
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "It points to a general deserialization path, but not a precise module, class, or component in Jackson."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A developer can understand the scenario: custom generic map deserialization works in 2.6.6 but fails in 2.7.x."
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "Not enough detail to write a failing test without the custom MyHashMap implementation and full POJO setup."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The sequence is clear: same JSON and POJO work in 2.6.6, fail in 2.7.x with the stated error."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.79,
+        "reason": "Referenced entities like MyHashMap, Foo, and MyCustomIdInterface are not locatable in the codebase from the report alone."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "Terminology is used consistently: abstract type, BeanDeserializer, AbstractDeserializer, generics, and custom deserializer."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The triggering input is concrete JSON with an array of objects containing id and property fields."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No ordered reproduction steps are provided beyond the version change and example input."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Specific version information is included: Jackson 2.6.6 works and 2.7.x fails."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The exact failure message is quoted verbatim."
+      },
+      "S5": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "The issue is described, but not uniquely enough to distinguish from other abstract-type deserialization problems."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Expected behavior is implied by the working 2.6.6 case, but not stated as an explicit correctness criterion."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Observed behavior is explicit: 2.7.x fails with the abstract type construction error."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The discrepancy is clear: 2.6.6 resolves to BeanDeserializer/Foo, while 2.7.x resolves to AbstractDeserializer/MyCustomIdInterface."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.76,
+        "reason": "The report does not provide complete steps or full code needed to reproduce without additional investigation."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.83,
+        "reason": "No environment details beyond Jackson version are given."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report asks whether it is a bug or feature change, but does not explicitly propose a root cause."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No causal explanation is provided beyond the observed deserializer selection difference."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "There is evidence of the failure, but no evidence supporting a proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The description is internally consistent: the same setup behaves differently across versions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "It references concrete technical artifacts such as AbstractDeserializer, BeanDeserializer, MyCustomIdInterface, and Foo."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "Named artifacts include MyHashMap, Foo, and MyCustomIdInterface."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The affected area is identifiable as Jackson deserialization, specifically custom generic map handling."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report includes a relevant error message and deserializer class names."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "No external dependency names or versions beyond Jackson itself are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, runtime, framework, or hardware environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The custom MyHashMap generic logic is underspecified and would need clarification."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Inputs and setup are incomplete because the full POJO and custom deserializer implementation are missing."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Expected behavior is implied rather than explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Only Jackson version is given; other environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report is not contradictory; it consistently describes a version-specific regression."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "The correct fix is not determined from the report alone because the root cause is not identified."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "The exact code location needing a fix is not identified."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.73,
+        "reason": "Expected correct behavior is implied but not stated concretely enough as an acceptance criterion."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.77,
+        "reason": "Edge cases and constraints of the custom generic mapping are not documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "A plausible fix cannot be implemented from this report alone without further investigation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific code construct or logic error is identified as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report does not articulate a causal chain beyond the deserializer choice difference."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "A concrete scenario is described, but complete unambiguous reproduction steps are not fully determinable from the report."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The affected concept is identifiable as Jackson custom deserialization for generic maps and abstract interface values."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "The symptom is the deserialization failure, while the likely defect is in type resolution/deserializer selection."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "Only one main impacted path is described; multiple distinct impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.81,
+        "reason": "The report mentions several technical concepts: JSON array, Map<UUID, Foo>, MyHashMap, MyCustomIdInterface, BeanDeserializer, and AbstractDeserializer."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Observable failure: deserialization error with specific exception message about abstract types; distinguishable from normal behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Specific classes named: MyHashMap, MyCustomIdInterface, Foo; setter method setSomething identified."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Concrete error message provided: 'Can not construct instance of MyCustomIdInterface, problem: abstract types...' directly implicates the fault."
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Developer would need to understand custom MyHashMap logic and generic type resolution; no reproduction steps provided."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Specific classes identified: MyHashMap, MyCustomIdInterface, Foo; deserializer resolution path clear."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Failure scenario is clear: JSON array with id/property structure fails to deserialize into Map in 2.7.x."
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Custom MyHashMap logic not fully explained; test case would require understanding internal generic mapping behavior."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Sequence is unambiguous: JSON structure \u2192 annotation \u2192 deserializer selection \u2192 error in 2.7.x vs. success in 2.6.6."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "MyHashMap and MyCustomIdInterface are custom classes; their implementation details not provided, making location unclear."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Technical terms used accurately: deserialization, abstract types, generics, BeanDeserializer, AbstractDeserializer."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Concrete JSON structure provided; Map<UUID, Foo> type specified; id field identified as key."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "No step-by-step reproduction steps provided; would require creating custom classes and understanding MyHashMap internals."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Versions explicitly specified: 2.6.6 (working) vs. 2.7.x (broken); version-related ambiguity ruled out."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Exact error message provided verbatim; failure mode clearly identified as deserializer selection issue."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Custom generic-based deserialization with interface contract is distinctive; version regression pattern is specific."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Expected behavior implied: JSON array should deserialize into Map with id as key, working in 2.6.6."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Observed behavior explicit: AbstractDeserializer error in 2.7.x; deserializer selection changed from BeanDeserializer."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Discrepancy clear: 2.6.6 uses BeanDeserializer (works), 2.7.x uses AbstractDeserializer (fails)."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "No explicit reproduction steps; would require creating MyHashMap, MyCustomIdInterface, and Foo implementations."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Jackson version specified, but no OS, Java version, or other environmental details provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Specific potential cause proposed: deserializer resolution changed from BeanDeserializer to AbstractDeserializer between versions."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Causal link clear: AbstractDeserializer cannot instantiate abstract types; BeanDeserializer could resolve concrete Foo type."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Evidence provided: error message, deserializer names, version comparison; lacks code traces showing resolution logic."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Explanation is internally coherent: version change \u2192 deserializer selection logic change \u2192 abstract type handling failure."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "References specific deserializers: AbstractDeserializer, BeanDeserializer; specific interface MyCustomIdInterface."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific classes named: MyHashMap, MyCustomIdInterface, Foo; method setSomething; annotation @JsonDeserialize."
+      },
+      "T2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Custom classes are user-defined; Jackson subsystem (deserializer resolution) identified but internal code paths not specified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Error message provided; deserializer class names included; JSON structure example given."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Jackson library referenced by version (2.6.6 vs. 2.7.x); no other external dependencies mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "Only Jackson version specified; Java version, OS, runtime environment not provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "MyHashMap and MyCustomIdInterface are custom; their implementation details vague, requiring developer investigation."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.65,
+        "reason": "Inputs insufficiently described: MyHashMap's generic logic not explained; how id extraction works unclear."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Expected behavior reasonably clear: deserialize JSON array into Map<UUID, Foo> as in 2.6.6."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Java version, OS, and other environment details missing; could affect type resolution behavior."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No contradictions detected; version comparison and error description are consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Correct behavior implied but not explicit; fix would require understanding deserializer selection logic change."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Faulty component identifiable: Jackson's deserializer resolution logic for generic types in 2.7.x."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Expected behavior: deserialize JSON array into Map<UUID, Foo> as in 2.6.6; acceptance criterion clear."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Edge cases and constraints not documented; generic type handling specifics not explained."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "Developer would need to investigate Jackson's deserializer resolution logic; insufficient detail for direct fix implementation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Root cause explicitly proposed: deserializer resolution changed between 2.6.6 and 2.7.x."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Specific code constructs named: AbstractDeserializer vs. BeanDeserializer; generic type resolution logic."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Causal chain articulated: version change \u2192 deserializer selection logic \u2192 AbstractDeserializer chosen \u2192 cannot instantiate abstract type."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "Scenario described but reproduction steps not fully determinable; requires understanding and recreating custom MyHashMap logic."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Specific subsystem identified: Jackson's deserializer resolution for generic types and abstract interfaces."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Symptom (error during deserialization) distinguished from likely defect (deserializer selection logic in 2.7.x)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Only deserializer resolution identified; other potentially affected areas not discussed."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Four distinct concepts: MyHashMap, MyCustomIdInterface, Foo, @JsonDeserialize annotation; deserializer types mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "A2": {
+        "agreement": false,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.7
+      },
+      "A5": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.65
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.75
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.19000000000000006,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.79,
+        "judge2_confidence": 0.6
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.5
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.1499999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.8
+      },
+      "S5": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.75
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.1399999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.8
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.20999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.55
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.6
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.7
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.75
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.85
+      },
+      "T2": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.65
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.35,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.5
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.7
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.65
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.7
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.6
+      },
+      "P2": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.73,
+        "judge2_confidence": 0.7
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.55
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.33999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.5
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.8
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.7
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.29,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.45
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.75
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.6
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.81,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.6875,
+  "cohens_kappa": 0.3939393939393939,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.8)"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.68)"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.75)"
+      },
+      "Q3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.7)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.78 > 0.65)"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.62)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.7)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.8 > 0.75)"
+      },
+      "P3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.92 > 0.8)"
+      },
+      "RC2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.75)"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.7)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.8)"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.79,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.68)"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.76,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.83,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.75)"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.7)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Selected judge1 (higher confidence: 0.78 > 0.65)"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.62)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.7)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge1 (higher confidence: 0.8 > 0.75)"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.73,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.77,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge1 (higher confidence: 0.92 > 0.8)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.75)"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.7)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.81,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 3,
+      "Clarity": 3,
+      "Specificity": 4,
+      "Reproducibility": 3,
+      "ReasoningQuality": 2,
+      "TechnicalContext": 4,
+      "Ambiguity": 3,
+      "RepairReadiness": 1,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 0,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 4,
+      "ambiguity_count": 3,
+      "hidden_s2r_present": false,
+      "root_cause_evidence": 0,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 0.5369248441712192,
+      "Clarity": 0.5369248441712192,
+      "Specificity": 1.2751965049066458,
+      "Reproducibility": 0.5369248441712192,
+      "ReasoningQuality": -0.20134681656420741,
+      "TechnicalContext": 1.2751965049066458,
+      "Ambiguity": -0.20134681656420741,
+      "RepairReadiness": -0.9396184772996341,
+      "RootCauseEvidence": -1.6778901380350608,
+      "HiddenReproducibility": -1.6778901380350608,
+      "ImpactScope": 0.5369248441712192
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

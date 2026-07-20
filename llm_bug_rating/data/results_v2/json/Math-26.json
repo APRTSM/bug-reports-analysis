@@ -1,0 +1,1461 @@
+{
+  "bug": {
+    "bug_id": "Math-26",
+    "project": "Math",
+    "summary": "Fraction(double, int) constructor strange behaviour",
+    "description": "The Fraction constructor Fraction(double, int) takes a double value and a int maximal denominator, and approximates a fraction. When the double value is a large, negative number with many digits in the fractional part, and the maximal denominator is a big, positive integer (in the 100'000s), two distinct bugs can manifest:\n\n1: the constructor returns a positive Fraction. Calling Fraction(-33655.1677817278, 371880) returns the fraction 410517235/243036, which both has the wrong sign, and is far away from the absolute value of the given value\n\n2: the constructor does not manage to reduce the Fraction properly. Calling Fraction(-43979.60679604749, 366081) returns the fraction -1651878166/256677, which should have* been reduced to -24654898/3831.\n\nI have, as of yet, not found a solution. The constructor looks like this:\n\npublic Fraction(double value, int maxDenominator)\n\nthrows FractionConversionException\n\n{\nthis(value, 0, maxDenominator, 100);\n}\n\nIncreasing the 100 value (max iterations) does not fix the problem for all cases. Changing the 0-value (the epsilon, maximum allowed error) to something small does not work either, as this breaks the tests in FractionTest. \n\nThe problem is not neccissarily that the algorithm is unable to approximate a fraction correctly. A solution where a FractionConversionException had been thrown in each of these examples would probably be the best solution if an improvement on the approximation algorithm turns out to be hard to find.\n\nThis bug has been found when trying to explore the idea of axiom-based testing (\nhttp://bldl.ii.uib.no/testing.html\n). Attached is a java test class FractionTestByAxiom (junit, goes into org.apache.commons.math3.fraction) which shows these bugs through a simplified approach to this kind of testing, and a text file describing some of the value/maxDenominator combinations which causes one of these failures.\n\nIt is never specified in the documentation that the Fraction class guarantees that completely reduced rational numbers are constructed, but a comment inside the equals method claims that \"since fractions are always in lowest terms, numerators and can be compared directly for equality\", so it seems like this is the intention."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes concrete faulty behavior: wrong sign and failure to reduce for specific Fraction(double, int) inputs."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the affected constructor Fraction(double, int) and the equals-method comment context."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Provides exact failing examples and mentions an attached JUnit test class and text file."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A developer can reproduce using the two cited constructor calls and the described test class."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Points to the Fraction(double, int) constructor in org.apache.commons.math3.fraction."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is explained clearly with concrete inputs and observed outputs."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "A failing test could be written from the two explicit input/output examples."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The triggering conditions are stated: large negative double, many fractional digits, large positive maxDenominator."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Names the Fraction class, constructor, equals method comment, and package."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Terminology is consistent with fraction approximation, reduction, denominator, and conversion exception."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Gives specific triggering inputs and maxDenominator values."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.42,
+        "reason": "Mentions an attached test class but does not provide ordered reproduction steps in the report text."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environment or version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reports exact observed fractions returned by the constructor."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The combination of wrong sign and unreduced output distinguishes this issue from a generic approximation error."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Expected behavior is implied: approximate the given value and return a reduced fraction, or throw FractionConversionException."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is explicitly stated with exact returned fractions."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The mismatch between expected approximation/reduction and observed wrong-sign or unreduced fractions is clear."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "Reproduction is suggested by examples, but complete steps and setup are not fully specified in the text."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No environment or dependency details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "The report does not explicitly propose a specific root cause, only notes possible algorithm issues."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No explicit causal mechanism is given linking a proposed cause to the symptoms."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Evidence is provided for symptoms, but not for a specific proposed explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The discussion is internally consistent: algorithm may fail, and exception could be preferable."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "No exact log lines, method names beyond the constructor, or concrete code locations for a root cause are given."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Names Fraction(double, int), equals, and the test class FractionTestByAxiom."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected module is identifiable as org.apache.commons.math3.fraction."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Includes concrete failing outputs and references an attached JUnit test class."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No external dependency or version is named beyond the library package."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are vague, such as 'the algorithm' and 'attached test class' without full details."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Inputs and conditions are sufficiently described for the cited examples."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Expected behavior is mostly clear from the context of approximation and reduction."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "Describes the faulty behavior and implies the correct behavior should be a reduced, correctly signed approximation or exception."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The constructor Fraction(double, int) in org.apache.commons.math3.fraction is the clear fix target."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Acceptance criterion is implied by the expected reduced fractions or throwing FractionConversionException."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Mentions edge cases: large negative values, many fractional digits, and large maxDenominator."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.52,
+        "reason": "A plausible fix direction is suggested, but the report lacks enough detail to implement confidently without further investigation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No specific root cause is explicitly proposed."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No concrete code construct or API call is identified as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report does not articulate a verified causal chain from cause to failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The two explicit failing examples provide concrete scenarios from which reproduction steps can be derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The Fraction class and its conversion logic are the identifiable affected concept."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Distinguishes symptom location in constructor output from likely defect in approximation/reduction logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "Does not identify multiple impacted areas beyond the constructor and equals comment."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "References Fraction, Fraction(double, int), FractionTestByAxiom, equals, and FractionConversionException."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes two distinct observable failures: wrong sign and incorrect reduction, with concrete method calls and expected vs. actual outputs."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specifically identifies Fraction(double, int) constructor and references internal call to Fraction(double, int, int, int) with exact parameters."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Provides concrete method invocations with inputs and outputs: Fraction(-33655.1677817278, 371880) and Fraction(-43979.60679604749, 366081) with actual returned fractions."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer can immediately call the constructor with provided inputs and observe the failures without clarification; test class FractionTestByAxiom is referenced as reproducible artifact."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Precisely identifies Fraction class, the constructor Fraction(double, int), and the internal method it delegates to with exact parameter values."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Clearly describes failure scenario: large negative double with many fractional digits and large maxDenominator trigger two distinct bugs."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Provides concrete inputs and expected outputs; a developer could write test assertions comparing returned fractions to expected values."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Sequence is clear: constructor called with specific inputs, returns incorrect fraction; two separate failure modes are distinguished unambiguously."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Fraction class and constructor are precisely named; internal delegation to Fraction(double, int, int, int) is explicitly stated."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Uses accurate terminology: 'reduced fraction', 'denominator', 'numerator', 'approximation algorithm'; references 'lowest terms' from equals method comment."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides two concrete input pairs: (-33655.1677817278, 371880) and (-43979.60679604749, 366081) that directly trigger failures."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No explicit step-by-step reproduction steps provided; developer must infer that calling constructor with given inputs reproduces the bug."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No version information, Java version, or platform details provided; assumes Apache Commons Math 3 from package name but no explicit version stated."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific outputs reported verbatim: '410517235/243036' and '-1651878166/256677'; expected reduction '-24654898/3831' is also stated."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Distinguishes two failure modes (sign error vs. reduction failure) with specific input characteristics (large negative, many fractional digits, large maxDenominator)."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior stated: fractions should be in lowest terms and preserve sign; for second case, -24654898/3831 is the correct reduced form."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior explicitly stated with actual returned fractions; failures are unambiguous (wrong sign, improper reduction)."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Discrepancy is clear: returned fractions differ from expected in sign and/or reduction; comparison is straightforward."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Reproduction steps are implicit but complete: call Fraction(double, int) with provided inputs; no additional investigation needed."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No Java version, JVM details, or platform information provided; assumes standard environment but does not specify."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report mentions 'approximation algorithm' as potential issue and suggests FractionConversionException as alternative; proposes that algorithm may be fundamentally flawed."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Links algorithm behavior to symptoms: large negative numbers with many fractional digits and large maxDenominator trigger failures; causal mechanism is plausible but not fully articulated."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "References constructor source code and parameter values (0, 100); mentions that increasing max iterations (100) does not fix all cases."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Explanation is internally consistent: algorithm fails under specific conditions; proposed solutions (exception throwing or algorithm improvement) are coherent."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References specific parameters: epsilon (0), max iterations (100), and the internal method signature Fraction(double, int, int, int)."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names Fraction class, constructor Fraction(double, int), internal method Fraction(double, int, int, int), and equals method."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies Fraction class in org.apache.commons.math3.fraction package; internal delegation chain is clear."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes constructor source code snippet and references test class FractionTestByAxiom; actual input/output values serve as concrete artifacts."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies Apache Commons Math 3 library; no external dependencies mentioned but library context is clear."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "No OS, Java version, or runtime environment details provided; assumes standard Java environment without specification."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "All references are precise: Fraction class, constructor, specific input values, and expected outputs are unambiguous."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Inputs are fully specified: two concrete (double, int) pairs; no ambiguity in parameters or conditions."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear: fractions should be in lowest terms, preserve sign, and approximate the input value accurately."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Java version, platform, and Commons Math version are not specified; could affect reproducibility in edge cases."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictions detected; two failure modes are clearly distinguished and consistently described."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Correct behavior is clear: return reduced fractions with correct sign; fix would involve correcting approximation algorithm or throwing exception."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Faulty component is precisely identified: Fraction(double, int) constructor and its internal delegation to Fraction(double, int, int, int)."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior stated concretely: fractions in lowest terms with correct sign; second example provides specific reduced form -24654898/3831."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report mentions constraints: large negative numbers, many fractional digits, large maxDenominator; notes that changing epsilon breaks existing tests."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Developer could attempt fix by debugging approximation algorithm or implementing exception logic; concrete inputs enable testing, though algorithm details require investigation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Report proposes approximation algorithm as root cause; suggests algorithm may be fundamentally flawed for large negative numbers with many fractional digits."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "References specific code construct: Fraction(double, int, int, int) with parameters (value, 0, maxDenominator, 100); identifies epsilon and max iterations as relevant."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Causal chain is partially articulated: large negative numbers with many fractional digits and large maxDenominator trigger algorithm failure; mechanism is plausible but not fully detailed."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete scenario is fully specified: call Fraction(-33655.1677817278, 371880) or Fraction(-43979.60679604749, 366081); reproduction steps are directly determinable without ambiguity."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies Fraction class and its approximation algorithm as affected; constructor Fraction(double, int) is the specific entry point."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Distinguishes symptom (wrong sign, improper reduction) from likely defect location (approximation algorithm in internal method)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Identifies multiple concerns: sign handling, fraction reduction, approximation algorithm, and test compatibility; notes that equals method assumes lowest terms."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Names four distinct technical concepts: Fraction class, constructor overloads, approximation algorithm, and equals method; references epsilon and max iterations parameters."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.91
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.89
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.96
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.1399999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.43,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.42,
+        "judge2_confidence": 0.85
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.96
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      },
+      "R4": {
+        "agreement": false,
+        "confidence_diff": 0.47000000000000003,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.45,
+        "judge2_confidence": 0.92
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.8
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.7
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.88
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.82
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.88
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.33000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.6
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.74,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.94
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.93
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.52,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.78
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.7
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.93
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.75,
+  "cohens_kappa": 0.39999999999999997,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.45)"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.92 > 0.8)"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.75)"
+      },
+      "Q3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.7)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.52)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.94 > 0.78)"
+      },
+      "RC2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.75)"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.7)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.62)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.45)"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge1 (higher confidence: 0.92 > 0.8)"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.75)"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.7)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.52)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Selected judge1 (higher confidence: 0.94 > 0.78)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.75)"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.7)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.62)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 4,
+      "ReasoningQuality": 2,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 1.0157987663695807,
+      "Clarity": 1.0157987663695807,
+      "Specificity": -0.22573305919324022,
+      "Reproducibility": 0.3950328535881702,
+      "ReasoningQuality": -0.8464989719746506,
+      "TechnicalContext": 0.3950328535881702,
+      "Ambiguity": 0.3950328535881702,
+      "RepairReadiness": 1.0157987663695807,
+      "RootCauseEvidence": -2.0880307975374715,
+      "HiddenReproducibility": -1.467264884756061,
+      "ImpactScope": 0.3950328535881702
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

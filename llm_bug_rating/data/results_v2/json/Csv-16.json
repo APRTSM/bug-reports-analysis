@@ -1,0 +1,1451 @@
+{
+  "bug": {
+    "bug_id": "Csv-16",
+    "project": "Csv",
+    "summary": "Some multi-iterator parsing peek sequences incorrectly consume elements",
+    "description": "Repeated calls to CSVParser Iterable return new Iterators that each reference the same underlying parser lexer. Within the scope of a\u00a0single Iterator, row peeking with Iterator.hasNext() works as intended. When row peeking with Iterator.hasNext()\u00a0under circumstances that create a new Iterator, an element is consumed by the iterator which cannot be\u00a0accessed by subsequent, newly created Iterators and Iterator.next()s. Effectively, the record Iterator and the lexer get out of sequence. See snippet below.\n\nThe \"right thing\" is keeping the Iterator in sequence with the lexer, and since this is reading from a buffer, there seem to me to be only two resolutions:\n\nOne lexer, one Iterator.\n\nNew Iterators, but peeking with hasNext doesn't advance the lexer.\n\n\u00a0\n\nIf there's a consensus on one of these, I can put up a PR.\n\n\u00a0\n\n\u00a0 @Test\n\n\u00a0 \npublic\nvoid newIteratorSameLexer() \nthrows\nException {\n\n\u00a0 \u00a0 \nString\nfiveRows = \n\"1\\n2\\n3\\n4\\n5\\n\"\n;\n\n\u00a0 \u00a0 \nSystem\n.out.println(\n\"Enhanced \nfor\nloop, no peeking:\"\n);\n\n\u00a0 \u00a0 CSVParser parser =\n\n\u00a0 \u00a0 \u00a0 \u00a0 \nnew\nCSVParser(\nnew\nBufferedReader(\nnew\nStringReader(fiveRows)), CSVFormat.DEFAULT);\n\n\u00a0 \u00a0 \nint\nrecordNumber = 0;\n\n\u00a0 \u00a0 \nfor\n(CSVRecord record : parser) {\n\n\u00a0 \u00a0 \u00a0 recordNumber++;\n\n\u00a0 \u00a0 \u00a0 \nSystem\n.out.println(recordNumber + \n\" -> \"\n+ record.get(0));\n\n\u00a0 \u00a0 \u00a0 \nif\n(recordNumber >= 2) {\n\n\u00a0 \u00a0 \u00a0 \u00a0 \nbreak\n;\n\n\u00a0 \u00a0 \u00a0 }\n\n\u00a0 \u00a0 }\n\n\u00a0 \u00a0 \n// CSVParser.iterator() returns a \nnew\niterator, but the lexer isn't reset so we can pick up\n\n\u00a0 \u00a0 \n// where we left off.\n\n\u00a0 \u00a0 \nfor\n(CSVRecord record : parser) {\n\n\u00a0 \u00a0 \u00a0 recordNumber++;\n\n\u00a0 \u00a0 \u00a0 \nSystem\n.out.println(recordNumber + \n\" -> \"\n+ record.get(0));\n\n\u00a0 \u00a0 }\n\n\u00a0 \u00a0 \n// Enhanced \nfor\nloop, no peeking:\n\n\u00a0 \u00a0 \n// 1 -> 1\n\n\u00a0 \u00a0 \n// 2 -> 2\n\n\u00a0 \u00a0 \n// 3 -> 3\n\n\u00a0 \u00a0 \n// 4 -> 4\n\n\u00a0 \u00a0 \n// 5 -> 5\n\n\u00a0 \u00a0 \nSystem\n.out.println(\n\"\\nEnhanced \nfor\nloop, with peek:\"\n);\n\n\u00a0 \u00a0 parser = \nnew\nCSVParser(\nnew\nBufferedReader(\nnew\nStringReader(fiveRows)), CSVFormat.DEFAULT);\n\n\u00a0 \u00a0 recordNumber = 0;\n\n\u00a0 \u00a0 \nfor\n(CSVRecord record : parser) {\n\n\u00a0 \u00a0 \u00a0 recordNumber++;\n\n\u00a0 \u00a0 \u00a0 \nSystem\n.out.println(recordNumber + \n\" -> \"\n+ record.get(0));\n\n\u00a0 \u00a0 \u00a0 \nif\n(recordNumber >= 2) {\n\n\u00a0 \u00a0 \u00a0 \u00a0 \nbreak\n;\n\n\u00a0 \u00a0 \u00a0 }\n\n\u00a0 \u00a0 }\n\n\u00a0 \u00a0 \n// CSVParser.iterator() returns a \nnew\niterator, but we call hasNext before next, so we queue\n\n\u00a0 \u00a0 \n// one element \nfor\nconsumption. This element is discarded by the \nnew\niterator, even though the\n\n\u00a0 \u00a0 \n// lexer has advanced a row, so we've consumed an element with the peek!\n\n\u00a0 \u00a0 \nSystem\n.out.println(\n\"hasNext(): \"\n+ parser.iterator().hasNext());\n\n\u00a0 \u00a0 \nfor\n(CSVRecord record : parser) {\n\n\u00a0 \u00a0 \u00a0 recordNumber++;\n\n\u00a0 \u00a0 \u00a0 \nSystem\n.out.println(recordNumber + \n\" -> \"\n+ record.get(0));\n\n\u00a0 \u00a0 }\n\n\u00a0 \u00a0 \n// Enhanced \nfor\nloop, with peek:\n\n\u00a0 \u00a0 \n// 1 -> 1\n\n\u00a0 \u00a0 \n// 2 -> 2\n\n\u00a0 \u00a0 \n// hasNext(): \ntrue\n\n\u00a0 \u00a0 \n// 3 -> 4\n\n\u00a0 \u00a0 \n// 4 -> 5\n\n\u00a0 \u00a0 \nSystem\n.out.println(\n\"\\nIterator \nwhile\n, with peek:\"\n);\n\n\u00a0 \u00a0 parser = \nnew\nCSVParser(\nnew\nBufferedReader(\nnew\nStringReader(fiveRows)), CSVFormat.DEFAULT);\n\n\u00a0 \u00a0 recordNumber = 0;\n\n\u00a0 \u00a0 Iterator<CSVRecord> iter = parser.iterator();\n\n\u00a0 \u00a0 \nwhile\n(iter.hasNext()) {\n\n\u00a0 \u00a0 \u00a0 CSVRecord record = iter.next();\n\n\u00a0 \u00a0 \u00a0 recordNumber++;\n\n\u00a0 \u00a0 \u00a0 \nSystem\n.out.println(recordNumber + \n\" -> \"\n+ record.get(0));\n\n\u00a0 \u00a0 \u00a0 \nif\n(recordNumber >= 2) {\n\n\u00a0 \u00a0 \u00a0 \u00a0 \nbreak\n;\n\n\u00a0 \u00a0 \u00a0 }\n\n\u00a0 \u00a0 }\n\n\u00a0 \u00a0 \n// When we use the same iterator, iterator and lexer are in sequence.\n\n\u00a0 \u00a0 \nSystem\n.out.println(\n\"hasNext(): \"\n+ iter.hasNext());\n\n\u00a0 \u00a0 \nwhile\n(iter.hasNext()) {\n\n\u00a0 \u00a0 \u00a0 CSVRecord record = iter.next();\n\n\u00a0 \u00a0 \u00a0 recordNumber++;\n\n\u00a0 \u00a0 \u00a0 \nSystem\n.out.println(recordNumber + \n\" -> \"\n+ record.get(0));\n\n\u00a0 \u00a0 }\n\n\u00a0 \u00a0 \n// Iterator \nwhile\n, with peek:\n\n\u00a0 \u00a0 \n// 1 -> 1\n\n\u00a0 \u00a0 \n// 2 -> 2\n\n\u00a0 \u00a0 \n// hasNext(): \ntrue\n\n\u00a0 \u00a0 \n// 3 -> 3\n\n\u00a0 \u00a0 \n// 4 -> 4\n\n\u00a0 \u00a0 \n// 5 -> 5\n\n\u00a0 }"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable wrong behavior: hasNext() on a new iterator consumes a CSV row and later iterators skip it."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the code path as CSVParser.iterator(), Iterator.hasNext(), and Iterator.next()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes a concrete test snippet and observed output showing rows 3 and 4 after peeking."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report gives a runnable reproduction scenario with a five-line CSV and explicit iterator calls."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Points to CSVParser and its iterator/lexer interaction as the place to investigate."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer can understand the failure scenario: multiple iterators share one lexer and peeking advances it."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "The snippet is specific enough to derive a failing test around iterator.hasNext() followed by a new iterator."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The sequence is explicit: iterate two rows, call parser.iterator().hasNext(), then iterate again."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "CSVParser, CSVRecord, BufferedReader, StringReader, and CSVFormat.DEFAULT are named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent: iterator, lexer, peeking, and consuming are used in a technically coherent way."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete input is provided: the CSV text \"1\\n2\\n3\\n4\\n5\\n\"."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Ordered reproduction steps are embedded in the test method and comments."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No version, OS, or runtime details are given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reports exact observed output showing the skipped record: 3 -> 4 and 4 -> 5."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The shared-lexer/new-iterator peek interaction uniquely distinguishes this from a generic parsing bug."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected behavior is stated: peeking should not advance the lexer and records should remain in sequence."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is explicit: after hasNext(), the next iterator starts at row 4 instead of row 3."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The discrepancy is clearly shown by the contrasting outputs for no-peek versus peek cases."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The snippet is sufficient to reproduce the issue without additional clarification."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "Environment and dependency versions are not documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposes a specific cause: CSVParser.iterator() returns a new iterator while sharing the same lexer."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explains the causal chain: hasNext() queues one element, then the new iterator discards it while the lexer has advanced."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The code snippet and printed output support the proposed explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The explanation is internally consistent and matches the observed skipped row behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References concrete artifacts such as CSVParser.iterator(), hasNext(), next(), and lexer."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names specific classes and methods: CSVParser, CSVRecord, iterator(), hasNext(), next()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected module is identifiable as CSV parsing, specifically the parser/iterator implementation."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a relevant test snippet and observed console output."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "No external dependency or library version is mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The exact intended design choice is still framed as two possible resolutions."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering conditions are concrete."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "Expected behavior is stated: peeking should not consume a record."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Version and environment information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "States the correct behavior and the needed fix direction: keep iterator and lexer in sequence."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The likely fix location is identifiable in CSVParser.iterator() and iterator peeking logic."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Acceptance criterion is concrete: hasNext() must not cause later iterators to skip records."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report explicitly discusses the edge case of creating a new iterator after peeking."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A plausible fix can be inferred from the report without extra clarification."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Explicitly proposes the root cause as new iterators sharing the same underlying parser lexer."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific constructs: CSVParser.iterator(), hasNext(), next(), and lexer."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The report explains how peeking advances the lexer and causes the next iterator to skip a row."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The snippet fully determines a reproducible scenario with a five-row CSV and specific iterator calls."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The affected concept is the CSV parser iterator/lexer interaction."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom location in iteration from underlying defect in shared lexer state."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Only one main impacted area is described, not multiple cross-cutting areas."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions several technical concepts: CSVParser, Iterator, hasNext, next, lexer, CSVRecord."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: elements are skipped when calling hasNext() on a new iterator created from the same parser, distinguishing it from normal sequential iteration."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specifically identifies CSVParser class, its iterator() method, Iterator.hasNext(), and the underlying lexer as the affected components."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes a complete, runnable test case with expected vs. actual output showing the exact failure mode (row 3 skipped, jumping to row 4)."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A developer could immediately run the provided test case to reproduce the bug without additional clarification or investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Identifies CSVParser class and its iterator() method as the starting point; lexer interaction is also pinpointed as the root area."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The failure scenario is clearly explained: creating a new iterator and calling hasNext() causes element consumption that subsequent iterators cannot access."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The test case provided is a direct, failing test that demonstrates the exact problem without ambiguity."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The sequence of events is unambiguous: break after 2 records, create new iterator, call hasNext(), then iterate\u2014resulting in skipped row 3."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "CSVParser, Iterator, hasNext(), next(), and lexer are all precisely identified; a developer could locate these in the codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Technical terms (iterator, lexer, peek, consume, advance) are used accurately and consistently throughout the report."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete input provided: a five-row CSV string ('1\\n2\\n3\\n4\\n5\\n') with CSVFormat.DEFAULT, directly usable in a test."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Ordered reproduction steps are explicit: create parser, iterate twice with break after 2, call hasNext() on new iterator, then iterate again."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information for CSVParser library, Java version, or OS is provided, though the bug appears version-agnostic."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Exact output is provided verbatim showing expected vs. actual: expected rows 1-5 in order, actual skips row 3 (outputs 1,2,4,5)."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The specific condition (hasNext() on a new iterator between iterations of the same parser) uniquely identifies this issue from other iterator bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Expected behavior is explicit: all five rows should be output in order (1,2,3,4,5) regardless of iterator creation or hasNext() calls."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is detailed: row 3 is skipped, output is 1,2,4,5; the exact failure mode is clear from the test output."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy is unambiguous: expected sequential output vs. observed skipped row 3 when hasNext() is called on a new iterator."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The test case is complete and sufficient to reproduce without additional investigation; it can be run directly."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific Java version, CSVParser library version, or OS environment details are documented, though the bug likely reproduces across versions."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report proposes two specific potential causes: either one lexer/iterator pair or peeking without advancing the lexer."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The proposed explanation (iterator and lexer get out of sequence when hasNext() is called on a new iterator) is directly linked to the symptom (skipped rows)."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The test case provides concrete evidence: the output shows row 3 is consumed but not returned, supporting the out-of-sequence hypothesis."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally coherent: hasNext() advances the lexer, but the new iterator doesn't know about this, causing a skip."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References CSVParser.iterator(), Iterator.hasNext(), and 'the lexer' specifically, though exact method names in the lexer are not provided."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes named: CSVParser, Iterator, CSVRecord, CSVFormat; specific methods: iterator(), hasNext(), next()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The affected subsystem (CSVParser and its iterator mechanism) is identifiable; source files would be in a CSV parsing module."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A complete, runnable test case with expected and actual output is included; this is a direct and relevant artifact."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No external library name or version is explicitly stated; CSVParser is referenced but not attributed to a specific library (e.g., Apache Commons CSV)."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No OS, Java version, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "All references (CSVParser, iterator, hasNext, lexer) are clear and specific; no vague descriptions requiring resolution."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Inputs and conditions are fully specified: the five-row CSV string, CSVFormat.DEFAULT, and exact sequence of operations."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is unambiguous: sequential iteration through all rows in order, regardless of iterator creation or peeking."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Library version, Java version, and OS are not specified, though the bug likely reproduces across versions."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements; the report is internally consistent across all three test scenarios."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The correct behavior is clear (sequential iteration without skips), and the faulty behavior is precisely described, allowing a developer to determine what code change is needed."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "CSVParser.iterator() and the interaction with the lexer are identified as the problem area; a developer would start investigating there."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected correct behavior is concrete: all five rows output in order (1,2,3,4,5) serves as a clear acceptance criterion."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The report identifies the edge case (multiple iterators from the same parser with hasNext() peeking) and the constraint (buffer-based reading)."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A developer could implement a fix (either synchronize iterator state or prevent lexer advancement on hasNext()) using the information provided, though some investigation may be needed."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Report explicitly proposes two potential root causes: either the design (one lexer, multiple iterators) or the hasNext() implementation advancing the lexer."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "References CSVParser.iterator(), Iterator.hasNext(), and the lexer; identifies the specific operation (hasNext() advancing the lexer) as problematic."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The causal chain is articulated: hasNext() on a new iterator advances the lexer, but the new iterator doesn't consume the peeked element, causing a skip on next iteration."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The test case provides a fully determinable, concrete scenario from which complete reproduction steps can be directly derived without ambiguity or implication."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is clearly identified: CSVParser's iterator mechanism and its interaction with the lexer."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report distinguishes between the symptom (skipped rows in iteration) and the likely defect location (iterator/lexer synchronization in CSVParser)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Multiple impacted areas are identified: the iterator() method, hasNext() implementation, and lexer state management."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report names five distinct technical concepts: CSVParser, Iterator, hasNext(), lexer, and CSVRecord; all relevant to understanding the bug."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 1.0,
+        "judge2_confidence": 0.96
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.93
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.94
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.85
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.87
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.82
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.75
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.7
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.82
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.87
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.83
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.85
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.82
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.9583333333333334,
+  "cohens_kappa": 0.8500000000000001,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

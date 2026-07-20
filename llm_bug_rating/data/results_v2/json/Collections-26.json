@@ -1,0 +1,1452 @@
+{
+  "bug": {
+    "bug_id": "Collections-26",
+    "project": "Collections",
+    "summary": "MultiKey subclassing has deserialization problem since COLLECTIONS-266: either declare protected readResolve() or MultiKey must be final",
+    "description": "MultiKey from collections 4 provides a transient hashCode and a \nprivate\nreadResolve to resolve \nCOLLECTIONS-266\n: Issue with MultiKey when serialized/deserialized via RMI.\n\nUnfortunately the solution does not work in case of \nsubclassing\n: readResolve in MultiKey should be declared \nprotected\nreadResolve() to be called during deserialization of the subclass. Otherwise MultiKey must be final to avoid such subclassing.\n\nTestcase\n:\n\nMultiKeySerializationTest.java\n\npackage\nde.ivu.test.common.collections4;\n\nimport\n\nstatic\norg.junit.Assert.assertEquals;\n\nimport\njava.io.ByteArrayInputStream;\n\nimport\njava.io.ByteArrayOutputStream;\n\nimport\njava.io.IOException;\n\nimport\njava.io.ObjectInputStream;\n\nimport\njava.io.ObjectOutputStream;\n\nimport\norg.apache.commons.collections4.keyvalue.MultiKey;\n\nimport\norg.junit.Test;\n\npublic\n\nclass \nMultiKeySerializationTest {\n\n@Test\n@SuppressWarnings(\n\"unchecked\"\n)\n\npublic\nvoid testReadResolveEqualHashCode()\n\nthrows\nIOException, ClassNotFoundException {\n\nclass \nMultiKey2<A, B>\n\nextends\nMultiKey {\n\nprivate\n\nstatic\n\nfinal\n\nlong\nserialVersionUID = 1928896152249821416L;\n\npublic\nMultiKey2(A key1, B key2) {\n\nsuper\n(key1, key2);\n}\n\npublic\nA getFirst() {\n\nreturn\n(A) getKey(0);\n}\n\npublic\nB getSecond() {\n\nreturn\n(B) getKey(1);\n}\n\n// FIXME: MultiKey should either declare \nprotected\nreadResolve() or must be \nfinal\n.\n\n}\nMultiKey2<\nString\n, \nString\n> one = \nnew\nMultiKey2<>(\n\"bla\"\n, \n\"blub\"\n);\n\nSystem\n.out.println(one.hashCode());\nByteArrayOutputStream byteOut = \nnew\nByteArrayOutputStream();\nObjectOutputStream out = \nnew\nObjectOutputStream(byteOut);\nout.writeObject(one);\nout.close();\n\nbyte\n[] serialized = byteOut.toByteArray();\nByteArrayInputStream byteIn = \nnew\nByteArrayInputStream(serialized);\nObjectInputStream in = \nnew\nObjectInputStream(byteIn);\nMultiKey2<\nString\n, \nString\n> two = (MultiKey2<\nString\n, \nString\n>) in.readObject();\n\nSystem\n.out.println(two.hashCode());\nassertEquals(\n\"hashCode must be equal - please check \nfor\n\nprotected\nreadResolve in MultiKey*\"\n, one.hashCode(),\ntwo.hashCode());\n}\n}\n\nFix:\n\nMultiKey.java\n\n@@ -274,7 +274,7 @@\n* only stable \nfor\nthe same process).\n* @\nreturn\nthe instance with recalculated hash code\n*/\n- \nprivate\n\nObject\nreadResolve() {\n+ \nprotected\n\nObject\nreadResolve() {\ncalculateHashCode(keys);\n\nreturn\n\nthis\n;\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: subclassed MultiKey loses equal hashCode after serialization/deserialization."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the affected code path as MultiKey.readResolve() in org.apache.commons.collections4.keyvalue.MultiKey."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a concrete failing JUnit testcase and the exact fix diff for MultiKey.java."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A developer can reproduce using the provided serialization test and inspect MultiKey.readResolve() immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Points directly to the MultiKey class in collections4 as the place to start reading code."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The failure scenario is clear even without codebase knowledge: subclassing MultiKey breaks hashCode after deserialization."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The report provides a concrete assertion suitable for a failing test: hashCode must be equal before and after serialization."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The sequence is explicit: create subclass instance, serialize, deserialize, compare hashCode."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "MultiKey, readResolve, serialization, and subclassing are named precisely enough to locate the issue."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent: transient hashCode, readResolve, deserialization, subclassing."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Concrete inputs are given: MultiKey2<String, String> with values \"bla\" and \"blub\"."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Ordered reproduction steps are embedded in the JUnit test code."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No environment or version details beyond collections4 are provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The failure mode is explicit: hashCode differs after deserialization, with an assertion message."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The subclassing/readResolve interaction uniquely identifies this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is stated: hashCode must be equal after serialization/deserialization."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Observed behavior is stated: the hashCode changes for the deserialized subclass instance."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy is explicit in the assertion comparing one.hashCode() and two.hashCode()."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The provided test code is sufficient to attempt reproduction without extra clarification."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "No specific runtime, OS, or library version environment is documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A specific cause is proposed: MultiKey.readResolve() should be protected or MultiKey should be final."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation links private readResolve to subclass deserialization failure."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The test case and fix diff support the proposed explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is internally consistent and matches the described behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References concrete artifacts: readResolve(), MultiKey.java, and the test assertion."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names the class MultiKey and method readResolve explicitly."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected module is identifiable as commons-collections4 keyvalue/MultiKey."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a relevant JUnit test and code diff."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external dependency versions are specified beyond the library name."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No OS, browser, framework, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report assumes knowledge of MultiKey subclassing behavior and serialization semantics."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and conditions are sufficiently described by the test case."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clear: hashCode should remain equal after deserialization."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Version/environment details that could affect reproduction are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The correct behavior and fix direction are stated: make readResolve protected or final."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The fix location is directly identified as MultiKey.java readResolve()."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Acceptance criterion is concrete: serialized/deserialized subclass instances must keep equal hashCode."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The subclassing edge case is explicitly documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "A plausible fix can be implemented from the report alone by changing readResolve visibility or finality."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes the root cause: private readResolve in MultiKey."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References the specific code construct readResolve() and its access modifier."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explains the causal chain from private readResolve to incorrect hashCode after subclass deserialization."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The test case fully determines a concrete reproduction scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is the MultiKey serialization/deserialization behavior."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes symptom location in subclass hashCode from defect location in MultiKey.readResolve()."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Only one main impacted area is described."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Mentions MultiKey, readResolve, serialization/deserialization, hashCode, and subclassing."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: deserialized MultiKey subclass instances have incorrect hashCode values, distinguishable from expected behavior where hashCodes should match pre-serialization."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specifically identifies MultiKey class and its readResolve() method as the affected code path; also names MultiKeySerializationTest as the test case."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes complete test case code with serialization/deserialization steps and assertion; shows exact method signature change needed (private to protected readResolve())."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Developer can immediately run the provided test case to reproduce the bug and verify the fix by changing readResolve visibility from private to protected."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Precisely identifies MultiKey.java class and the readResolve() method at line 277 as the location requiring investigation and modification."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Failure scenario is clear: subclassing MultiKey and deserializing the subclass instance results in incorrect hashCode; unfamiliar developer can understand without guessing."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Report includes complete, runnable test case that directly demonstrates the failure; developer could write equivalent test without clarification."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Sequence is unambiguous: create MultiKey subclass, serialize instance, deserialize, compare hashCodes; single interpretation possible."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "All entities precisely identified: MultiKey class, readResolve() method, serialization mechanism; developer can locate in codebase without prior knowledge."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Technical terminology used accurately: 'readResolve', 'deserialization', 'subclassing', 'hashCode'; no misleading language about nature or location of fault."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific inputs provided: MultiKey2 subclass with String keys 'bla' and 'blub'; concrete enough for direct test case use."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Ordered reproduction steps are explicit: create subclass instance, serialize to ByteArrayOutputStream, deserialize from ByteArrayInputStream, compare hashCodes."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for Apache Commons Collections 4 or Java runtime; 'collections 4' is vague and does not rule out version-related ambiguity."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific failure mode reported: hashCode values differ between original and deserialized subclass instance; assertion message explicitly states expected behavior."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Report uniquely identifies this issue: deserialization of MultiKey subclasses specifically, related to COLLECTIONS-266 fix; distinguishes from other serialization bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Expected behavior explicitly stated: 'hashCode must be equal' between pre-serialization and post-deserialization instances; serves as concrete correctness criterion."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior explicitly stated: deserialized subclass instance has different hashCode than original; failure is recognizable from assertion failure."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Discrepancy is unambiguous: one.hashCode() != two.hashCode() after deserialization; directly identifiable from test assertion."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reproduction steps are complete and sufficient: test case is self-contained and runnable without additional investigation."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environmental conditions underspecified: no Java version, JDK version, or Commons Collections version specified; these could affect serialization behavior."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Report explicitly proposes specific cause: readResolve() is private and not called during subclass deserialization; not merely symptom description."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Proposed explanation directly linked to symptoms: private readResolve() is not invoked by Java deserialization for subclass instances, causing hashCode not to be recalculated."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete evidence provided: test case demonstrates the failure; code diff shows exact fix (changing private to protected); reference to COLLECTIONS-266 provides context."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explanation is internally coherent: private readResolve() cannot be overridden or called by subclass deserialization; protected would allow proper invocation; logically consistent."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References specific technical artifacts: MultiKey.readResolve() method, line 277, exact visibility modifier change, COLLECTIONS-266 issue reference."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific classes and methods named: MultiKey, MultiKey2, readResolve(), calculateHashCode(), getKey(); not described in general terms."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Affected subsystem identifiable: org.apache.commons.collections4.keyvalue.MultiKey; source file MultiKey.java is explicitly referenced."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Technical artifacts included: complete test case code, method signature diff, serialization/deserialization code snippets directly relevant to failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "External dependency named: Apache Commons Collections 4; version specificity is weak ('collections 4') but library is clearly identified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Environment details missing: no OS, Java version, JDK version, or runtime information provided; these could affect serialization behavior."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No vague references; all entities (MultiKey, readResolve, serialization) are precisely identified and unambiguous."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and conditions are fully specified: concrete String values, subclass definition, serialization/deserialization sequence; sufficient for reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Expected behavior is clear: hashCode must be equal before and after serialization/deserialization; developer can determine correct behavior unambiguously."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version information is missing: no specific Commons Collections 4 version, Java version, or JDK version provided; could materially affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No contradictory statements; report is internally consistent: problem is clearly stated, test case demonstrates it, fix is straightforward."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Faulty behavior is precisely described (incorrect hashCode after deserialization); correct behavior is clear (hashCode must match); code change is obvious (change private to protected)."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific component identifiable: MultiKey.java, readResolve() method, line 277; developer knows exactly where to make the fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Expected correct behavior stated concretely: deserialized subclass instance hashCode equals original instance hashCode; serves as acceptance criterion."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Relevant constraints documented: subclassing must be supported; readResolve must be called during subclass deserialization; alternative is to make MultiKey final."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Developer can implement fix using only report information: change 'private Object readResolve()' to 'protected Object readResolve()' in MultiKey.java; no further investigation needed."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific root cause explicitly proposed: readResolve() is declared private, preventing it from being called during subclass deserialization."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Root cause references specific code construct: 'private Object readResolve()' method in MultiKey class; exact visibility modifier and method signature named."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Causal chain articulated clearly: private readResolve() \u2192 not invoked for subclass deserialization \u2192 hashCode not recalculated \u2192 hashCode mismatch; developer can verify."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific, concrete scenario provided: create MultiKey2 subclass with String keys, serialize, deserialize, compare hashCodes; complete and unambiguous reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific subsystem identifiable: MultiKey class in org.apache.commons.collections4.keyvalue; not just broad functional area."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Report distinguishes symptom (incorrect hashCode after deserialization) from underlying defect (private readResolve not called for subclasses)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Multiple impacted areas identified: serialization mechanism, subclassing support, hashCode calculation; cross-cutting concern of visibility modifiers in inheritance."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Four or more distinct technical concepts named: MultiKey class, readResolve() method, serialization/deserialization, hashCode, subclassing, visibility modifiers."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.96
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.96
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.96
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.96
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.94
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      }
+    }
+  },
+  "percent_agreement": 0.9375,
+  "cohens_kappa": 0.763157894736842,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.96 > 0.9)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge2 (higher confidence: 0.96 > 0.9)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.8864052604279183,
+      "Clarity": 0.8864052604279183,
+      "Specificity": 0.0,
+      "Reproducibility": 0.0,
+      "ReasoningQuality": 0.8864052604279183,
+      "TechnicalContext": 0.0,
+      "Ambiguity": 0.0,
+      "RepairReadiness": 0.8864052604279183,
+      "RootCauseEvidence": -0.8864052604279183,
+      "HiddenReproducibility": -2.6592157812837547,
+      "ImpactScope": 0.0
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

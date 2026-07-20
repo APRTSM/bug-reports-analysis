@@ -1,0 +1,1427 @@
+{
+  "bug": {
+    "bug_id": "Jsoup-42",
+    "project": "Jsoup",
+    "summary": "No title",
+    "description": "When there is input:\n\n<input type=\"checkbox\" name=\"testCheckBox\" checked=\"checked\" />\n\nThe \"formData()\" of FormElement's ignores that default value which should be \"on\" as submitted by browsers.\n\nHTML fragment:\n\n<html>\n<head>\n<title>Test</title>\n</head>\n\n<body>\n\n<form name=\"myForm\" method=\"POST\">\n<input type=\"checkbox\" name=\"testCheckBox\" checked=\"checked\" /> Something<br/>\n\n<input type=\"submit\" value=\"Submit\" />\n</form>\n\n</body>\n</html>\n\nWhen submiting from Firefox it sends to sever: testCheckBox=on\n\nJava code:\n\npublic static void main(String[] args)\n{\nfinal String html = \"<html>\\n\"\n+ \" <head>\\n\"\n+ \" <title>Test</title>\\n\"\n+ \" </head>\\n\"\n+ \" \\n\"\n+ \" <body>\\n\"\n+ \"\\n\"\n+ \" <form name=\\\"myForm\\\" method=\\\"POST\\\">\\n\"\n+ \" <input type=\\\"checkbox\\\" name=\\\"testCheckBox\\\" checked=\\\"checked\\\" /> Something<br/>\\n\"\n+ \"\\n\"\n+ \" <input type=\\\"submit\\\" value=\\\"Submit\\\" />\\n\"\n+ \" </form>\\n\"\n+ \"\\n\"\n+ \" </body>\\n\"\n+ \"</html>\";\n\nfinal Document document = Jsoup.parse(html);\n\nfinal FormElement formElement = (FormElement) document.select(\"form[name=myForm]\").first();\n\nfor (Connection.KeyVal keyVal : formElement.formData())\n{\nSystem.out.println(keyVal.key() + \"=\" + keyVal.value());\n}\n\n}\n\nOutput: testCheckBox=\n\nExpected output: testCheckBox=on\n\nSeems like Jsoup doesn't add default value which is sent by browsers. The \"submit()\" method from FormElement also uses \"formData()\" method to get form's submission parameters. By sending the empty String for checkbox the server acts as it's not checked when in fact it was checked.\n\nAlso while testing noticed that it doesn't check the checkbox'es at all. If there is checkbox with value, but not checked, it will get the value no matter what, for example:\n\n<input type=\"checkbox\" name=\"textCheckBox2\" value=\"testVal\" /> \n\nThis affects radio buttons as well. Not selected radion buttons should not be sent to server, but formData() add their values anyway.\n\nI'm not sure if that's done on purpose, but submit() method will get wrong parameters for submission since not checked input value is not sent to server at all.\n\nMoreover type button value and \"disabled\" inputs are not sent to server as well (by browsers).\n\nLooked at the source, one extra else if before the final else in \"formData()\" method could solve this:\n\nelse if (\"input\".equals(el.tagName())) {\n// Not disabled? Ignore disabled inputs.\nif(!el.hasAttr(\"disabled\")) {\n\n// Deal with checkbox and radio (not checked should not be added to avoid sending to server)\nif(\"checkbox\".equals(el.attr(\"type\")) || \"radio\".equals(el.attr(\"type\"))) {\n\n// Checked, but no value? Default should be \"on\".\nif(el.hasAttr(\"checked\") && !el.hasAttr(\"value\")) {\ndata.add(HttpConnection.KeyVal.create(name, \"on\"));\n} \n// Checked? Add it's value\nelse if(el.hasAttr(\"checked\")) {\ndata.add(HttpConnection.KeyVal.create(name, el.val()));\n}\n} \n// Buttons should be ignored.\nelse if(!\"button\".equals(el.attr(\"type\"))){\ndata.add(HttpConnection.KeyVal.create(name, el.val()));\n}\n}\n}\n\nOne more thing. If form has multiple type submit inputs, only the clicked input's value should be sent to server, but I have no idea how this could be implemented. Sending all submit input's values can change the server's logic and be bad (result not as expected)."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes observable faulty behavior: formData() returns an empty value for a checked checkbox and includes unchecked checkbox/radio values."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies the affected functionality as FormElement.formData() and submit()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes Java code, HTML fragment, observed output, expected output, and a source-level suggestion."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides enough context to start investigating: sample HTML, parsing code, and the incorrect submission behavior."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points to the form submission/formData handling in Jsoup's FormElement."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as incorrect checkbox/radio form serialization."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It follows a logical flow: example HTML, Java test, observed output, expected behavior, then analysis."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References to FormElement, formData(), submit(), checkbox, radio, and disabled inputs are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terms like formData, submit, checked, disabled, and KeyVal are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Gives specific inputs and conditions: checked checkbox, unchecked checkbox with value, radio buttons, disabled inputs."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides concrete reproduction code and HTML, though not numbered steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or version information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reports concrete outputs: 'testCheckBox=' versus expected 'testCheckBox=on'."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes this from a generic failure by describing checkbox default values, unchecked controls, radio buttons, and disabled inputs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Expected behavior is explicitly stated: checked checkbox should submit 'on'."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: output is 'testCheckBox='."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The discrepancy between expected and observed output is clearly shown."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The included code is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No required environment or dependency details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposes a likely cause: formData() does not handle checkbox/radio checked state and default values correctly."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation is tied to the observed wrong submission parameters."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Supports the explanation with browser behavior and a source-code suggestion."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The proposed explanation is internally consistent."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References technical artifacts such as formData(), submit(), and KeyVal.create."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Mentions FormElement, formData(), submit(), and KeyVal."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is identifiable as HTML form serialization/submission in Jsoup."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes code snippets and concrete output, though no stack trace."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References browser behavior and server submission semantics."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No OS, browser version, or library version is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Some references are broad, such as 'formData()' and 'submit()' without exact version or file path."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and triggering conditions are described clearly."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Expected behavior is stated for the main case."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No direct contradictions are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior is specific enough to define the needed change in form serialization."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely fix location is identifiable as FormElement.formData()."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "States the correct target behavior: checked checkbox without value should submit 'on', unchecked controls should not submit."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Documents relevant conditions for checkboxes, radios, buttons, and disabled inputs."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "A developer would likely still need to inspect the implementation details and browser rules further."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Explicitly proposes that formData() needs an extra branch for checkbox/radio handling."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific code constructs: if/else logic, el.hasAttr(\"checked\"), el.val(), and KeyVal.create."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Explains that the missing checkbox/radio logic causes the wrong submitted parameters."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The narrative and code clearly imply how to reproduce the bug."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is HTML form submission/form data generation."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes the symptom in output from the underlying defect in FormElement.formData()."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Mentions multiple impacted control types and submission behavior across form elements."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report clearly describes faulty behavior: formData() returns empty string for checked checkboxes instead of 'on'."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected component is explicitly identified as FormElement's formData() method in Jsoup."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Java code snippet, actual output, expected output, and a proposed code fix are all provided."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Full HTML, Java code, actual vs expected output, and a proposed fix provide sufficient context to begin investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The FormElement.formData() method in Jsoup is explicitly identified as the affected subsystem."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report is written in understandable English with minor grammatical issues but overall coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly stated: formData() ignores the default 'on' value for checked checkboxes and includes unchecked inputs."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report flows logically: problem description, HTML example, Java code, output, expected output, then additional issues and proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to FormElement, formData(), checkboxes, radio buttons, and browser behavior are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Technical terms like formData(), checked, disabled, radio, checkbox, KeyVal are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific input: checkbox with checked='checked' and no value attribute triggers the bug."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Complete Java code to reproduce the issue is provided, including HTML string and formData() iteration."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No Jsoup version, Java version, or OS information is mentioned in the report."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Actual output 'testCheckBox=' and expected output 'testCheckBox=on' are explicitly stated."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Multiple specific cases are described: default 'on' value, unchecked inputs being included, radio buttons, disabled inputs, and button types."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected output 'testCheckBox=on' is explicitly stated, matching browser behavior."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed output 'testCheckBox=' is explicitly shown."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy between empty string and 'on' is clearly identifiable from the output comparison."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Complete self-contained Java code with embedded HTML is provided; running it reproduces the issue."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific Jsoup version or environment dependencies are documented, though the code is self-contained."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The reporter explicitly proposes that formData() doesn't handle the default 'on' value for checkboxes and doesn't check the checked attribute."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The proposed explanation (missing checked attribute handling) is directly linked to the empty string output symptom."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Browser behavior (Firefox sending testCheckBox=on) and actual code output are provided as evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is internally coherent: missing checked/value logic leads to wrong form data submission."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The reporter references the formData() source code and provides a specific code fix with exact logic."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "FormElement, formData(), Connection.KeyVal, HttpConnection.KeyVal.create, and el.tagName() are all explicitly mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The Jsoup FormElement subsystem and specifically the formData() method are clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Java code snippet and proposed fix code are included; no stack traces but output is shown."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external libraries beyond Jsoup itself are referenced; browser behavior is mentioned but not as a dependency."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, Java version, or Jsoup version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "References are specific: formData(), FormElement, checkbox, radio button behaviors are all clearly described."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and conditions are well described with concrete HTML and Java code examples."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clearly stated: 'on' for checked checkboxes, omission of unchecked inputs."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jsoup version and Java/environment version information are missing from the report."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The faulty behavior is precisely described: missing 'on' default, unchecked inputs included, disabled inputs included."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The formData() method in FormElement is explicitly identified as the location requiring a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Expected correct behavior is stated: checked checkbox with no value \u2192 'on', unchecked \u2192 omit, disabled \u2192 omit."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Edge cases documented: no value attribute, disabled attribute, button type, multiple submit inputs."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A complete proposed code fix is provided; a developer could implement it directly from the report."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Root cause is explicitly proposed: formData() doesn't check the 'checked' attribute or handle the default 'on' value for checkboxes."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The root cause references specific code logic in formData() and the missing else-if branch for checkbox/radio handling."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The causal chain is articulated: missing checked attribute check \u2192 empty value returned \u2192 server treats checkbox as unchecked."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Complete Java code with embedded HTML is provided; reproduction steps can be directly inferred by running the main method."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "FormElement.formData() and by extension submit() are clearly identified as the affected code concepts."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The report doesn't clearly distinguish between symptom location (formData() output) and defect location (internal logic); they appear to be the same."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Multiple impacted areas identified: checkbox default value, unchecked checkbox/radio inclusion, disabled inputs, button type inputs, and multiple submit inputs."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.95
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.98
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.95
+      }
+    }
+  },
+  "percent_agreement": 0.9148936170212766,
+  "cohens_kappa": 0.6996805111821086,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.7)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.7)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 0.9914601339836674,
+      "Clarity": 0.9914601339836674,
+      "Specificity": 0.3499271061118826,
+      "Reproducibility": 0.3499271061118826,
+      "ReasoningQuality": 0.9914601339836674,
+      "TechnicalContext": 0.3499271061118826,
+      "Ambiguity": 0.3499271061118826,
+      "RepairReadiness": -2.2162050053752567,
+      "RootCauseEvidence": -0.2916059217599022,
+      "HiddenReproducibility": -1.5746719775034717,
+      "ImpactScope": -0.2916059217599022
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

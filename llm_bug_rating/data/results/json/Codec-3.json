@@ -1,0 +1,1430 @@
+{
+  "bug": {
+    "bug_id": "Codec-3",
+    "project": "Codec",
+    "summary": "Double Metaphone bugs in alternative encoding",
+    "description": "The new test case (\nCODEC-83\n) has highlighted a number of issues with the \"alternative\" encoding in the Double Metaphone implementation\n\n1) Bug in the handleG method when \"G\" is followed by \"IER\" \n\nThe alternative encoding of \"Angier\" results in \"ANKR\" rather than \"ANJR\"\n\nThe alternative encoding of \"rogier\" results in \"RKR\" rather than \"RJR\"\n\nThe problem is in the handleG() method and is caused by the wrong length (4 instead of 3) being used in the contains() method:\n\n} \nelse\n\nif\n(contains(value, index + 1, 4, \n\"IER\"\n)) {\n\n...this should be\n\n} \nelse\n\nif\n(contains(value, index + 1, 3, \n\"IER\"\n)) {\n\n2) Bug in the handleL method\n\nThe alternative encoding of \"cabrillo\" results in \"KPRL \" rather than \"KPR\"\n\nThe problem is that the first thing this method does is append an \"L\" to both primary & alternative encoding. When the conditionL0() method returns true then the \"L\" should not be appended for the alternative encoding\n\nresult.append(\n'L'\n);\n\nif\n(charAt(value, index + 1) == \n'L'\n) {\n\nif\n(conditionL0(value, index)) {\nresult.appendAlternate(\n' '\n);\n}\nindex += 2;\n} \nelse\n{\nindex++;\n}\n\nreturn\nindex;\n\nSuggest refeactoring this to\n\nif\n(charAt(value, index + 1) == \n'L'\n) {\n\nif\n(conditionL0(value, index)) {\nresult.appendPrimary(\n'L'\n);\n} \nelse\n{\nresult.append(\n'L'\n);\n}\nindex += 2;\n} \nelse\n{\nresult.append(\n'L'\n);\nindex++;\n}\n\nreturn\nindex;\n\n3) Bug in the conditionL0() method for words ending in \"AS\" and \"OS\"\n\nThe alternative encoding of \"gallegos\" results in \"KLKS\" rather than \"KKS\"\n\nThe problem is caused by the wrong start position being used in the contains() method, which means its not checking the last two characters of the word but checks the previous & current position instead:\n\n} \nelse\n\nif\n((contains(value, index - 1, 2, \n\"AS\"\n, \n\"OS\"\n) || \n\n...this should be\n\n} \nelse\n\nif\n((contains(value, value.length() - 2, 2, \n\"AS\"\n, \n\"OS\"\n) || \n\nI'll attach a patch for review"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes incorrect alternative encodings for specific words."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies Double Metaphone, specifically handleG, handleL, and conditionL0."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes code snippets and points to wrong contains() arguments."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides concrete examples and the suspected code locations to investigate."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Likely affected subsystem is the Double Metaphone encoding logic."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Report is grammatically understandable and coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as bugs in alternative encoding."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Uses numbered sections and then shows the relevant code issue."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to methods and example words are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terms like contains(), handleG(), and conditionL0() are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Gives specific triggering inputs: Angier, rogier, cabrillo, gallegos."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Describes cases and code paths, but not full step-by-step reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environment, version, or platform information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports concrete wrong outputs such as ANKR vs ANJR and KPRL vs KPR."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Distinguishes three specific defects rather than a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Expected behavior is implied by the correct encodings, but not stated as a general expectation."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated for each example word."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Each case contrasts expected and observed encodings."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The narrative and examples are enough to attempt reproduction in the encoder."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes causes in handleG, handleL, and conditionL0."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Each proposed cause is tied to a wrong output example."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides code snippets showing the suspected incorrect logic."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanations are internally consistent and match the symptoms."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References technical artifacts like contains(), appendAlternate(), and method names."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Mentions specific methods: handleG, handleL, conditionL0."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected module is the Double Metaphone implementation."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes code snippets showing the problematic logic."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "No external libraries or services are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "Some references are brief and assume familiarity with the codebase."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Inputs are specific, but broader triggering conditions are not fully described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is inferable from the stated correct encodings."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The report is consistent and does not contain contradictions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Faulty behavior is described precisely with concrete wrong outputs."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Likely fix locations are identified as handleG, handleL, and conditionL0."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Correct behavior is shown via the expected encodings and suggested code changes."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Edge cases are partially documented through the specific word examples."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would likely still need to inspect the codebase and tests to implement fully."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report explicitly proposes root causes for each bug."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References specific constructs like contains(value, index + 1, 4, \"IER\")."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explains how the wrong length or position causes the incorrect encoding."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The example words and described outputs imply how to trigger the bugs."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected concept is the Double Metaphone alternative encoding logic."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report separates wrong output symptoms from the suspected method-level defects."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "It identifies multiple bugs, but not multiple distinct impacted subsystems or integrations."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Report describes concrete faulty outputs for specific inputs (e.g., 'Angier' produces 'ANKR' instead of 'ANJR')."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Three specific methods are identified: handleG(), handleL(), and conditionL0() in the Double Metaphone implementation."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Code snippets showing the buggy lines and proposed fixes are provided for all three bugs."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Each bug includes the input, wrong output, expected output, affected method, and the exact line causing the issue."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The Double Metaphone codec's alternative encoding subsystem is clearly identified, with specific methods named."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report is well-structured and grammatically coherent, with minor typo ('refeactoring') that does not impede understanding."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Each of the three bugs is clearly described with wrong vs. expected output."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Each bug is presented in a logical order: symptom, cause, buggy code, and fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References to methods, parameters, and values are unambiguous and consistent."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Technical terms like 'alternative encoding', 'contains()', 'append()', 'index' are used consistently throughout."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific input words ('Angier', 'rogier', 'cabrillo', 'gallegos') and triggering conditions are described for each bug."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reproduction is implied via specific inputs and method calls; no explicit numbered steps but the inputs and context are clear."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No environment, OS, Java version, or library version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific wrong outputs are reported (e.g., 'ANKR' instead of 'ANJR', 'KPRL ' instead of 'KPR', 'KLKS' instead of 'KKS')."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Each bug is distinguished by specific method, specific input, specific wrong parameter value (e.g., length 4 vs 3), and specific wrong output."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected outputs are explicitly stated for each bug (e.g., 'ANJR', 'KPR', 'KKS')."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed (wrong) outputs are explicitly stated for each bug."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy between expected and observed output is clearly shown for all three bugs."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific input words are given; a developer can run Double Metaphone on those inputs to reproduce the wrong output."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No environmental dependencies or version requirements are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Each bug explicitly proposes a root cause (wrong length parameter, wrong append logic, wrong start position)."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Each proposed cause is directly linked to the wrong output observed."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Code snippets showing the buggy line and the corrected line serve as evidence for each explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "All three explanations are internally coherent and logically consistent with the described symptoms."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific code locations, method names, and parameter values are referenced in the explanations."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Methods handleG(), handleL(), conditionL0(), contains(), charAt(), result.append(), result.appendAlternate(), result.appendPrimary() are all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The Double Metaphone codec's alternative encoding subsystem is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Code snippets of both buggy and corrected code are included for all three bugs."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external libraries or dependencies beyond the codec itself are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, Java version, or framework version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "All references to methods, parameters, and behaviors are specific and well-defined."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and parameters are clearly described with specific values."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Expected behavior is explicitly stated for each bug."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "No version or environment information is provided, which could be relevant for confirming the bug scope."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Each bug precisely describes what needs to change (e.g., change length from 4 to 3, refactor append logic, fix start position)."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific methods (handleG, handleL, conditionL0) and exact lines of code are identified."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Corrected code is provided for all three bugs, giving a concrete fix target."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The conditions under which each bug manifests (specific character sequences, method logic) are documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer could implement all three fixes using only the information in this report, including the exact corrected code."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root causes are explicitly proposed for all three bugs (wrong length, wrong append order, wrong start index)."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Each root cause references a specific parameter value or logic error in a named method and contains() call."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The causal chain from wrong parameter/logic to wrong output is clearly articulated for each bug."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific input words and the Double Metaphone alternative encoding operation are described, allowing reproduction to be inferred without explicit numbered steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Three specific methods in the Double Metaphone codec are identified as affected."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The report does not clearly distinguish between where symptoms manifest (output) and where the defect resides at an architectural level; both are in the same methods."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Three separate methods (handleG, handleL, conditionL0) are identified as impacted, indicating multiple affected areas within the codec."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.20999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.99
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.65,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.20999999999999996,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.95
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.7
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.851063829787234,
+  "cohens_kappa": 0.5385694249649369,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.99 > 0.78)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.74)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.82)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.7)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.7)"
+      },
+      "I3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Selected judge2 (higher confidence: 0.99 > 0.78)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.74)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.82)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.7)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.7)"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 1.0533703247651751,
+      "Clarity": 1.0533703247651751,
+      "Specificity": 0.40964401518645693,
+      "Reproducibility": 0.40964401518645693,
+      "ReasoningQuality": 1.0533703247651751,
+      "TechnicalContext": -0.23408229439226122,
+      "Ambiguity": 0.40964401518645693,
+      "RepairReadiness": -2.1652612231284154,
+      "RootCauseEvidence": -0.23408229439226122,
+      "HiddenReproducibility": -1.5215349135496974,
+      "ImpactScope": -0.23408229439226122
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

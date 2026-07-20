@@ -1,0 +1,1450 @@
+{
+  "bug": {
+    "bug_id": "Math-77",
+    "project": "Math",
+    "summary": "getLInfNorm() uses wrong formula in both ArrayRealVector and OpenMapRealVector (in different ways)",
+    "description": "the L_infinity norm of a finite dimensional vector is just the max of the absolute value of its entries.\n\nThe current implementation in ArrayRealVector has a typo:\n\npublic\n\ndouble\ngetLInfNorm() {\n\ndouble\nmax = 0;\n\nfor\n(\ndouble\na : data) {\nmax += \nMath\n.max(max, \nMath\n.abs(a));\n}\n\nreturn\nmax;\n}\n\nthe += should just be an =.\n\nThere is sadly a unit test assuring us that this is the correct behavior (effectively a regression-only test, not a test for correctness).\n\nWorse, the implementation in OpenMapRealVector is not even positive semi-definite:\n\npublic\n\ndouble\ngetLInfNorm() {\n\ndouble\nmax = 0;\nIterator iter = entries.iterator();\n\nwhile\n(iter.hasNext()) {\niter.advance();\nmax += iter.value();\n}\n\nreturn\nmax;\n}\n\nI would suggest that this method be moved up to the AbstractRealVector superclass and implemented using the sparseIterator():\n\npublic\n\ndouble\ngetLInfNorm() {\n\ndouble\nnorm = 0;\nIterator<Entry> it = sparseIterator();\nEntry e;\n\nwhile\n(it.hasNext() && (e = it.next()) != \nnull\n) {\nnorm = \nMath\n.max(norm, \nMath\n.abs(e.getValue()));\n}\n\nreturn\nnorm;\n}\n\nUnit tests with negative valued vectors would be helpful to check for this kind of thing in the future."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes incorrect L_infinity norm behavior and contrasts it with the correct definition."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Names specific code paths: ArrayRealVector.getLInfNorm() and OpenMapRealVector.getLInfNorm()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes code snippets showing the faulty implementations and the proposed fix."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer can investigate directly from the described methods and formulas without extra clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Pinpoints ArrayRealVector, OpenMapRealVector, and suggests AbstractRealVector as the likely place to start."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explains the failure scenario clearly: L_infinity norm should be max absolute entry, but code sums values."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Negative-valued vectors are suggested as a test case, and the expected formula is explicit."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The sequence is unambiguous: current implementations compute the wrong result for vectors, especially with negatives."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Referenced classes and methods are named precisely enough to locate them in the codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Terminology is used consistently: L_infinity norm, positive semi-definite, sparseIterator, and absolute values."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Concrete triggering condition is given: vectors with negative values expose the bug."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No ordered reproduction steps are provided, only a description and suggested test idea."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No environment, version, OS, or library version information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The faulty code is shown verbatim, which identifies the failure mode."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The report distinguishes two distinct incorrect implementations and notes the sparse-vector case is worse."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Expected behavior is explicit: L_infinity norm equals the maximum absolute entry."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: ArrayRealVector accumulates with += and OpenMapRealVector sums raw values."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The discrepancy between expected max-abs and observed summation is directly stated."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Reproduction steps are not fully spelled out; only the bug description and suggested test condition are given."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No environment or dependency setup details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explicitly proposes a cause: a typo in ArrayRealVector and incorrect summation in OpenMapRealVector."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Links the wrong accumulation logic to incorrect norm results, especially for negative values."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides concrete code snippets as evidence for the proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The explanation is internally consistent and matches the stated norm definition."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References exact methods and operations such as getLInfNorm(), +=, Math.max, Math.abs, and sparseIterator()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific classes and methods are named: ArrayRealVector.getLInfNorm() and OpenMapRealVector.getLInfNorm()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected subsystem is identifiable as the real vector implementation in Apache Commons Math."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes relevant code snippets showing the faulty implementations and proposed replacement."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No external dependencies or third-party service versions are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No OS, browser, framework, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific, not vague."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Inputs and exact reproduction parameters are not fully specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clearly stated as max absolute value."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The correct behavior and the needed formula change are clearly described."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The fix location is directly identifiable from the named methods and suggested superclass."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Acceptance criterion is explicit: return the maximum absolute entry."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Negative-valued vectors are explicitly called out as an important edge case."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A plausible fix can be implemented from the report alone using the provided code and formula."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes a typo in ArrayRealVector and incorrect summation in OpenMapRealVector."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific code constructs: +=, Math.max, Math.abs, and sparseIterator()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Explains how the accumulation bug causes incorrect norms and why negative values reveal it."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A concrete scenario is implied: vectors with negative entries in the named vector classes."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected subsystem is the real vector norm implementation."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The symptom is in getLInfNorm(), while the defect is in the specific class implementations."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Mentions ArrayRealVector, OpenMapRealVector, AbstractRealVector, and sparseIterator()."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "At least three distinct technical concepts are named: ArrayRealVector, OpenMapRealVector, AbstractRealVector, sparseIterator, and getLInfNorm."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: wrong formula in getLInfNorm() with concrete code examples showing += instead of = in ArrayRealVector and missing absolute value in OpenMapRealVector."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes identified: ArrayRealVector and OpenMapRealVector; specific methods: getLInfNorm(); specific code locations provided with line-by-line implementation details."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report includes actual code snippets from both implementations showing the exact faulty logic, making the fault location directly evident."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Developer can immediately identify the bug by comparing provided code against the correct L-infinity norm definition (max of absolute values); reproduction requires only understanding the formula."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods named precisely: ArrayRealVector.getLInfNorm() and OpenMapRealVector.getLInfNorm(); also references AbstractRealVector superclass as suggested location."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Report clearly explains the L-infinity norm definition upfront, then shows how each implementation violates it with concrete code examples."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "A developer could write test cases comparing getLInfNorm() output against Math.max(Math.abs(values)) without clarification; report suggests negative-valued vectors as test case."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The failure scenario is unambiguous: getLInfNorm() returns incorrect values due to wrong operators (+=, missing abs()) rather than correct max of absolute values."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "All referenced entities are precisely identified: ArrayRealVector, OpenMapRealVector, AbstractRealVector, sparseIterator(), Entry class; developer can locate these without prior knowledge."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Technical terminology used accurately: L-infinity norm definition, positive semi-definite property, sparseIterator(); no misleading language about the nature of the faults."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Report suggests specific test inputs: negative-valued vectors; the L-infinity norm definition itself provides concrete expected outputs (max absolute value)."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Report does not provide step-by-step reproduction steps; it assumes developer will test by calling getLInfNorm() on vectors and comparing results, but exact test vectors are not specified."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No version information, Java version, or framework version provided; report does not specify which version of the library contains these bugs."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report describes specific failure modes: ArrayRealVector accumulates max values with += instead of assigning; OpenMapRealVector sums values without taking absolute value, violating positive semi-definiteness."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Report uniquely identifies these bugs by referencing the mathematical definition of L-infinity norm and showing how each implementation deviates; distinguishes from other norm implementations."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected behavior explicitly stated: L-infinity norm is the maximum of absolute values of vector entries; this serves as concrete correctness criterion."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior described: ArrayRealVector accumulates with +=; OpenMapRealVector sums without absolute value; both produce incorrect results, though specific output values not provided."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected is max(abs(values)), observed is accumulation with += or sum without abs(); these are clearly different operations."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Reproduction steps are incomplete; report does not specify exact test vectors, expected outputs, or how to invoke the methods; developer must infer test setup."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environmental conditions not documented; no Java version, library version, or build information provided; unclear if this affects reproduction."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Report explicitly proposes specific causes: typo (+=), missing Math.abs() call, and incorrect accumulation logic in OpenMapRealVector."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Proposed explanations directly linked to symptoms: += causes accumulation instead of max; missing abs() violates positive semi-definiteness; causal mechanism is clear."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Concrete evidence provided: actual code snippets showing the faulty implementations; mathematical definition of L-infinity norm supports the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explanation is internally coherent: both implementations are shown to violate the same mathematical definition; no contradictions within the report."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific technical artifacts: exact code lines with += operator, iter.value() call, Math.abs() absence; suggests sparseIterator() and Entry.getValue() as correct approach."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods named: ArrayRealVector, OpenMapRealVector, AbstractRealVector, getLInfNorm(), sparseIterator(), Entry, iter.value(), Math.abs()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem identifiable: vector norm implementations in ArrayRealVector and OpenMapRealVector classes; suggests AbstractRealVector as refactoring target."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Code snippets included for both faulty implementations and proposed correct implementation; directly relevant to identifying the fault."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependencies or library versions mentioned; report does not reference Apache Commons Math version or other relevant dependencies."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No environment details provided: Java version, OS, build system, or runtime information not specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all classes, methods, and code constructs are precisely named and located."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Inputs and conditions insufficiently described; report does not specify exact test vectors, array sizes, or sparse vector configurations needed for reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clear: L-infinity norm definition is explicitly stated as max of absolute values; no ambiguity about correctness criterion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Version and environment information missing; library version, Java version, and build details not provided, which could affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions detected; report consistently describes the bugs and proposes a coherent solution."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Faulty behavior precisely described; correct behavior is the L-infinity norm definition (max absolute value); code change needed is clear: fix += to =, add Math.abs(), move to superclass."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific components identified: ArrayRealVector.getLInfNorm(), OpenMapRealVector.getLInfNorm(), and suggested location AbstractRealVector.getLInfNorm()."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Expected correct behavior stated concretely: getLInfNorm() should return max(abs(vector entries)); this serves as acceptance criterion for the fix."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report mentions relevant constraints: positive semi-definiteness requirement, sparse vector handling via sparseIterator(), and suggests negative-valued vectors as edge case."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Developer could implement the fix using provided code snippet for AbstractRealVector and understanding of the L-infinity norm definition; proposed solution is concrete and actionable."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific root causes explicitly proposed: typo (+=), missing Math.abs() call, and incorrect accumulation logic instead of max operation."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Root causes reference specific code constructs: += operator in ArrayRealVector, iter.value() without Math.abs() in OpenMapRealVector, missing Math.max() call."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Causal chain articulated clearly: += accumulates values instead of tracking max; missing abs() violates positive semi-definiteness; both violate L-infinity norm definition."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Report describes the scenario (calling getLInfNorm() on vectors) but does not provide complete, unambiguous reproduction steps; specific test vectors and expected outputs must be inferred."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific subsystems identified: ArrayRealVector and OpenMapRealVector classes; suggests AbstractRealVector as refactoring target; norm calculation subsystem clearly affected."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Report distinguishes symptom (incorrect norm values) from defect location (wrong formula in getLInfNorm() implementations); suggests moving to superclass to fix both."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Multiple impacted areas identified: ArrayRealVector, OpenMapRealVector, AbstractRealVector, unit tests; cross-cutting concern of norm calculations across vector implementations."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Report names multiple distinct technical concepts: ArrayRealVector, OpenMapRealVector, AbstractRealVector, getLInfNorm(), sparseIterator(), Entry, Math.max(), Math.abs(), positive semi-definiteness."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.93
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.1499999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.1399999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.96
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      }
+    }
+  },
+  "percent_agreement": 0.9791666666666666,
+  "cohens_kappa": 0.9344262295081966,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.8 > 0.75)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge1 (higher confidence: 0.8 > 0.75)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 1.111873974991652,
+      "Clarity": 1.111873974991652,
+      "Specificity": -0.5188745216627707,
+      "Reproducibility": -0.5188745216627707,
+      "ReasoningQuality": 1.111873974991652,
+      "TechnicalContext": -0.5188745216627707,
+      "Ambiguity": -0.5188745216627707,
+      "RepairReadiness": 1.111873974991652,
+      "RootCauseEvidence": -0.5188745216627707,
+      "HiddenReproducibility": -2.1496230183171936,
+      "ImpactScope": 0.2964997266644406
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

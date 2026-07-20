@@ -1,0 +1,1454 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-48",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "When I set the ObjectMapper MapperConfig to not AutoDetect and use the BasicClassIntrospector to get the properties, I seem to still be getting the Methods. I am currently using version 2.7.3.\n\nThe following code produces this output:\n\nFound property count 2, there should only be one??\n\nFound property: name=name, internalName=name\n\nFound property: name=groupname, internalName=groupname\n\nI think it should produce only this output:\n\nFound property: name=groupname, internalName=groupname\n\npublic static void main(String [] args) {\nclass TCls {\n@JsonProperty(\"groupname\")\nprivate String groupname;\n\npublic void setName(String str) {\nthis.groupname = str;\n}\npublic String getName() {\nreturn groupname;\n}\n}\n\nObjectMapper om = new ObjectMapper();\n// Only use explicitly specified values to be serialized/deserialized (i.e., JSONProperty).\nom.configure(com.fasterxml.jackson.databind.MapperFeature.AUTO_DETECT_FIELDS, false);\nom.configure(com.fasterxml.jackson.databind.MapperFeature.AUTO_DETECT_GETTERS, false);\nom.configure(com.fasterxml.jackson.databind.MapperFeature.AUTO_DETECT_SETTERS, false);\nom.configure(com.fasterxml.jackson.databind.MapperFeature.AUTO_DETECT_IS_GETTERS, false);\nom.configure(com.fasterxml.jackson.databind.MapperFeature.USE_GETTERS_AS_SETTERS, false);\nom.configure(com.fasterxml.jackson.databind.MapperFeature.CAN_OVERRIDE_ACCESS_MODIFIERS, true);\nom.configure(com.fasterxml.jackson.databind.MapperFeature.INFER_PROPERTY_MUTATORS, false);\nom.configure(com.fasterxml.jackson.databind.MapperFeature.USE_ANNOTATIONS, true);\n\nJavaType javaType = om.getTypeFactory().constructType(TCls.class);\n\nBasicClassIntrospector introspector = new BasicClassIntrospector();\nBasicBeanDescription bdesc = introspector.forSerialization(om.getSerializationConfig(), javaType, null);\nList<BeanPropertyDefinition> bprops = bdesc.findProperties();\n\nif (1 != bprops.size()) {\nSystem.out.println(\"Found property count \" + bprops.size() + \", there should only be one??\");\n}\nbprops.forEach(prop -> {\nSystem.out.println(\"Found property: name=\" + prop.getName() + \", internalName=\" + prop.getInternalName());\n});\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observable faulty behavior is described: 2 properties are found when only 1 is expected."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report names BasicClassIntrospector, ObjectMapper, and serialization config as the relevant code path."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "No stack trace or error log is provided; only printed property output."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The code snippet and configuration are sufficient to attempt reproduction immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "BasicClassIntrospector and BeanPropertyDefinition are specific components where investigation would start."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A developer can understand the failure scenario: auto-detect disabled, yet getter/setter-derived property still appears."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The expected result is explicit enough to form a failing test: only one property should be returned."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is clear: configure mapper, introspect TCls, call findProperties, observe extra property."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Referenced entities like MapperFeature, BasicClassIntrospector, and BeanPropertyDefinition are named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology is used consistently around auto-detection, serialization introspection, and properties."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete triggering conditions are given: disabled auto-detect features and a class with @JsonProperty plus getter/setter."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report includes ordered code steps that can be followed directly."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Version 2.7.3 is explicitly stated."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The exact observed output is shown: 'Found property count 2' and the two property names."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The combination of disabled auto-detect and BasicClassIntrospector with this class shape is specific enough to distinguish the issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Expected behavior is explicit: only the annotated property groupname should be present."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is explicit: two properties, name and groupname."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The discrepancy between expected one property and observed two properties is unambiguous."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "The reproduction code and configuration are complete enough to run without clarification."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Jackson version 2.7.3 is provided, which is the key environment detail."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "The report does not explicitly propose a root cause, only describes the symptom."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No causal mechanism is proposed in the report."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "There is no evidence supporting a proposed explanation because none is given."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report is internally consistent and does not contradict itself."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No specific log lines, method names as cause, or code locations are cited as an explanation."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes and APIs are named: ObjectMapper, BasicClassIntrospector, BasicBeanDescription, BeanPropertyDefinition."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The affected subsystem is identifiable as Jackson databind introspection/serialization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report includes relevant code and printed output."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No external dependency or library version beyond Jackson itself is discussed."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Only library version is given; no OS, JVM, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific rather than vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Inputs and conditions are sufficiently described to reproduce."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior is clearly stated as one property only."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "Material environment details like JVM/OS are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The correct behavior is clear: ignore getter/setter-derived name when auto-detect is disabled."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The likely fix area is identifiable in BasicClassIntrospector/bean property introspection."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Acceptance criterion is concrete: findProperties should return only the annotated property."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The disabling of auto-detect and use of @JsonProperty are explicit constraints."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "A plausible fix can be inferred from the report: adjust introspection to honor explicit-only settings."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No explicit root cause is proposed."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No code construct or API call is identified as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No causal chain is articulated beyond the observed mismatch."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A concrete scenario and code snippet are provided from which exact reproduction steps can be derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected concept is identifiable as Jackson bean property introspection/serialization."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The symptom appears in findProperties, while the likely defect is in introspection logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one main affected path is described; multiple impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Several technical concepts are named: ObjectMapper, MapperFeature, BasicClassIntrospector, BasicBeanDescription, BeanPropertyDefinition."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: ObjectMapper with AUTO_DETECT disabled still returns 2 properties instead of expected 1, with concrete output shown."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes identified: ObjectMapper, BasicClassIntrospector, BasicBeanDescription, and MapperFeature configuration options."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Complete code snippet provided with actual vs. expected output; stack trace absent but concrete output artifacts present."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer can immediately run the provided code snippet to reproduce the issue without clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "BasicClassIntrospector and BasicBeanDescription are specifically named; introspection logic is the clear starting point."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: disabled auto-detection still detects methods as properties when only @JsonProperty field should be detected."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer could write a test case directly from the provided code and expected output without asking for clarification."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Sequence is unambiguous: configure mapper with auto-detect disabled, call introspector, check property count and names."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "All referenced entities (ObjectMapper, BasicClassIntrospector, MapperFeature) are precisely named and locatable in codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology used accurately: AUTO_DETECT_GETTERS, AUTO_DETECT_SETTERS, @JsonProperty, introspection are all correctly applied."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete input provided: TCls class with @JsonProperty field and getter/setter methods; specific MapperFeature configurations listed."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete, ordered reproduction steps provided: create mapper, configure features, construct type, call introspector, check results."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Version explicitly stated as 2.7.3; sufficient to identify version-specific behavior."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Exact output provided verbatim: property count of 2 with names 'name' and 'groupname'; expected output also specified."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Combination of disabled auto-detection with @JsonProperty annotation and method naming mismatch uniquely identifies this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior explicitly stated: only one property (groupname with @JsonProperty) should be found."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior explicitly stated with exact output: 2 properties found (name and groupname)."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected 1 property, observed 2 properties; expected output vs. actual output clearly contrasted."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reproduction steps are complete and sufficient: full code provided can be executed directly without additional investigation."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version 2.7.3 specified; Jackson library is standard; no special environment dependencies mentioned but standard Java environment implied."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Report does not explicitly propose a root cause; it only describes the symptom and expected behavior."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No causal mechanism proposed; report lacks explanation of why disabled auto-detection still detects methods."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No evidence provided to support a proposed cause; only symptom description and code configuration."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report is internally coherent: configuration settings, code, and output are consistent with each other."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No specific technical artifacts (log lines, method names, code locations) referenced to support an explanation."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes named: ObjectMapper, BasicClassIntrospector, BasicBeanDescription, MapperFeature, JavaType."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem clearly identifiable: Jackson databind introspection logic, specifically property detection."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Complete code snippet provided; actual and expected output artifacts included; directly relevant to failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson library referenced implicitly through class names; version 2.7.3 specified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "OS, Java version, and runtime details not provided; only Jackson version specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "All references are specific: class names, method names, and configuration options are precisely identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and conditions are fully specified: TCls class definition, all MapperFeature configurations, and method calls."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clear: only the @JsonProperty-annotated field should be detected, not the getter/setter methods."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Version 2.7.3 provided; standard Java environment assumed; sufficient for reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions: configuration, code, and output are all consistent with each other."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Correct behavior is clear (detect only @JsonProperty field), but root cause is not identified, making fix strategy uncertain."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "BasicClassIntrospector and property detection logic are identifiable as the faulty component."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected correct behavior is concrete: findProperties() should return exactly 1 property (groupname)."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Relevant constraints documented: auto-detection disabled, @JsonProperty annotation present, method naming mismatch."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Without root cause analysis, a developer would need to investigate why auto-detection settings are not being honored."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No root cause explicitly proposed; report only describes the symptom."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific code construct, API call, or logic error referenced as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No causal chain articulated; report lacks explanation of how disabled auto-detection leads to method detection."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete scenario provided: specific class definition, mapper configuration, and introspector calls allow complete and unambiguous reproduction."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific subsystem identifiable: Jackson's BasicClassIntrospector and property detection logic."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Symptom manifests in findProperties() output, but underlying defect location is not identified or distinguished."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one impacted area identified (property detection); no cross-cutting concerns or multiple affected areas mentioned."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple technical concepts identified: ObjectMapper, BasicClassIntrospector, MapperFeature, @JsonProperty, introspection, auto-detection."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": false,
+        "confidence_diff": 0.27,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.75
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.8958333333333334,
+  "cohens_kappa": 0.761904761904762,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.82 > 0.7)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.75)"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge1 (higher confidence: 0.82 > 0.7)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.75)"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 1,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 0.8457816116784908,
+      "Clarity": 0.8457816116784908,
+      "Specificity": 0.8457816116784908,
+      "Reproducibility": 0.8457816116784908,
+      "ReasoningQuality": -1.3433002067834854,
+      "TechnicalContext": 0.2985111570629967,
+      "Ambiguity": 0.2985111570629967,
+      "RepairReadiness": 0.8457816116784908,
+      "RootCauseEvidence": -1.8905706613989794,
+      "HiddenReproducibility": -1.3433002067834854,
+      "ImpactScope": -0.24875929755249732
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

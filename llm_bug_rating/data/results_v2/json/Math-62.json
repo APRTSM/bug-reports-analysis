@@ -1,0 +1,1454 @@
+{
+  "bug": {
+    "bug_id": "Math-62",
+    "project": "Math",
+    "summary": "Miscellaneous issues concerning the \"optimization\" package",
+    "description": "Revision 990792 contains changes triggered the following issues:\n\nMATH-394\n\nMATH-397\n\nMATH-404\n\nThis issue collects the currently still unsatisfactory code (not necessarily sorted in order of annoyance):\n\n\"BrentOptimizer\": a specific convergence checker must be used. \"LevenbergMarquardtOptimizer\" also has specific convergence checks.\n\nTrying to make convergence checking independent of the optimization algorithm creates problems (conceptual and practical):\n\nSee \"BrentOptimizer\" and \"LevenbergMarquardtOptimizer\", the algorithm passes \"points\" to the convergence checker, but the actual meaning of the points can very well be different in the caller (optimization algorithm) and the callee (convergence checker).\n\nIn \"PowellOptimizer\" the line search (\"BrentOptimizer\") tolerances depend on the tolerances within the main algorithm. Since tolerances come with \"ConvergenceChecker\" and so can be changed at any time, it is awkward to adapt the values within the line search optimizer without exposing its internals (\"BrentOptimizer\" field) to the enclosing class (\"PowellOptimizer\").\n\nGiven the numerous changes, some Javadoc comments might be out-of-sync, although I did try to update them all.\n\nClass \"DirectSearchOptimizer\" (in package \"optimization.direct\") inherits from class \"AbstractScalarOptimizer\" (in package \"optimization.general\").\n\nSome interfaces are defined in package \"optimization\" but their base implementations (abstract class that contain the boiler-plate code) are in package \"optimization.general\" (e.g. \"DifferentiableMultivariateVectorialOptimizer\" and \"BaseAbstractVectorialOptimizer\").\n\nNo check is performed to ensure the the convergence checker has been set (see e.g. \"BrentOptimizer\" and \"PowellOptimizer\"); if it hasn't there will be a NPE. The alternative is to initialize a default checker that will never be used in case the user had intended to explicitly sets the checker.\n\n\"NonLinearConjugateGradientOptimizer\": Ugly workaround for the checked \"ConvergenceException\".\n\nEverywhere, we trail the checked \"FunctionEvaluationException\" although it is never used.\n\nThere remains some duplicate code (such as the \"multi-start loop\" in the various \"MultiStart...\" implementations).\n\nThe \"ConvergenceChecker\" interface is very general (the \"converged\" method can take any number of \"...PointValuePair\"). However there remains a \"semantic\" problem: One cannot be sure that the list of points means the same thing for the caller of \"converged\" and within the implementation of the \"ConvergenceChecker\" that was independently set.\n\nIt is not clear whether it is wise to aggregate the counter of gradient evaluations to the function evaluation counter. In \"LevenbergMarquartdOptimizer\" for example, it would be unfair to do so. Currently I had to remove all tests referring to gradient and Jacobian evaluations.\n\nIn \"AbstractLeastSquaresOptimizer\" and \"LevenbergMarquardtOptimizer\", occurences of \"OptimizationException\" were replaced by the unchecked \"ConvergenceException\" but in some cases it might not be the most appropriate one.\n\n\"MultiStartUnivariateRealOptimizer\": in the other classes (\"MultiStartMultivariate...\") similar to this one, the randomization is on the firts-guess value while in this class, it is on the search interval. I think that here also we should randomly choose the start value (within the user-selected interval).\n\nThe Javadoc utility raises warnings (see output of \"mvn site\") which I couldn't figure out how to correct.\n\nSome previously existing classes and interfaces have become no more than a specialisation of new \"generics\" classes; it might be interesting to remove them in order to reduce the number of classes and thus limit the potential for confusion."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Reports observable issues in optimization behavior, e.g. convergence checking and NPE risk, with enough detail to distinguish them from normal behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Names specific classes and code paths such as BrentOptimizer, LevenbergMarquardtOptimizer, PowellOptimizer, and DirectSearchOptimizer."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No stack traces, error messages, logs, or code snippets are included."
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "The report describes issues but does not give concrete reproduction steps or inputs to immediately reproduce them."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "It points developers to specific components in the optimization package, especially BrentOptimizer and PowellOptimizer."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "A developer can understand the general failure scenario: convergence checker semantics and missing checker initialization."
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "The report does not define a precise failing scenario suitable for a test case."
+      },
+      "C3": {
+        "value": false,
+        "confidence": 0.66,
+        "reason": "Multiple issues are listed without a single unambiguous sequence of events or conditions."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Referenced classes and packages are named precisely enough to locate them."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "Terminology like convergence checker, line search, and function evaluation is used consistently and appropriately."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No concrete input values or triggering conditions are provided."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report does not provide ordered reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Only a revision number is given; no environment or version details are provided."
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No verbatim failures, exceptions, or error messages are included."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.62,
+        "reason": "The combination of optimizer/convergence-checker issues and NPE risk is somewhat distinctive, though still broad."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Expected behavior is discussed generally, but not stated as a concrete correctness criterion for a specific case."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.71,
+        "reason": "Observed behavior is described, including potential NPE and semantic mismatch in convergence checking."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "The discrepancy is described conceptually, but not in a single unambiguous scenario."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Reproduction steps are not complete or sufficient on their own."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No environment or dependency setup details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.69,
+        "reason": "It explicitly proposes causes such as missing convergence checker initialization and semantic mismatch of points."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.73,
+        "reason": "The report links the proposed cause to symptoms like NPEs and incorrect convergence semantics."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "No concrete evidence such as traces, logs, or code excerpts is provided."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The explanation is internally consistent and does not contradict the report."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "It references specific artifacts like BrentOptimizer, LevenbergMarquardtOptimizer, and PowellOptimizer."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes and interfaces are named throughout the report."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The affected subsystem is clearly the optimization package, with subpackages like optimization.direct and optimization.general."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No stack traces, logs, screenshots, or code snippets are included."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No external dependencies or versions are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No OS, browser, framework, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Several references are vague, such as 'some previously existing classes' and 'numerous changes'."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Inputs and conditions for reproducing the bugs are not sufficiently described."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.79,
+        "reason": "Expected behavior is often implied rather than stated precisely."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Environment and version information that could affect reproduction is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report is broad and incomplete, but not internally contradictory."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "The report identifies issues but not a precise fix target or acceptance criterion for a specific bug."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Likely fix locations are named, especially BrentOptimizer, PowellOptimizer, and LevenbergMarquardtOptimizer."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.69,
+        "reason": "Correct behavior is not stated concretely enough to serve as a testable acceptance criterion."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Relevant edge cases like null convergence checker are mentioned, but not documented in enough detail."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.77,
+        "reason": "A plausible fix can be inferred, but the report is too broad to implement one without further investigation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "It explicitly proposes causes such as missing convergence checker setup and semantic mismatch of points."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The proposed causes reference specific constructs like convergence checker, BrentOptimizer field, and line search tolerances."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.67,
+        "reason": "The report explains how these causes lead to NPEs or incorrect convergence behavior."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "A concrete scenario is hinted at, but complete unambiguous reproduction steps are not directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystems and classes in the optimization package are identified."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The report distinguishes symptom locations from likely defect locations, such as PowellOptimizer using BrentOptimizer internally."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.64,
+        "reason": "Multiple areas are mentioned, including convergence checking, line search, and multi-start implementations."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "It names many distinct technical concepts and classes, including BrentOptimizer, LevenbergMarquardtOptimizer, PowellOptimizer, and ConvergenceChecker."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Report lists multiple conceptual and design issues without describing specific observable faulty behavior; mostly architectural concerns rather than concrete failures."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Multiple specific classes identified: BrentOptimizer, LevenbergMarquardtOptimizer, PowellOptimizer, DirectSearchOptimizer, NonLinearConjugateGradientOptimizer, AbstractLeastSquaresOptimizer, MultiStartUnivariateRealOptimizer."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No stack traces, error messages, logs, or code snippets provided; only references to related issues (MATH-394, MATH-397, MATH-404) without details."
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Report describes design problems and code quality issues but does not provide concrete steps to reproduce a specific failure; requires understanding of architecture first."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific classes and packages named (optimization.direct, optimization.general, optimization); developer could locate relevant source files."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Report assumes familiarity with optimization algorithms and convergence checking concepts; unfamiliar developer would struggle to understand the failure scenarios."
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No concrete failure scenario described; cannot write a failing test case from this report alone."
+      },
+      "C3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Multiple issues listed without clear sequence of events; reader could interpret problems differently (design flaw vs. runtime bug vs. documentation issue)."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Classes and packages are named specifically enough to locate in codebase; however, the nature of issues (semantic, architectural) is less precise."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Technical terminology used accurately (convergence checker, tolerance, NPE, Jacobian evaluations) but some issues are vague (e.g., 'ugly workaround')."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific inputs, parameter values, or triggering conditions provided; issues are described abstractly."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No reproduction steps provided; report is a collection of design concerns, not a bug reproduction guide."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Revision 990792 mentioned but no version, branch, or environment details provided; no OS, Java version, or dependency versions specified."
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific error messages, exceptions (except NPE mentioned hypothetically), or failure outputs reported verbatim."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Multiple specific issues mentioned (convergence checker semantics, tolerance propagation, NPE risk, exception handling) that distinguish this from generic optimization bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is not explicitly stated; report describes what is wrong, not what correct behavior should be."
+      },
+      "R2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Observed behavior is not described with concrete examples; issues are stated as design problems, not observable failures."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No clear discrepancy between expected and observed behavior articulated; report is about code quality and design, not functional failure."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No reproduction steps provided; report cannot be followed to reproduce any specific failure."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environmental conditions, dependencies, or setup requirements documented; revision number alone is insufficient."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple potential causes proposed: convergence checker semantic mismatch, tolerance propagation issues, missing null checks, exception handling problems."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Proposed causes are linked to symptoms (e.g., NPE risk from missing convergence checker initialization, tolerance propagation awkwardness in PowellOptimizer)."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No concrete evidence provided; issues are described conceptually without code references, traces, or specific examples."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Explanations are internally coherent; architectural concerns are consistent with each other."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Specific method names and class names referenced (converged method, BrentOptimizer field in PowellOptimizer) but no exact code locations or line numbers."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Multiple classes and methods named: BrentOptimizer, LevenbergMarquardtOptimizer, PowellOptimizer, ConvergenceChecker.converged(), DirectSearchOptimizer, AbstractScalarOptimizer, etc."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Packages identified: optimization, optimization.direct, optimization.general; subsystems are locatable."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No stack traces, logs, screenshots, or code snippets included; only references to related issues."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No external dependencies, libraries, or versions mentioned; appears to be internal Apache Commons Math issues."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No OS, Java version, framework version, or runtime environment details provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Vague references throughout: 'ugly workaround', 'semantic problem', 'not necessarily sorted in order of annoyance'; developer would need clarification."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "No inputs, parameters, or conditions specified; cannot attempt reproduction."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior is not clearly defined; report describes problems without stating what correct behavior should be."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Version, OS, Java version, and other environment details missing; only revision number provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No contradictory statements detected; report is consistent in describing design and code quality issues."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Correct behavior is not explicitly stated; report identifies problems but not what the fix should achieve."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Multiple components identified (BrentOptimizer, PowellOptimizer, ConvergenceChecker, etc.) but specific methods or code locations requiring fixes are not pinpointed."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected correct behavior not stated concretely; acceptance criteria cannot be derived from report."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Some constraints mentioned (tolerance propagation, convergence checker semantics, NPE risk) but not comprehensively documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Developer could not implement a fix using only this report; would require investigation of related issues and architectural understanding."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple root causes explicitly proposed: convergence checker semantic mismatch, missing null checks, tolerance propagation design, exception handling choices."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Root causes reference specific constructs: ConvergenceChecker interface, BrentOptimizer field in PowellOptimizer, NPE from uninitialized checker, ConvergenceException vs OptimizationException."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Causal chains are described conceptually but not articulated clearly enough for verification; no trace from root cause to observed failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Report does not describe a specific, concrete scenario; it is a collection of design issues without determinable reproduction steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Multiple subsystems identified: optimization.general, optimization.direct, convergence checking, line search, least squares optimization."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Report distinguishes between symptom manifestation (NPE at runtime, awkward API usage) and underlying defects (design flaws, semantic mismatches)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Multiple impacted areas identified: convergence checking, tolerance management, exception handling, class hierarchy, documentation."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "More than three distinct technical concepts named: BrentOptimizer, LevenbergMarquardtOptimizer, PowellOptimizer, ConvergenceChecker, DirectSearchOptimizer, AbstractScalarOptimizer, FunctionEvaluationException, ConvergenceException, Jacobian evaluations."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": false,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.8
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.66,
+        "judge2_confidence": 0.85
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.7
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": false,
+        "confidence_diff": 0.19000000000000006,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.71,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.85
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.1100000000000001,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.69,
+        "judge2_confidence": 0.8
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.73,
+        "judge2_confidence": 0.75
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.7
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.79,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.75
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.69,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.7
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.8
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.67,
+        "judge2_confidence": 0.8
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.7
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.64,
+        "judge2_confidence": 0.75
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.8958333333333334,
+  "cohens_kappa": 0.7923875432525952,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.74)"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.71)"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.8 > 0.7)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.67)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.74)"
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.71)"
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge1 (higher confidence: 0.8 > 0.7)"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.67)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 2,
+      "Clarity": 2,
+      "Specificity": 1,
+      "Reproducibility": 0,
+      "ReasoningQuality": 4,
+      "TechnicalContext": 2,
+      "Ambiguity": 4,
+      "RepairReadiness": 1,
+      "RootCauseEvidence": 2,
+      "HiddenReproducibility": 0,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 4,
+      "ambiguity_count": 4,
+      "hidden_s2r_present": false,
+      "root_cause_evidence": 2,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.21213203435596423,
+      "Clarity": 0.21213203435596423,
+      "Specificity": -0.565685424949238,
+      "Reproducibility": -1.3435028842544403,
+      "ReasoningQuality": 1.7677669529663684,
+      "TechnicalContext": 0.21213203435596423,
+      "Ambiguity": -0.565685424949238,
+      "RepairReadiness": -0.565685424949238,
+      "RootCauseEvidence": 0.21213203435596423,
+      "HiddenReproducibility": -1.3435028842544403,
+      "ImpactScope": 1.7677669529663684
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

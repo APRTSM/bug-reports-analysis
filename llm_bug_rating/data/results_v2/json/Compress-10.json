@@ -1,0 +1,1455 @@
+{
+  "bug": {
+    "bug_id": "Compress-10",
+    "project": "Compress",
+    "summary": "Cannot Read Winzip Archives With Unicode Extra Fields",
+    "description": "I have a zip file created with WinZip containing Unicode extra fields. Upon attempting to extract it with org.apache.commons.compress.archivers.zip.ZipFile, ZipFile.getInputStream() returns null for ZipArchiveEntries previously retrieved with ZipFile.getEntry() or even ZipFile.getEntries(). See UTF8ZipFilesTest.patch in the attachments for a test case exposing the bug. The original test case stopped short of trying to read the entries, that's why this wasn't flagged up before. \n\nThe problem lies in the fact that inside ZipFile.java entries are stored in a HashMap. However, at one point after populating the HashMap, the unicode extra fields are read, which leads to a change of the ZipArchiveEntry name, and therefore a change of its hash code. Because of this, subsequent gets on the HashMap fail to retrieve the original values.\n\nZipFile.patch contains an (admittedly simple-minded) fix for this problem by reconstructing the entries HashMap after the Unicode extra fields have been parsed. The purpose of this patch is mainly to show that the problem is indeed what I think, rather than providing a well-designed solution.\n\nThe patches have been tested against revision 1210416."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: ZipFile.getInputStream() returns null for entries from WinZip archives with Unicode extra fields."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specifically identifies org.apache.commons.compress.archivers.zip.ZipFile and ZipFile.getInputStream()/getEntry()/getEntries()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "References a test case patch (UTF8ZipFilesTest.patch) and the null return behavior, though no stack trace is included."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides enough information to investigate: WinZip-created zip with Unicode extra fields, then call ZipFile.getInputStream() on retrieved entries."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Pinpoints ZipFile.java as the location where entries are stored in a HashMap and later mutated."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A developer can understand the failure scenario: entry lookup fails after Unicode extra fields change the entry name."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The described behavior is specific enough to derive a failing test around getEntry()/getEntries() followed by getInputStream()."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The sequence is clear: open archive, retrieve entries, Unicode extra fields are parsed, names change, HashMap lookup fails."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Mentions concrete entities: ZipFile, ZipArchiveEntry, HashMap, Unicode extra fields."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Terminology is used consistently and accurately, describing hash code changes due to mutable entry names."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Concrete trigger is given: a zip file created with WinZip containing Unicode extra fields."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Mentions an attached test patch but does not provide explicit ordered reproduction steps in the text."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Includes version context: tested against revision 1210416."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Reports the specific failure mode: ZipFile.getInputStream() returns null."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The combination of WinZip Unicode extra fields and HashMap key mutation uniquely identifies this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit and concrete: entries should be readable via ZipFile.getInputStream()."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: getInputStream() returns null for retrieved entries."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The discrepancy is clear: entries are found by getEntry()/getEntries() but cannot be opened."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "The report lacks fully enumerated reproduction steps; it relies on an attached patch."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "Environment details are limited to a tested revision; no OS/runtime specifics are given."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes a cause: entries stored in a HashMap, then entry names change and hash codes change."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Links the cause to the symptom by explaining that changed hash codes make subsequent HashMap gets fail."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Cites the relevant code area in ZipFile.java and the behavior of Unicode extra field parsing."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is internally consistent and matches the reported null return behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References concrete technical artifacts: ZipFile.java, HashMap, ZipArchiveEntry name, Unicode extra fields."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names specific classes and methods: ZipFile, ZipArchiveEntry, getInputStream(), getEntry(), getEntries()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected module is identifiable as org.apache.commons.compress.archivers.zip."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes relevant technical evidence in the form of a described test patch and failure mode."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.52,
+        "reason": "No external dependency or library version beyond the project revision is named."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.57,
+        "reason": "No OS, browser, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The exact test steps are underspecified and rely on an attachment."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Inputs are only broadly described; the exact archive contents are not fully specified in the text."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Expected behavior is sufficiently clear: entries should be retrievable and readable."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Material environment/version details are missing aside from the tested revision."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report explains the defect mechanism and implies the correct behavior: preserve lookup consistency after parsing Unicode fields."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies ZipFile.java and the HashMap of entries as the fix location."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: getInputStream() should not return null for entries from such archives."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Documents the relevant edge case: Unicode extra fields mutate entry names after insertion."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A plausible fix is directly suggested by the report: rebuild the entries map after parsing Unicode extra fields."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly states the root cause: HashMap entries become unreachable after ZipArchiveEntry name changes."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References specific constructs: HashMap, ZipArchiveEntry name, hash code, Unicode extra field parsing."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explains the causal chain from name mutation to hash code change to failed HashMap lookup and null input stream."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A concrete scenario is given from which reproduction can be derived: WinZip archive with Unicode extra fields and ZipFile reads."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem is clearly the zip archive handling in org.apache.commons.compress.archivers.zip."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Distinguishes symptom location (getInputStream/getEntry) from underlying defect location (ZipFile.java map population and Unicode parsing)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Only one main impacted area is described; multiple distinct impacted areas are not clearly enumerated."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Names several relevant concepts: ZipFile, ZipArchiveEntry, HashMap, Unicode extra fields, getInputStream()."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: ZipFile.getInputStream() returns null for entries with Unicode extra fields, distinguishing it from normal operation."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specifically identifies org.apache.commons.compress.archivers.zip.ZipFile class and methods getInputStream(), getEntry(), getEntries()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References UTF8ZipFilesTest.patch and ZipFile.patch as concrete debugging artifacts; identifies the HashMap lookup failure mechanism."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Developer can immediately attempt reproduction using WinZip-created files with Unicode extra fields and the provided test case patch."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Pinpoints ZipFile.java class and HashMap storage mechanism as the fault location."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Clearly describes the failure scenario: Unicode extra fields cause getInputStream() to return null for previously retrieved entries."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sufficient detail to write a failing test: create WinZip file with Unicode extra fields, retrieve entry, attempt to read via getInputStream()."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Sequence is unambiguous: entries stored in HashMap \u2192 Unicode extra fields parsed \u2192 entry name changes \u2192 hash code changes \u2192 HashMap lookup fails."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References are precise: ZipFile class, HashMap data structure, Unicode extra fields, ZipArchiveEntry name property."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terminology used accurately: hash code, HashMap, Unicode extra fields, ZipArchiveEntry."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specifies input: zip files created with WinZip containing Unicode extra fields; concrete enough for test case."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Ordered steps derivable: create/obtain WinZip file with Unicode extra fields \u2192 call getEntry() \u2192 call getInputStream() \u2192 observe null return."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References revision 1210416 for version specificity; however, OS and runtime environment details are not provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific failure mode reported: getInputStream() returns null; this is the exact observable symptom."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes this bug from general null returns by linking it specifically to Unicode extra fields and hash code changes."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit but clear: getInputStream() should return a valid stream for entries with Unicode extra fields."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Observed behavior explicitly stated: getInputStream() returns null for ZipArchiveEntries from files with Unicode extra fields."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Discrepancy is unambiguous: expected non-null stream vs. observed null return."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Steps are mostly complete but require obtaining or creating a WinZip file with Unicode extra fields; test case patch provided as reference."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Missing specific environment details: OS, Java version, commons-compress version (only revision number given), WinZip version."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes root cause: Unicode extra fields are parsed after HashMap population, changing entry name and hash code."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Causal mechanism is directly linked: hash code change \u2192 HashMap lookup failure \u2192 null return from getInputStream()."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References ZipFile.java and HashMap implementation; provides test case patch and fix patch as supporting evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explanation is internally coherent: all statements about hash code changes and HashMap behavior are consistent."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific artifacts: ZipFile.java, HashMap, ZipArchiveEntry name property, Unicode extra fields parsing."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names specific classes and methods: org.apache.commons.compress.archivers.zip.ZipFile, getInputStream(), getEntry(), getEntries(), ZipArchiveEntry."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies ZipFile.java as the affected file; HashMap storage mechanism is clearly located."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Provides test case patch (UTF8ZipFilesTest.patch) and fix patch (ZipFile.patch); however, actual stack traces or logs are not included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References WinZip as external tool creating the problematic files; version not specified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Missing OS, Java version, and runtime environment details; only revision number 1210416 provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "References are precise: ZipFile class, HashMap, Unicode extra fields, ZipArchiveEntry are all clearly identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Input is sufficiently described: WinZip files with Unicode extra fields; test case patch provides concrete example."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear: getInputStream() should return a valid stream, not null."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Environment information is incomplete: OS, Java version, and WinZip version are not specified."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements; the explanation is internally consistent throughout."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Faulty behavior is precise enough to determine correct behavior: HashMap should be reconstructed after Unicode extra fields are parsed."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific component identified: ZipFile.java class, HashMap storage mechanism, Unicode extra field parsing logic."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is concrete: getInputStream() should return a valid stream for entries with Unicode extra fields."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Constraints mentioned: HashMap hash code dependency; edge case of Unicode extra fields is documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Developer could implement a fix (e.g., HashMap reconstruction) using the provided explanation and patch reference; however, optimal design approach is not specified."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes root cause: Unicode extra fields parsing changes ZipArchiveEntry name after HashMap insertion."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References specific constructs: HashMap data structure, ZipArchiveEntry name property, hash code mechanism."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Causal chain is articulated: name change \u2192 hash code change \u2192 HashMap lookup failure \u2192 null return."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Scenario is concrete: WinZip file with Unicode extra fields; steps are derivable but require obtaining/creating such a file, which is not fully determinable without external resources."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies ZipFile class and HashMap storage mechanism as affected subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Distinguishes symptom (null return from getInputStream) from root cause (HashMap lookup failure due to hash code change)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies Unicode extra field parsing as a cross-cutting concern affecting entry retrieval."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Names multiple relevant concepts: ZipFile, ZipArchiveEntry, HashMap, Unicode extra fields, hash code, getInputStream(), getEntry()."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "S2": {
+        "agreement": false,
+        "confidence_diff": 0.29999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.85
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.92
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.94
+      },
+      "R4": {
+        "agreement": false,
+        "confidence_diff": 0.27,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.85
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.28,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.52,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.2300000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.57,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.88
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.96
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.82
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.875,
+  "cohens_kappa": 0.4999999999999998,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.55)"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.52)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.7)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.6)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.55)"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.52)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.7)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.6)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.7808688094430304,
+      "Clarity": 0.7808688094430304,
+      "Specificity": 0.7808688094430304,
+      "Reproducibility": -0.07808688094430297,
+      "ReasoningQuality": 0.7808688094430304,
+      "TechnicalContext": -0.07808688094430297,
+      "Ambiguity": -0.07808688094430297,
+      "RepairReadiness": 0.7808688094430304,
+      "RootCauseEvidence": -0.9370425713316364,
+      "HiddenReproducibility": -2.654953952106303,
+      "ImpactScope": -0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

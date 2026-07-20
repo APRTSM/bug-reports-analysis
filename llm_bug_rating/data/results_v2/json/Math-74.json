@@ -1,0 +1,1454 @@
+{
+  "bug": {
+    "bug_id": "Math-74",
+    "project": "Math",
+    "summary": "Wrong parameter for first step size guess for Embedded Runge Kutta methods",
+    "description": "In a space application using DOP853 i detected what seems to be a bad parameter in the call to the method initializeStep of class AdaptiveStepsizeIntegrator.\n\nHere, DormandPrince853Integrator is a subclass for EmbeddedRungeKuttaIntegrator which perform the call to initializeStep at the beginning of its method integrate(...)\n\nThe problem comes from the array \"scale\" that is used as a parameter in the call off initializeStep(..)\n\nFollowing the theory described by Hairer in his book \"Solving Ordinary Differential Equations 1 : Nonstiff Problems\", the scaling should be :\n\nsci = Atol i + |y0i| * Rtoli\n\nWhereas EmbeddedRungeKuttaIntegrator uses : sci = Atoli\n\nNote that the Gragg-Bulirsch-Stoer integrator uses the good implementation \"sci = Atol i + |y0i| * Rtoli \" when he performs the call to the same method initializeStep(..)\n\nIn the method initializeStep, the error leads to a wrong step size h used to perform an Euler step. Most of the time it is unvisible for the user.\n\nBut in my space application the Euler step with this wrong step size h (much bigger than it should be) makes an exception occur (my satellite hits the ground...)\n\nTo fix the bug, one should use the same algorithm as in the rescale method in GraggBulirschStoerIntegrator\n\nFor exemple :\n\nfinal double[] scale= new double\n[y0.length]\n;;\n\nif (vecAbsoluteTolerance == null) {\n\nfor (int i = 0; i < scale.length; ++i) \n\n{\nfinal double yi = Math.max(Math.abs(y0[i]), Math.abs(y0[i]));\nscale[i] = scalAbsoluteTolerance + scalRelativeTolerance * yi;\n}\n\n} else {\n\nfor (int i = 0; i < scale.length; ++i) \n\n{\nfinal double yi = Math.max(Math.abs(y0[i]), Math.abs(y0[i]));\nscale[i] = vecAbsoluteTolerance[i] + vecRelativeTolerance[i] * yi;\n}\n\n}\n\nhNew = initializeStep(equations, forward, getOrder(), scale,\n\nstepStart, y, yDotK\n[0]\n, yTmp, yDotK\n[1]\n);\n\nSorry for the length of this message, looking forward to hearing from you soon\n\nVincent Morand"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Describes observable faulty behavior: wrong initial step size in Embedded Runge Kutta methods causing an exception in a space application."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names specific code paths and classes: AdaptiveStepsizeIntegrator.initializeStep, EmbeddedRungeKuttaIntegrator.integrate(...), DormandPrince853Integrator."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Includes concrete code-level details and formulas for scale and the initializeStep call, though no stack trace or log output."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer can investigate from the described method call, class hierarchy, and formula mismatch without further clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Pinpoints the relevant component as EmbeddedRungeKuttaIntegrator and contrasts it with GraggBulirschStoerIntegrator."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The failure scenario is explained clearly enough for a developer unfamiliar with the codebase to understand the issue."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A failing test could target the initial step-size computation using the described tolerance scaling."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is explicit: integrate() calls initializeStep(), scale is built incorrectly, then the Euler step uses a wrong h."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Referenced entities are named precisely enough: DormandPrince853Integrator, EmbeddedRungeKuttaIntegrator, AdaptiveStepsizeIntegrator, GraggBulirschStoerIntegrator."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology is consistent with numerical integration concepts and the described tolerance scaling."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The triggering condition is concrete: using DOP853 with the described tolerance scaling at step initialization."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.42,
+        "reason": "No ordered reproduction steps are provided, only a description of the code path and fix."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No environment or version information is given beyond a space application using DOP853."
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "No verbatim exception message or stack trace is included."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The issue is distinguished by the specific wrong scale formula used for initializeStep in embedded Runge Kutta methods."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Expected behavior is stated: scale should be atol + |y0| * rtol for step initialization."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "Observed behavior is stated: scale uses only Atol, leading to a wrong step size h."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "The discrepancy between expected and observed scaling is explicitly described."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.3,
+        "reason": "The report does not provide complete reproduction steps."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "No specific environment or dependency setup is documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A specific cause is proposed: the wrong scale array passed to initializeStep."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation links the incorrect scale directly to a wrong initial Euler step size h."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The report provides code-level formulas and method references as supporting evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The explanation is internally consistent and matches the described behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific artifacts such as initializeStep, scale, integrate(...), and GraggBulirschStoerIntegrator."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods are named."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is identifiable as the embedded Runge Kutta integrator code path."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Includes relevant code snippets/formulas, though no stack trace or logs."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "No external dependency or library version is mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are broad, such as 'space application' and 'most of the time it is unvisible for the user.'"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Inputs and exact triggering conditions are not fully specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Expected behavior is stated via the tolerance scaling formula."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.12,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The report states the correct behavior and the nature of the needed change in scale computation."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The likely fix location is directly identified in EmbeddedRungeKuttaIntegrator.initializeStep call setup."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Acceptance criterion is concrete: use atol + |y0| * rtol for the initial step-size guess."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.38,
+        "reason": "Edge cases and constraints are not discussed beyond the general tolerance formula."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A plausible fix can be implemented from the report using the described rescale algorithm."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explicitly proposes the root cause as the wrong parameter passed to initializeStep."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References the specific scale array and the initializeStep call."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Explains that the incorrect scale causes a too-large h, which then leads to the observed exception."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.68,
+        "reason": "A concrete scenario is implied: DOP853 in a space application with the described tolerance setup, though exact steps are not fully enumerated."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The affected concept is identifiable as embedded Runge Kutta adaptive step initialization."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom appears in DOP853 integration, while the defect is traced to initializeStep scale construction."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Mentions multiple relevant areas: EmbeddedRungeKuttaIntegrator, AdaptiveStepsizeIntegrator, GraggBulirschStoerIntegrator."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "More than three technical concepts are named, including DormandPrince853Integrator, initializeStep, scale, and GraggBulirschStoerIntegrator."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: wrong step size calculation causes satellite to hit ground, distinguishing it from normal operation."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specifically identifies EmbeddedRungeKuttaIntegrator.integrate(), AdaptiveStepsizeIntegrator.initializeStep(), and DormandPrince853Integrator as affected classes/methods."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Provides code snippet showing the incorrect scale array construction and contrasts it with correct implementation from GraggBulirschStoerIntegrator."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Developer can immediately locate the bug in EmbeddedRungeKuttaIntegrator.integrate() and compare with GraggBulirschStoerIntegrator.rescale() to understand the fix."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Pinpoints EmbeddedRungeKuttaIntegrator class and its integrate() method, with reference to AdaptiveStepsizeIntegrator.initializeStep()."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Clearly explains the failure scenario: incorrect scale parameter leads to oversized step size, causing numerical instability in space application."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Provides sufficient detail to write a test case comparing step sizes computed with incorrect vs. correct scale formula."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Sequence is unambiguous: scale calculation error \u2192 wrong step size h \u2192 Euler step fails \u2192 exception occurs."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "References are precise: EmbeddedRungeKuttaIntegrator, DormandPrince853Integrator, GraggBulirschStoerIntegrator, AdaptiveStepsizeIntegrator are all identifiable."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Terminology is accurate: references Hairer's theory, scaling formula sci = Atol_i + |y0_i| * Rtol_i, and Euler step correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Specifies the incorrect formula (sci = Atol_i) vs. correct formula (sci = Atol_i + |y0_i| * Rtol_i) with concrete mathematical expressions."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Does not provide step-by-step reproduction steps; assumes knowledge of how to invoke DOP853 integrator in a space application context."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for the library, framework, or environment; only mentions 'space application' without specifics."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Reports specific failure mode: exception occurs due to oversized step size; mentions satellite hitting ground as concrete manifestation."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Distinguishes this bug from similar issues by referencing Hairer's theory and comparing with correct GraggBulirschStoerIntegrator implementation."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is explicitly stated: scale should follow sci = Atol_i + |y0_i| * Rtol_i formula from Hairer's theory."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Observed behavior is stated: wrong step size h causes exception in space application (satellite hits ground)."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Discrepancy is clear: current code uses sci = Atol_i; should use sci = Atol_i + |y0_i| * Rtol_i."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Reproduction steps are incomplete; report does not provide concrete input values, initial conditions, or step-by-step instructions to trigger the bug."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environmental conditions are vague: mentions 'space application' but lacks OS, Java version, library version, or other reproducibility details."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explicitly proposes root cause: scale array is computed incorrectly using only Atol_i instead of Atol_i + |y0_i| * Rtol_i."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Links cause to symptom: incorrect scale \u2192 oversized step size h \u2192 Euler step fails \u2192 exception in space application."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Provides code evidence: shows incorrect implementation in EmbeddedRungeKuttaIntegrator and correct implementation in GraggBulirschStoerIntegrator."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Explanation is coherent: references Hairer's theory consistently and contrasts with working GraggBulirschStoerIntegrator implementation without contradiction."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References specific artifacts: EmbeddedRungeKuttaIntegrator.integrate(), AdaptiveStepsizeIntegrator.initializeStep(), GraggBulirschStoerIntegrator.rescale()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Names specific classes: EmbeddedRungeKuttaIntegrator, DormandPrince853Integrator, AdaptiveStepsizeIntegrator, GraggBulirschStoerIntegrator; methods: integrate(), initializeStep(), rescale()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Identifies affected subsystem: embedded Runge-Kutta integrators, specifically the step size initialization logic."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Includes code snippet showing incorrect scale array construction and proposed fix with concrete implementation."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References Hairer's book 'Solving Ordinary Differential Equations 1: Nonstiff Problems' as external theoretical context."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No environment details provided: missing OS, Java version, library version, or runtime information."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "References are specific: class names, method names, and formula are all clearly identified."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Inputs and conditions are underspecified: no concrete initial conditions, tolerances, or satellite trajectory parameters provided for reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear: scale formula from Hairer's theory is explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version and environment information is missing: no library version, Java version, or OS specified."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No contradictions detected; report is internally consistent in describing the bug and proposed fix."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Faulty behavior is precisely described; correct behavior is explicitly stated as sci = Atol_i + |y0_i| * Rtol_i."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific component is identifiable: EmbeddedRungeKuttaIntegrator.integrate() method where scale array is constructed."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior is concrete: scale array should be computed using Hairer's formula with both absolute and relative tolerances."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Constraints are documented: must handle both vector and scalar tolerance cases, as shown in proposed code."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Developer can implement fix directly using provided code snippet and comparison with GraggBulirschStoerIntegrator.rescale()."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explicitly proposes root cause: scale array computed as sci = Atol_i instead of sci = Atol_i + |y0_i| * Rtol_i."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific code construct: the scale array initialization in EmbeddedRungeKuttaIntegrator.integrate() method."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Causal chain is articulated: incorrect scale \u2192 oversized step size h \u2192 Euler step fails \u2192 exception occurs."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Report describes a scenario (space application with satellite) but does not provide complete, unambiguous, determinable reproduction steps; requires knowledge of how to set up the application and invoke DOP853."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Identifies specific subsystem: EmbeddedRungeKuttaIntegrator and its subclasses (DormandPrince853Integrator)."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Distinguishes symptom (exception in space application) from defect location (scale array computation in integrate() method)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies multiple impacted areas: step size initialization, tolerance handling (absolute and relative), and Euler step computation."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Names multiple technical concepts: EmbeddedRungeKuttaIntegrator, DormandPrince853Integrator, AdaptiveStepsizeIntegrator, GraggBulirschStoerIntegrator, scale array, Euler step, step size h."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.88
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.87
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.89
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.91
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.86
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.39999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.42,
+        "judge2_confidence": 0.82
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.6499999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": false,
+        "confidence_diff": 0.45000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.8
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.89
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.85
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.45,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.3,
+        "judge2_confidence": 0.75
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.6200000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.89
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.91
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.93
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.87
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.7,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.82
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.7,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.8,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.12,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.91
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.49,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.38,
+        "judge2_confidence": 0.87
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.89
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.89
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.8958333333333334,
+  "cohens_kappa": 0.6721311475409838,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.35)"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.15)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.87 > 0.38)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.68)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.35)"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.15)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Selected judge2 (higher confidence: 0.87 > 0.38)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.68)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 0,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": false,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9525009525014289,
+      "Clarity": 0.9525009525014289,
+      "Specificity": -0.44450044450066667,
+      "Reproducibility": -0.44450044450066667,
+      "ReasoningQuality": 0.9525009525014289,
+      "TechnicalContext": 0.2540002540003811,
+      "Ambiguity": -0.44450044450066667,
+      "RepairReadiness": 0.9525009525014289,
+      "RootCauseEvidence": -0.44450044450066667,
+      "HiddenReproducibility": -2.54000254000381,
+      "ImpactScope": 0.2540002540003811
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

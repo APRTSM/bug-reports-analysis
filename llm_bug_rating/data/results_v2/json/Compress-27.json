@@ -1,0 +1,1455 @@
+{
+  "bug": {
+    "bug_id": "Compress-27",
+    "project": "Compress",
+    "summary": "Incorrect handling of NUL username and group Tar.gz entries",
+    "description": "With version 1.8 of commons-compress it's no longer possible to decompress files from an archive if the archive contains entries having null (or being empty?) set as username and/or usergroup. With version 1.7 this still worked now I get this exception:\n\njava.io.IOException: Error detected parsing the header\nat org.apache.commons.compress.archivers.tar.TarArchiveInputStream.getNextTarEntry(TarArchiveInputStream.java:249)\nat TestBed.AppTest.extractNoFileOwner(AppTest.java:30)\nCaused by: java.lang.IllegalArgumentException: Invalid \nbyte\n32 at offset 7 in \n' {NUL}'\nlen=8\nat org.apache.commons.compress.archivers.tar.TarUtils.parseOctal(TarUtils.java:134)\nat org.apache.commons.compress.archivers.tar.TarUtils.parseOctalOrBinary(TarUtils.java:173)\nat org.apache.commons.compress.archivers.tar.TarArchiveEntry.parseTarHeader(TarArchiveEntry.java:953)\nat org.apache.commons.compress.archivers.tar.TarArchiveEntry.parseTarHeader(TarArchiveEntry.java:940)\nat org.apache.commons.compress.archivers.tar.TarArchiveEntry.<init>(TarArchiveEntry.java:324)\nat org.apache.commons.compress.archivers.tar.TarArchiveInputStream.getNextTarEntry(TarArchiveInputStream.java:247)\n... 27 more\n\nThis exception leads to my suspision that the regression was introduced with the fix for this ticket \nCOMPRESS-262\n, which has a nearly identical exception provided.\n\nSome test code you can run to verify it:\n\npackage\nTestBed;\n\nimport\njava.io.File;\n\nimport\njava.io.FileInputStream;\n\nimport\njava.io.FileNotFoundException;\n\nimport\njava.io.IOException;\n\nimport\norg.apache.commons.compress.archivers.tar.TarArchiveEntry;\n\nimport\norg.apache.commons.compress.archivers.tar.TarArchiveInputStream;\n\nimport\norg.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;\n\nimport\norg.junit.Test;\n\n/**\n* Unit test \nfor\nsimple App.\n*/\n\npublic\n\nclass \nAppTest\n{\n\n@Test\n\npublic\nvoid extractNoFileOwner()\n{\nTarArchiveInputStream tarInputStream = \nnull\n;\n\ntry\n\n{\ntarInputStream =\n\nnew\nTarArchiveInputStream( \nnew\nGzipCompressorInputStream( \nnew\nFileInputStream( \nnew\nFile(\n\n\"/home/pknobel/redis-dist-2.8.3_1-linux.tar.gz\"\n) ) ) );\nTarArchiveEntry entry;\n\nwhile\n( ( entry = tarInputStream.getNextTarEntry() ) != \nnull\n)\n{\n\nSystem\n.out.println( entry.getName() );\n\nSystem\n.out.println(entry.getUserName()+\n\"/\"\n+entry.getGroupName());\n}\n\n}\n\ncatch\n( FileNotFoundException e )\n{\ne.printStackTrace();\n}\n\ncatch\n( IOException e )\n{\ne.printStackTrace();\n}\n}\n\n}\n\nWith 1.7 the TestCase outputed this:\n\nredis-dist-2.8.3_1/bin/\n/\nredis-dist-2.8.3_1/bin/redis-server\njenkins/jenkins\nredis-dist-2.8.3_1/bin/redis-cli\njenkins/jenkins\n\nWith 1.8 it's failing once it reaches the null valued entry, which is the first. The archive is created using maven assembly plugin, and I tried the same with maven ant task. Both generating an archive with not set username and groups for at least some entries.\n\nYou can download the archive from \nhttp://heli0s.darktech.org/redis/2.8.3_1/redis-dist-2.8.3_1-linux.tar.gz\n\nIf you run a tar -tvzf on the file you see this report:\n\ndrwxr-xr-x 0/0 0 2014-04-18 09:43 redis-dist-2.8.3_1-SNAPSHOT/bin/\n-rwxr-xr-x pknobel/pknobel 3824588 2014-01-02 14:58 redis-dist-2.8.3_1-SNAPSHOT/bin/redis-cli\n-rwxr-xr-x pknobel/pknobel 5217234 2014-01-02 14:58 redis-dist-2.8.3_1-SNAPSHOT/bin/redis-server\n\nThe user 0/0 probably indicates that it's not set although it's the root user id. A correctly root user file would show up as root/root"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes a concrete failure: TarArchiveInputStream throws IOException when encountering tar entries with null/empty username/group."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the code path in TarArchiveInputStream.getNextTarEntry and TarArchiveEntry.parseTarHeader."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a full stack trace with IOException and IllegalArgumentException from TarUtils.parseOctal."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides a runnable JUnit test and a specific archive file path to reproduce the issue."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Points to tar archive parsing in commons-compress, especially TarArchiveInputStream and TarArchiveEntry."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "A developer can understand that version 1.8 fails on tar entries with null username/group while 1.7 worked."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The included test and archive path are sufficient to write a failing test case."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is clear: open archive, iterate entries, failure occurs on the first null-valued entry."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Named entities include TarArchiveInputStream, TarArchiveEntry, TarUtils, and GzipCompressorInputStream."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent: tar.gz entries, username/groupname fields, header parsing, and octal parsing."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specifies the triggering condition: entries with null or empty username/usergroup in a tar.gz archive."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Provides ordered reproduction code that opens the archive and iterates through entries."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Mentions commons-compress 1.8 vs 1.7, but no broader environment/version details are given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reports the exact exception and stack trace, including the Invalid byte 32 at offset 7 message."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The combination of null username/group in tar headers and failure in parseOctal is specific to this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: archive entries should decompress and print names/user/group without exception."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicit: IOException is thrown when the first null-valued entry is reached."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report contrasts 1.7 working output with 1.8 failing behavior."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The test code and archive path are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only the library version is given; broader environment setup details are missing."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposes a specific cause: regression introduced by the fix for COMPRESS-262."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Links the proposed regression to the same kind of parsing exception seen in the stack trace."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Supports the hypothesis with the stack trace and the tar -tvzf output showing 0/0 fields."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is coherent and matches the observed failure during header parsing."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References concrete artifacts such as COMPRESS-262, TarUtils.parseOctal, and the exception text."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names specific classes and methods: TarArchiveInputStream, TarArchiveEntry, TarUtils.parseOctal."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The tar archive parsing subsystem in commons-compress is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a stack trace and sample test code directly relevant to the failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "References the maven assembly plugin and maven ant task as archive-producing tools."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "No OS, JVM, or framework version details beyond commons-compress 1.7/1.8 are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The report is somewhat vague about whether the issue is null versus empty username/group."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering archive are concrete enough to attempt reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior is reasonably inferable from the working 1.7 output and the failure description."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Environment/version information that could affect reproduction is limited."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report is internally consistent; no direct contradictions are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The correct behavior is clear: tar entries with missing owner/group should be parsed without exception."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Likely fix location is identifiable in TarArchiveEntry.parseTarHeader and TarUtils.parseOctal."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: iterate through the archive successfully and preserve entry names/user/group."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report notes the issue occurs on entries with null/empty username and group fields."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A developer could plausibly patch tar header parsing based on the provided exception and test case."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explicitly proposes a regression introduced by the fix for COMPRESS-262."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "References the parsing logic in TarUtils.parseOctal and TarArchiveEntry.parseTarHeader."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The causal chain is stated: null owner/group fields trigger header parsing failure and abort extraction."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A concrete scenario and test code are provided from which full reproduction steps can be derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is tar archive parsing in commons-compress."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom appears in TarArchiveInputStream, while the likely defect is in TarArchiveEntry/TarUtils parsing."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one main impacted path is described; multiple distinct impacted areas are not clearly identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Mentions TarArchiveInputStream, TarArchiveEntry, TarUtils, GzipCompressorInputStream, and COMPRESS-262."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable failure: NUL/empty username and group fields in tar entries cause IllegalArgumentException during decompression, contrasting with working behavior in v1.7."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes identified: TarArchiveInputStream, TarArchiveEntry, TarUtils.parseOctal, TarUtils.parseOctalOrBinary; methods and line numbers provided."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete stack trace provided showing exact exception path from TarArchiveInputStream.getNextTarEntry through TarUtils.parseOctal with error message 'Invalid byte 32 at offset 7'."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reproducible test case provided with concrete file path and downloadable archive; developer can immediately attempt reproduction."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific modules identified: org.apache.commons.compress.archivers.tar package, TarUtils, TarArchiveEntry, TarArchiveInputStream classes."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: decompressing tar.gz with NUL/empty username/group fields fails in v1.8 but worked in v1.7; comparison provides context."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Test case provided that reproduces the issue; developer could write a failing test by using the provided archive or creating one with NUL username/group fields."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: archive decompression \u2192 getNextTarEntry() \u2192 parseTarHeader() \u2192 parseOctal() fails on NUL byte in username/group field."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "All referenced entities are precisely identified: TarArchiveInputStream, TarArchiveEntry, TarUtils methods with line numbers; downloadable archive provided."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Technical terminology used accurately: NUL bytes, octal parsing, tar header format; no misleading language about nature of fault."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific input condition: tar entries with NUL or empty username/group fields; concrete file path and downloadable archive provided."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Complete reproduction steps provided: create TarArchiveInputStream from GzipCompressorInputStream, call getNextTarEntry() in loop; test code included."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Version information specific: commons-compress 1.8 (failing) vs 1.7 (working); archive creation tool identified (maven assembly plugin)."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Exact exception message provided verbatim: 'Invalid byte 32 at offset 7 in {NUL}'; tar -tvzf output shows '0/0' user/group entries."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report distinguishes this from similar issues by referencing COMPRESS-262 and noting regression between v1.7 and v1.8; specific archive characteristics documented."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior explicitly stated: v1.7 successfully decompressed archive and printed entry names with username/group; no exception thrown."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior explicitly stated: IllegalArgumentException with message 'Invalid byte 32 at offset 7' when parsing NUL username/group field."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy unambiguous: v1.7 processes archive successfully; v1.8 throws exception on first entry with NUL username/group."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reproduction steps are complete: test code provided, downloadable archive available, steps can be followed without additional investigation."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Environment details provided: commons-compress versions 1.7 vs 1.8; archive created by maven assembly plugin; tar format with 0/0 user/group entries."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report explicitly proposes root cause: regression introduced by fix for COMPRESS-262, which changed octal parsing behavior affecting NUL/empty fields."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Proposed explanation linked to symptoms: COMPRESS-262 fix likely made parseOctal stricter, now rejecting NUL bytes (byte 32) that v1.7 accepted in username/group fields."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Evidence provided: stack trace shows parseOctal throwing IllegalArgumentException on byte 32 (space/NUL); COMPRESS-262 referenced as likely cause; v1.7 vs v1.8 comparison."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is internally coherent: stricter parsing in v1.8 rejects previously-accepted NUL fields; consistent with regression pattern between versions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References specific artifacts: TarUtils.parseOctal (line 134), TarUtils.parseOctalOrBinary (line 173), error message 'Invalid byte 32 at offset 7'."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes named: TarArchiveInputStream, TarArchiveEntry, TarUtils; specific methods: getNextTarEntry, parseTarHeader, parseOctal, parseOctalOrBinary."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem precisely identified: org.apache.commons.compress.archivers.tar package; source files locatable from class names."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Stack trace included with line numbers; error message with byte value and offset; test code provided; downloadable archive available."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "External dependencies identified: GzipCompressorInputStream, maven assembly plugin; commons-compress versions 1.7 and 1.8 specified."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Some environment details provided (commons-compress version, archive tool); OS and Java version not explicitly stated but archive is downloadable for testing."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No vague references; all classes, methods, and components are specifically named with line numbers."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs are well-specified: NUL/empty username/group fields in tar entries; concrete archive provided for download."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clear: successful decompression without exception, matching v1.7 behavior."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Version information provided (1.7 vs 1.8); archive format clear; Java version not stated but not critical for reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions; consistent narrative of regression from v1.7 to v1.8 with clear failure point."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Faulty behavior is precise: parseOctal rejects NUL bytes in username/group fields; correct behavior should accept them as v1.7 did."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific components identified: TarUtils.parseOctal and TarUtils.parseOctalOrBinary methods; likely fix location in octal parsing logic."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior stated concretely: archive with NUL/empty username/group should decompress successfully without exception."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Constraints documented: must handle NUL bytes and empty fields in username/group; must maintain COMPRESS-262 fix while allowing valid NUL entries."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Developer could implement fix by reviewing parseOctal changes in COMPRESS-262 and adjusting to accept NUL bytes in username/group context; test case provided."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific root cause explicitly proposed: regression introduced by COMPRESS-262 fix, which made octal parsing stricter."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root cause references specific code constructs: TarUtils.parseOctal method, byte 32 (NUL/space) validation logic, username/group field parsing."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Causal chain articulated: COMPRESS-262 fix \u2192 stricter parseOctal validation \u2192 rejects NUL bytes in username/group \u2192 IllegalArgumentException \u2192 decompression fails."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Concrete scenario fully specified: decompress provided tar.gz archive with NUL username/group entries; complete, unambiguous reproduction steps derivable from test code and archive."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific subsystem identified: org.apache.commons.compress.archivers.tar package, particularly TarUtils octal parsing logic."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Symptom manifests in TarArchiveInputStream.getNextTarEntry; underlying defect resides in TarUtils.parseOctal validation logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple impacted areas: username/group field parsing, octal parsing validation, tar header parsing; affects any archive with NUL/empty user/group fields."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Four or more distinct technical concepts identified: TarArchiveInputStream, TarArchiveEntry, TarUtils.parseOctal, TarUtils.parseOctalOrBinary, tar header format, octal encoding."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.95
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.95
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.875,
+  "cohens_kappa": 0.43083003952569177,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.78)"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.78)"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.5996253511966894,
+      "Clarity": 0.5996253511966894,
+      "Specificity": 0.5996253511966894,
+      "Reproducibility": 0.5996253511966894,
+      "ReasoningQuality": 0.5996253511966894,
+      "TechnicalContext": 0.5996253511966894,
+      "Ambiguity": -0.22485950669875823,
+      "RepairReadiness": 0.5996253511966894,
+      "RootCauseEvidence": -1.0493443645942058,
+      "HiddenReproducibility": -2.698314080385101,
+      "ImpactScope": -0.22485950669875823
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

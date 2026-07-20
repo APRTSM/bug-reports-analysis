@@ -1,0 +1,1453 @@
+{
+  "bug": {
+    "bug_id": "Lang-43",
+    "project": "Lang",
+    "summary": "ExtendedMessageFormat: OutOfMemory with custom format registry and a pattern containing single quotes",
+    "description": "When using ExtendedMessageFormat with a custom format registry and a pattern conatining single quotes, an OutOfMemoryError will occur.\n\nExample that will cause error:\n\nExtendedMessageFormatTest.java\n\nprivate\n\nstatic\nMap<\nString\n, \nObject\n> formatRegistry = \nnew\nHashMap<\nString\n, \nObject\n>(); \n\nstatic\n{\nformatRegistry.put(DummyFormatFactory.DUMMY_FORMAT, \nnew\nDummyFormatFactory());\n}\n\npublic\n\nstatic\nvoid main(\nString\n[] args) {\nExtendedMessageFormat mf = \nnew\nExtendedMessageFormat(\n\"it\n''s a {dummy} '\ntest'!\"\n, formatRegistry);\n\nString\nformattedPattern = mf.format(\nnew\n\nString\n[] {\n\"great\"\n});\n\nSystem\n.out.println(formattedPattern);\n}\n}\n\nThe following change starting at line 421 on the 2.4 release seems to fix the problem:\n\nExtendedMessageFormat.java\n\nCURRENT (Broken):\n\nif\n(escapingOn && c[start] == QUOTE) {\n\nreturn\nappendTo == \nnull\n? \nnull\n: appendTo.append(QUOTE);\n}\n\nWORKING:\n\nif\n(escapingOn && c[start] == QUOTE) {\nnext(pos);\n\nreturn\nappendTo == \nnull\n? \nnull\n: appendTo.append(QUOTE);\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: ExtendedMessageFormat with a custom registry and single quotes causes OutOfMemoryError."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the affected code path as ExtendedMessageFormat and points to line 421 in ExtendedMessageFormat.java."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes a concrete code example and a specific broken vs working code change in ExtendedMessageFormat.java."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides a runnable example pattern and registry setup that should reproduce the OutOfMemoryError."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Pinpoints the component to ExtendedMessageFormat.java, enough to know where to start reading code."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The failure scenario is described clearly enough for a developer unfamiliar with the codebase."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A failing test could be written from the provided pattern, registry, and expected formatting call."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The triggering condition is unambiguous: custom format registry plus a pattern containing single quotes."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References ExtendedMessageFormat and ExtendedMessageFormat.java precisely enough to locate the code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Terminology is consistent: OutOfMemoryError, custom format registry, pattern, escapingOn, QUOTE."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Gives a concrete input pattern: \"it''s a {dummy} 'test'!\" and a dummy format registry."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Shows code that can be run directly as a reproduction example."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or version details are provided beyond mentioning 2.4 release."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reports the failure mode explicitly as OutOfMemoryError."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The combination of custom registry and single-quote pattern uniquely identifies the issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: the pattern should format normally instead of failing."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is explicit: an OutOfMemoryError occurs."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The discrepancy is clear from the report: normal formatting expected, OOM observed."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The example code is sufficient to attempt reproduction without further clarification."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No specific environment or dependency setup is documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explicitly proposes a cause: missing next(pos) in the escapingOn/QUOTE branch."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Links the missing next(pos) to the infinite loop leading to OutOfMemoryError."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides concrete code comparison between broken and working versions."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is internally consistent and matches the reported symptom."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References exact code constructs: escapingOn, c[start], QUOTE, next(pos), ExtendedMessageFormat.java."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names ExtendedMessageFormat and ExtendedMessageFormat.java explicitly."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is identifiable as ExtendedMessageFormat parsing/formatting."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes a code snippet and a specific code fix snippet."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No external dependencies or versions are named beyond the library release mention."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No OS, browser, runtime, or other environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Some references are informal, but the main bug location is still clear."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering condition are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is reasonably inferable: successful formatting without OOM."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Version/environment details that could affect reproduction are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Describes the faulty behavior and implies the correct behavior and fix direction."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the fix location as ExtendedMessageFormat.java around line 421."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is clear: pattern with quotes should format without OutOfMemoryError."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The quoted-pattern edge case is explicitly documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A plausible fix is directly suggested by the report: advance the parser with next(pos)."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly states the change that seems to fix the problem."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References the specific code construct if (escapingOn && c[start] == QUOTE) and next(pos)."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explains the causal chain from not advancing position to the error."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The example code fully determines a concrete reproduction scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected concept is ExtendedMessageFormat parsing/formatting."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom location in formatting from defect location in parsing logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Only one main component and one code path are discussed."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Mentions ExtendedMessageFormat, DummyFormatFactory, formatRegistry, QUOTE, and next(pos)."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior (OutOfMemoryError) with clear distinction from normal operation."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specifically identifies ExtendedMessageFormat class and line 421 in ExtendedMessageFormat.java."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes code snippet showing the broken code block and the proposed fix with exact line reference."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides complete runnable example (main method) and exact code location; developer can immediately investigate or reproduce."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Pinpoints ExtendedMessageFormat.java at line 421 with specific method context."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: OutOfMemoryError occurs with custom format registry and single quotes in pattern."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Sufficient detail to write a failing test case using the provided example code."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Sequence is unambiguous: custom registry + single-quoted pattern \u2192 OutOfMemoryError at line 421."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "ExtendedMessageFormat class and DummyFormatFactory are precisely identified; line 421 is exact."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terminology (OutOfMemoryError, format registry, escaping) is used accurately and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Concrete inputs provided: pattern string with single quotes, custom format registry with DummyFormatFactory."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Ordered reproduction steps are clear: instantiate ExtendedMessageFormat with pattern, call format() method."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Version mentioned (2.4 release) but not fully specific; OS and runtime environment not provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific failure mode identified: OutOfMemoryError; exact code location (line 421) provided."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Combination of custom format registry + single quotes in pattern uniquely identifies this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior is not explicitly stated; only the failure is described."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: OutOfMemoryError occurs during format() call."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Discrepancy is clear: should format successfully but instead throws OutOfMemoryError."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reproduction steps are complete and sufficient; runnable code example provided."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Environment conditions (JVM heap size, OS, Java version) not documented; version only partially specified."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report explicitly proposes a specific fix: missing next(pos) call in the escapingOn && QUOTE condition."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Proposed explanation (missing position increment) is directly linked to OutOfMemoryError via infinite loop mechanism."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Concrete evidence provided: exact code block at line 421 with before/after comparison."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explanation is internally coherent: missing next(pos) would cause infinite loop, leading to OutOfMemory."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific method name (next(pos)), exact line number (421), and specific condition (escapingOn && c[start] == QUOTE)."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes named: ExtendedMessageFormat, DummyFormatFactory; specific method: format()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "File ExtendedMessageFormat.java and line 421 precisely identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Code snippets provided showing broken and working versions; runnable test case included."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external dependencies or library versions mentioned beyond the code itself."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "OS, Java version, JVM heap settings, and other environment details are not provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all technical entities are precisely named."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs are fully specified: pattern string and format registry contents are concrete."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Expected behavior is not explicitly stated; only inferred from the fix."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Environment information (JVM version, heap size, OS) is missing and could affect reproducibility."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements; report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Faulty behavior and correct behavior are clear; the fix (add next(pos)) is explicitly provided."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific location identified: ExtendedMessageFormat.java line 421, within the escapingOn && QUOTE condition."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior is implied: format() should complete successfully without OutOfMemoryError."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Edge case documented: single quotes in pattern with custom format registry; constraint is implicit."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Developer could implement the fix directly: add next(pos) call at line 421 as shown in report."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explicitly proposes root cause: missing next(pos) call causes infinite loop."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific code construct: next(pos) method call missing from the escapingOn && QUOTE condition block."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Causal chain is articulated: missing position increment \u2192 infinite loop \u2192 OutOfMemoryError."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete scenario provided: instantiate ExtendedMessageFormat with specific pattern and registry, call format(); steps are fully determinable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific subsystem identified: ExtendedMessageFormat class and its pattern parsing logic."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Symptom manifests in format() method; underlying defect is in line 421 position handling logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Report focuses on single issue; does not identify multiple impacted areas or cross-cutting concerns."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Names: ExtendedMessageFormat, DummyFormatFactory, format registry, pattern parsing, position tracking (next method)."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.94
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.1100000000000001,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.93
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.88
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.93
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.28,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.7
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.8
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.93
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.7
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.9166666666666666,
+  "cohens_kappa": 0.6999999999999997,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.8)"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.92 > 0.8)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.8)"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge1 (higher confidence: 0.92 > 0.8)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 0.9912407071619301,
+      "Clarity": 0.9912407071619301,
+      "Specificity": 0.15249857033260453,
+      "Reproducibility": 0.15249857033260453,
+      "ReasoningQuality": 0.9912407071619301,
+      "TechnicalContext": -0.6862435664967211,
+      "Ambiguity": 0.15249857033260453,
+      "RepairReadiness": 0.9912407071619301,
+      "RootCauseEvidence": -0.6862435664967211,
+      "HiddenReproducibility": -2.3637278401553723,
+      "ImpactScope": -0.6862435664967211
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

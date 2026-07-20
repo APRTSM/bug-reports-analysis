@@ -1,0 +1,1426 @@
+{
+  "bug": {
+    "bug_id": "Compress-5",
+    "project": "Compress",
+    "summary": "ZipArchiveInputStream doesn't report the end of a truncated archive",
+    "description": "If a Zip archive is truncated, (e.g. because it is the first volume in a multi-volume archive) the ZipArchiveInputStream.read() method will not detect that fact. All calls to read() will return 0 bytes read. They will not return -1 (end of stream), nor will they throw any exception (which would seem like a good idea to me because the archive is truncated).\n\nI have tracked this problem to ZipArchiveInputStream.java, line 239. It contains a check\n\nif (read == 0 && inf.finished()) {\n\nreturn -1;\n\n}\n\nFor truncated archives the read is always zero but the inf is never finished(). I suggest adding two lines below:\n\nif (read == 0 && inf.finished()) {\n\nreturn -1;\n\n} else if (read == 0 && lengthOfLastRead == -1) {\n\nthrow new IOException(\"Truncated ZIP file\");\n\n}\n\nThis solves the problem in my tests."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: read() returns 0 bytes instead of -1 or an exception on truncated archives."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Identifies the affected component as ZipArchiveInputStream.read()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Provides a code reference to ZipArchiveInputStream.java line 239 and the relevant condition."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Gives enough context to investigate: truncated ZIP archives cause read() to loop returning 0."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Likely affected subsystem is ZIP archive input/stream handling in ZipArchiveInputStream."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report is understandable and grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The problem is clearly identified as failure to detect end of truncated ZIP archives."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It follows a logical flow from symptom to code location to proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References to ZipArchiveInputStream, read(), inf.finished(), and lengthOfLastRead are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terms like truncated archive, end of stream, and IOException are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specifies the triggering condition: a truncated ZIP archive, such as the first volume of a multi-volume archive."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "No numbered or explicit reproduction steps are provided."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No environment, OS, or version information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reports the concrete failure that read() returns 0 bytes and neither -1 nor an exception."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes the issue from a generic failure by tying it to truncated archives and a specific code path."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is stated: return -1 or throw an exception when the archive is truncated."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is stated: read() returns 0 bytes repeatedly."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The discrepancy between expected and observed behavior is explicit."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "The report lacks complete step-by-step reproduction instructions."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.25,
+        "reason": "No required environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes a cause in ZipArchiveInputStream.java line 239 and the inf.finished() check."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Links the proposed cause to the symptom that read() never returns -1 for truncated archives."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "States that the suggested change solved the problem in the reporter's tests."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is coherent: the current condition misses truncated archives, so an additional check is suggested."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References technical artifacts including ZipArchiveInputStream.java, line 239, inf.finished(), and lengthOfLastRead."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Mentions ZipArchiveInputStream.java and the read() method."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The ZIP archive input stream subsystem is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes a code snippet and line reference, which are technical artifacts."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No external dependencies, libraries, or services are referenced beyond the ZIP handling code."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Some references are underspecified, such as the exact archive scenario beyond truncation."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Inputs and triggering conditions are not fully described as reproducible steps."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Expected behavior is clear: end-of-stream or exception on truncated input."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.1,
+        "reason": "The report is internally consistent and does not contradict itself."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The faulty behavior is precise enough to define the needed change in read() handling."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely fix location is identified as ZipArchiveInputStream.java line 239."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "States the correct behavior target: return -1 or throw IOException for truncated ZIP files."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Documents an edge case: truncated archives, including first volume of multi-volume archives."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "A developer would likely need additional investigation to confirm the exact fix and surrounding logic."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A potential root cause is explicitly proposed in the read() condition at line 239."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References specific logic: if (read == 0 && inf.finished()) and the suggested lengthOfLastRead check."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explains that inf.finished() is never true for truncated archives, causing the failure to detect end of stream."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A reproduction can be inferred: open a truncated ZIP with ZipArchiveInputStream and call read() repeatedly."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The ZIP archive input stream handling subsystem is clearly affected."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report distinguishes the symptom in read() from the underlying defect in ZipArchiveInputStream.java."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Only one subsystem is identified; no multiple impacted areas are described."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report clearly describes that read() returns 0 instead of -1 or throwing an exception for truncated archives."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ZipArchiveInputStream and its read() method are explicitly identified as the affected component."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific file (ZipArchiveInputStream.java), line number (239), and code snippet are provided."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report provides the faulty code, the condition causing it, and a proposed fix with explanation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected subsystem is clearly identified as ZipArchiveInputStream in the ZIP handling module."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report is well-written, grammatically coherent, and easy to understand."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem\u2014read() returning 0 indefinitely instead of -1 or throwing\u2014is clearly stated."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Information flows logically: problem description, root cause, code location, and proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References to ZipArchiveInputStream, read(), inf.finished(), and lengthOfLastRead are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms (truncated archive, end of stream, inflater) are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The triggering condition is specifically a truncated ZIP archive (e.g., first volume of a multi-volume archive)."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No explicit numbered reproduction steps are provided; the scenario is described narratively but not as a step-by-step guide."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No version information, OS, or environment details are mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The specific failure\u2014read() returning 0 bytes indefinitely\u2014is clearly reported."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report pinpoints the exact line (239) and condition (read==0 && !inf.finished()) distinguishing this from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected behavior is stated: read() should return -1 or throw an IOException for truncated archives."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: read() always returns 0 bytes."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy between returning 0 vs. -1/exception is clearly identifiable."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No explicit step-by-step reproduction instructions are given; a developer would need to construct a truncated ZIP to test."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No environmental dependencies or version requirements are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report explicitly proposes that the condition at line 239 fails to handle the case where inf is never finished."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The proposed cause (inf.finished() never true for truncated archives) is directly linked to read() returning 0 indefinitely."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The reporter states the fix was validated in their tests, providing evidence supporting the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The logic is coherent: truncated archive means inflater never finishes, so the existing check never triggers -1."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References specific file, line number, variable names (inf, lengthOfLastRead), and code constructs."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ZipArchiveInputStream.java, line 239, inf.finished(), lengthOfLastRead, and read() are all explicitly mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The ZIP archive input stream subsystem is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Code snippets of the existing check and proposed fix are included."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No external libraries or dependencies beyond the component itself are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, framework version, or environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific and unambiguous; file, line, and variable names are all named."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The exact input (truncated ZIP file) is described conceptually but no concrete test file or binary details are provided."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior (return -1 or throw IOException) is clearly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "No version of the library or environment is specified."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The faulty behavior and the exact code location are precisely described."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ZipArchiveInputStream.java line 239 is explicitly identified as the location needing a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The expected correct behavior (throw IOException for truncated files) is stated and a concrete code fix is proposed."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The condition (read==0 && lengthOfLastRead==-1) as the edge case for truncation is documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report provides the exact code change needed; a developer could implement it directly, though testing with a truncated ZIP would still be needed."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The root cause is explicitly identified: the condition at line 239 only checks inf.finished(), which is never true for truncated archives."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "References specific code construct: the if-condition at line 239 checking inf.finished()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The causal chain is articulated: truncated archive \u2192 inflater never finishes \u2192 condition never triggers \u2192 read() returns 0 indefinitely."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "From the narrative, one can infer: create/obtain a truncated ZIP (e.g., first volume of multi-volume), open with ZipArchiveInputStream, call read() repeatedly, and observe it returns 0 indefinitely."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ZipArchiveInputStream's read() method in the ZIP handling subsystem is clearly identified."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The report does not clearly distinguish between where the symptom manifests (read() return value) and a separate underlying defect location; both are treated as the same point."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one area (ZipArchiveInputStream.read()) is identified; no cross-cutting concerns or multiple impacted areas are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.4,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.75
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.29999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.7
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.55,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.25,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.99
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.55,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.75
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.7,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.75,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.87,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.1,
+        "judge2_confidence": 0.97
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.43,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.45,
+        "judge2_confidence": 0.88
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.99
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.7
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.9361702127659575,
+  "cohens_kappa": 0.8161668839634941,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.45)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.7)"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.45)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.7)"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.3008872711759818,
+      "Clarity": 1.3008872711759818,
+      "Specificity": 0.0,
+      "Reproducibility": 0.0,
+      "ReasoningQuality": 1.3008872711759818,
+      "TechnicalContext": 0.0,
+      "Ambiguity": 0.0,
+      "RepairReadiness": -1.9513309067639726,
+      "RootCauseEvidence": 0.0,
+      "HiddenReproducibility": -1.3008872711759818,
+      "ImpactScope": -0.6504436355879909
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

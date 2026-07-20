@@ -1,0 +1,1451 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-24",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "The serialisation of Joda \nDateTime\ninstances behaves differently in 2.6.0 vs 2.5.4 when the \nObjectMapper\n's had its \nDateFormat\nconfigured. The behaviour change is illustrated by the following code:\n\npublic\n\nstatic\n\nvoid\n\nmain\n(\nString\n[] \nargs\n) \nthrows\n\nJsonProcessingException\n{\n\nSystem\n.\nout\n.\nprintln\n(\ncreateObjectMapper\n()\n.\nwriteValueAsString\n(\nnew\n\nDateTime\n(\n1988\n, \n6\n, \n25\n, \n20\n, \n30\n, \nDateTimeZone\n.\nUTC\n)));\n}\n\nprivate\n\nstatic\n\nObjectMapper\n\ncreateObjectMapper\n() {\n\nObjectMapper\n\nmapper\n= \nnew\n\nObjectMapper\n();\n\nmapper\n.\nregisterModule\n(\ncreateJodaModule\n());\n\nmapper\n.\nconfigure\n(\nSerializationFeature\n.\nWRITE_DATES_AS_TIMESTAMPS\n, \nfalse\n);\n\nSystem\n.\nout\n.\nprintln\n(\nmapper\n.\ngetSerializationConfig\n().\ngetTimeZone\n());\n\nmapper\n.\nsetDateFormat\n(\nnew\n\nSimpleDateFormat\n(\n\"yyyy-MM-dd HH:mm:ss\"\n));\n\nSystem\n.\nout\n.\nprintln\n(\nmapper\n.\ngetSerializationConfig\n().\ngetTimeZone\n());\n\nreturn\n\nmapper\n;\n}\n\nprivate\n\nstatic\n\nSimpleModule\n\ncreateJodaModule\n() {\n\nSimpleModule\n\nmodule\n= \nnew\n\nSimpleModule\n();\n\nmodule\n.\naddSerializer\n(\nDateTime\n.\nclass\n, \nnew\n\nDateTimeSerializer\n(\n\nnew\n\nJacksonJodaDateFormat\n(\nDateTimeFormat\n.\nforPattern\n(\n\"yyyy-MM-dd HH:mm:ss\"\n)\n.\nwithZoneUTC\n())));\n\nreturn\n\nmodule\n;\n}\n\nWhen run with Jackson 2.5.4 the output is:\n\nsun.util.calendar.ZoneInfo[id=\"GMT\",offset=0,dstSavings=0,useDaylight=false,transitions=0,lastRule=null]\nsun.util.calendar.ZoneInfo[id=\"GMT\",offset=0,dstSavings=0,useDaylight=false,transitions=0,lastRule=null]\n\"1988-06-25 20:30:00\"\n\nWhen run with Jackson 2.6.0 the output is:\n\nsun.util.calendar.ZoneInfo[id=\"GMT\",offset=0,dstSavings=0,useDaylight=false,transitions=0,lastRule=null]\nsun.util.calendar.ZoneInfo[id=\"Europe/London\",offset=0,dstSavings=3600000,useDaylight=true,transitions=242,lastRule=java.util.SimpleTimeZone[id=Europe/London,offset=0,dstSavings=3600000,useDaylight=true,startYear=0,startMode=2,startMonth=2,startDay=-1,startDayOfWeek=1,startTime=3600000,startTimeMode=2,endMode=2,endMonth=9,endDay=-1,endDayOfWeek=1,endTime=3600000,endTimeMode=2]]\n\"1988-06-25 21:30:00\"\n\nIt looks like the fix for \n#824\nis the cause. In 2.6, the call to \nmapper.setDateFormat\ncauses the \nObjectMapper\n's time zone to be set to the JVM's default time zone. In 2.5.x, calling \nmapper.setDateFormat\nhas no effect on its time zone."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observable faulty behavior is shown: the same code serializes DateTime differently in 2.6.0 vs 2.5.4."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The code path is specific: ObjectMapper.setDateFormat, DateTimeSerializer, and JacksonJodaDateFormat."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report includes concrete output and printed time zone values that directly show the fault."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The included main method and exact code are sufficient to reproduce and investigate."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "It points to the Joda module serialization path and ObjectMapper date format handling."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A developer can understand the failure scenario from the code and outputs without guessing."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A failing test could assert the serialized string and time zone behavior."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The sequence is explicit: register module, configure timestamps, setDateFormat, serialize DateTime."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Referenced entities like ObjectMapper, DateTimeSerializer, and JacksonJodaDateFormat are named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The terminology is consistent and correctly describes serialization and time zone behavior."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The triggering inputs are concrete: a DateTime value, UTC zone, and a SimpleDateFormat pattern."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report provides ordered reproduction code steps in a main method."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "It specifies Jackson 2.5.4 vs 2.6.0, which is enough version context."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "It reports exact observed outputs, including the serialized string and time zone values."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "The combination of Joda DateTime, setDateFormat, and changed time zone behavior uniquely identifies the issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is stated: 2.5.4 behavior should remain, with no time zone change and 20:30 output."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicit: time zone becomes Europe/London and output changes to 21:30."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The discrepancy between expected and observed output is directly shown."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The reproduction code is complete enough to run as-is."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No broader environment details beyond Jackson version and JVM default time zone are provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report explicitly proposes the cause: the fix for #824 changed setDateFormat behavior."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It links setDateFormat changing ObjectMapper time zone to the shifted serialized time."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The printed time zones and outputs support the proposed explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is internally consistent with the observed 1-hour shift."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "It references concrete artifacts: #824, mapper.setDateFormat, and the printed time zone values."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods are named: ObjectMapper, DateTimeSerializer, JacksonJodaDateFormat, setDateFormat."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected module is identifiable as Jackson Joda serialization support."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report includes relevant printed outputs and code snippets."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "No external dependency versions are named beyond Jackson itself."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No OS, browser, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific rather than vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Inputs and conditions are sufficiently described for reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clearly stated by comparison to 2.5.4 output."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Environment/version details that could affect reproduction are incomplete."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "The report is consistent and does not contain contradictions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The correct behavior is clear: setDateFormat should not alter the mapper time zone in this case."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The likely fix area is identifiable in ObjectMapper date format handling and Joda serialization."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Acceptance criterion is concrete: serialization should remain 1988-06-25 20:30:00."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The relevant condition is the interaction between setDateFormat and UTC Joda formatting."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A plausible fix can be inferred from the described regression without extra clarification."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report explicitly names the fix for #824 as the cause."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It identifies the specific operation: mapper.setDateFormat causing the time zone change."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The causal chain is stated: setDateFormat changes the mapper time zone, which shifts the serialized hour."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A complete reproduction scenario is directly derivable from the provided main method and outputs."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The affected concept is the Joda DateTime serialization path."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom appears in serialized output, while the likely defect is in ObjectMapper time zone handling."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The report connects ObjectMapper, DateFormat, Joda DateTime, and serialization output."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "It names multiple technical concepts: ObjectMapper, DateTimeSerializer, JacksonJodaDateFormat, DateTimeZone, SimpleDateFormat."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: DateTime serialization produces different output (21:30:00 vs 20:30:00) between versions when DateFormat is configured."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes identified: ObjectMapper, DateTime, DateTimeSerializer, JacksonJodaDateFormat, SimpleDateFormat. The issue is pinpointed to setDateFormat() method behavior."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report includes concrete code snippets (main method, createObjectMapper, createJodaModule) and verbatim output showing timezone and serialized values for both versions."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Complete, runnable code example provided. A developer could immediately execute this code and observe the discrepancy between versions without clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific components identified: ObjectMapper.setDateFormat(), SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, and the Joda module registration. Issue #824 is referenced as likely cause."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: setDateFormat() call changes the ObjectMapper's timezone from GMT to Europe/London, affecting serialization output."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer could write a test case directly from this report: create mapper, register Joda module, set WRITE_DATES_AS_TIMESTAMPS to false, call setDateFormat, serialize DateTime, and assert output."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: register module \u2192 configure feature \u2192 check timezone \u2192 setDateFormat \u2192 check timezone \u2192 serialize. The timezone change occurs at setDateFormat()."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "All referenced entities are precisely identified: ObjectMapper, DateTime, DateTimeSerializer, JacksonJodaDateFormat, SimpleDateFormat. A developer could locate these in the codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology is accurate: serialization, timezone, DateFormat, SerializationFeature. No misleading or imprecise language."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific input provided: DateTime(1988, 6, 25, 20, 30, DateTimeZone.UTC) with explicit date format pattern 'yyyy-MM-dd HH:mm:ss'."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete, ordered reproduction steps provided in code form: create mapper, register module, configure feature, set date format, serialize. Steps are executable without prior knowledge."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Version information is specific: Jackson 2.5.4 vs 2.6.0. Issue #824 is referenced as the likely cause of the regression."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Exact outputs provided verbatim for both versions, including timezone details and serialized datetime strings (20:30:00 vs 21:30:00)."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report uniquely identifies the issue: timezone change during setDateFormat() call in 2.6.0 but not 2.5.4, affecting Joda DateTime serialization with custom DateFormat."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit but clear: DateTime should serialize to '1988-06-25 20:30:00' (UTC time) regardless of setDateFormat() call, as in 2.5.4."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicitly stated with full detail: timezone changes to Europe/London and serialized output becomes '1988-06-25 21:30:00' in 2.6.0."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected '20:30:00' with GMT timezone, observed '21:30:00' with Europe/London timezone. The one-hour difference directly correlates with timezone change."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reproduction steps are complete and sufficient: runnable code provided that can be executed against both Jackson versions to observe the failure."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson version (2.5.4 vs 2.6.0) is specified. Joda-Time library is implied. JVM timezone behavior is relevant but not explicitly documented as a requirement."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report explicitly proposes a specific cause: 'the fix for #824 is the cause' of the behavior change in 2.6.0."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Proposed explanation is linked to symptoms: setDateFormat() call causes timezone to change from GMT to JVM default (Europe/London), which affects DateTime serialization output."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Evidence provided: timezone output before and after setDateFormat() call, and the resulting serialized values. Issue #824 is referenced as supporting evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is internally coherent: setDateFormat() changes timezone \u2192 timezone affects serialization \u2192 output differs. No contradictions present."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References specific artifacts: ObjectMapper.setDateFormat() method, issue #824, timezone objects (ZoneInfo), and specific output values."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes and methods named: ObjectMapper, DateTime, DateTimeSerializer, JacksonJodaDateFormat, SimpleDateFormat, SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, setDateFormat()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Affected subsystem identifiable: Jackson serialization framework, Joda-Time integration module. The issue is in ObjectMapper's date format configuration handling."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical artifacts included: complete code snippets, timezone objects (ZoneInfo), serialized output strings, and version-specific behavior comparison."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "External dependencies referenced: Joda-Time (DateTime, DateTimeZone, DateTimeFormat), Jackson (ObjectMapper, SerializationFeature). Versions 2.5.4 and 2.6.0 specified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environment details are minimal: JVM timezone is mentioned as relevant but not specified. OS, Java version, and other runtime details are not provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No vague references; all components are specifically named (ObjectMapper, DateTime, setDateFormat, etc.)."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and conditions are fully specified: exact DateTime constructor arguments, date format pattern, and configuration steps are provided."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior is clear from context: DateTime should serialize consistently regardless of setDateFormat() call, as demonstrated in 2.5.4."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "JVM default timezone is not specified; this could affect reproduction if the test environment has a different default timezone than Europe/London."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictions; the report is internally consistent in describing the version difference and its cause."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Faulty behavior is precise: setDateFormat() should not change the ObjectMapper's timezone. Correct behavior is to preserve timezone as in 2.5.4."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Component requiring fix is identifiable: ObjectMapper.setDateFormat() method and its interaction with timezone configuration. Issue #824 is referenced as the likely source."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected correct behavior is concrete: DateTime(1988, 6, 25, 20, 30, UTC) should serialize to '1988-06-25 20:30:00' regardless of setDateFormat() call."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Relevant constraints documented: Joda-Time DateTime with UTC timezone, custom DateFormat pattern, WRITE_DATES_AS_TIMESTAMPS set to false."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "A developer could likely implement a fix by reverting or adjusting the changes from issue #824 to prevent setDateFormat() from modifying the ObjectMapper's timezone."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific root cause explicitly proposed: 'the fix for #824 is the cause' of the behavior change in 2.6.0."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Root cause references specific code construct: ObjectMapper.setDateFormat() method and its interaction with timezone configuration introduced in issue #824."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Causal chain is articulated: fix for #824 \u2192 setDateFormat() now modifies timezone \u2192 timezone changes from GMT to JVM default \u2192 serialization output changes."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete scenario provided: complete, runnable code that can be executed against both Jackson versions. Reproduction steps are fully determinable from the code."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystem identified: ObjectMapper's date format and timezone configuration handling, particularly the setDateFormat() method."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom manifests in serialized output (wrong timestamp), but underlying defect is in ObjectMapper.setDateFormat() modifying timezone state."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple impacted areas identified: ObjectMapper configuration, Joda-Time serialization, DateFormat handling, and timezone management."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Multiple technical concepts named: ObjectMapper, DateTime, DateTimeSerializer, JacksonJodaDateFormat, SimpleDateFormat, SerializationFeature, timezone, and issue #824."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.65,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.7
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.8
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.8
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.9583333333333334,
+  "cohens_kappa": 0.8102766798418974,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.65)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.65)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.6862435664967211,
+      "Clarity": 0.6862435664967211,
+      "Specificity": 0.6862435664967211,
+      "Reproducibility": 0.6862435664967211,
+      "ReasoningQuality": 0.6862435664967211,
+      "TechnicalContext": -0.15249857033260453,
+      "Ambiguity": -0.15249857033260453,
+      "RepairReadiness": 0.6862435664967211,
+      "RootCauseEvidence": -0.9912407071619301,
+      "HiddenReproducibility": -2.6687249808205813,
+      "ImpactScope": -0.15249857033260453
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

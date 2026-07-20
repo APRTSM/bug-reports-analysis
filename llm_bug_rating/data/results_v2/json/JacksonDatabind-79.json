@@ -1,0 +1,1452 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-79",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "I am trying to setup @JsonIdentityInfo/@JsonIdentityReference in order to serialize all references to a given class as Object Id (and deserialize them later using a custom ObjectIdResolver to retrieve the proper referenced instance)\n\nI use @JsonIdentityReference(alwaysAsId=true) in order to enforce exporting the object id in all cases.\n\nIt does not work as expected when I define the annotation only on the class (but it works fine when I set it directly on the property). I would rather not have to define it on every property as I will probably miss some...\n\nFrom what I see in \nBeanSerializerBase\n, the alwaysAsId is reset when not ObjectIdInfo is found on the accessor:\n\nObjectIdInfo\n\nobjectIdInfo\n= \nintr\n.\nfindObjectIdInfo\n(\naccessor\n);\n\nif\n(\nobjectIdInfo\n== \nnull\n) {\n\n// no ObjectId override, but maybe ObjectIdRef?\n\nif\n(\noiw\n!= \nnull\n) {\n\nobjectIdInfo\n= \nintr\n.\nfindObjectReferenceInfo\n(\naccessor\n,\n\nnew\n\nObjectIdInfo\n(\nNAME_FOR_OBJECT_REF\n, \nnull\n, \nnull\n, \nnull\n));\n\noiw\n= \n_objectIdWriter\n.\nwithAlwaysAsId\n(\nobjectIdInfo\n.\ngetAlwaysAsId\n());\n\nShouldn't it be kept to the current value when no override is found ?\n\nI tried to set it back in the default ObjectIdInfo created with NAME_FOR_OBJECT_REF but I am not sure if this is the right way to fix this.\n\nHere is test I added in \nTestObjectIdSerialization\nfor this case:\n\n@\nJsonIdentityInfo\n(\ngenerator\n=\nObjectIdGenerators\n.\nIntSequenceGenerator\n.\nclass\n, \nproperty\n=\n\"id\"\n)\n\n@\nJsonIdentityReference\n(\nalwaysAsId\n=\ntrue\n)\n\nstatic\n\nclass\n\nReallyAlwaysAsId\n\n{\n\npublic\n\nint\n\nvalue\n;\n\npublic\n\nReallyAlwaysAsId\n() { \nthis\n(\n0\n); }\n\npublic\n\nReallyAlwaysAsId\n(\nint\n\nv\n) {\n\nvalue\n= \nv\n;\n}\n}\n\n@\nJsonPropertyOrder\n(\nalphabetic\n=\ntrue\n)\n\nstatic\n\nclass\n\nReallyAlwaysContainer\n\n{\n\n@\nJsonIdentityReference\n(\nalwaysAsId\n=\ntrue\n)\n\npublic\n\nAlwaysAsId\n\na\n= \nnew\n\nAlwaysAsId\n(\n13\n);\n\npublic\n\nReallyAlwaysAsId\n\nb\n= \nnew\n\nReallyAlwaysAsId\n(\n13\n);\n\n}\n\npublic\n\nvoid\n\ntestReallyAlwaysAsId\n() \nthrows\n\nException\n\n{\n\nString\n\njson\n= \nMAPPER\n.\nwriteValueAsString\n(\nnew\n\nReallyAlwaysContainer\n());\n\nassertEquals\n(\n\"{\n\\\"\na\n\\\"\n:1,\n\\\"\nb\n\\\"\n:2}\"\n, \njson\n);\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes a specific faulty behavior: class-level @JsonIdentityReference(alwaysAsId=true) is ignored while property-level works."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the code path in BeanSerializerBase and mentions findObjectIdInfo/findObjectReferenceInfo."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes a code excerpt showing the alwaysAsId reset logic and a concrete failing test case."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides enough information to reproduce by serializing the shown classes with the given annotations."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Points to BeanSerializerBase as the place to inspect for the bug."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A developer can understand the failure scenario: class-level identity reference annotation is not honored."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The included test case is concrete enough to turn into a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The condition is clear: annotation on class versus annotation on property changes behavior."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "BeanSerializerBase and ObjectIdInfo/ObjectIdWriter are named precisely enough to locate code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology around ObjectIdInfo, ObjectIdReferenceInfo, and alwaysAsId is used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific annotations, classes, and expected JSON output are provided."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The report includes a concrete test method and serialization scenario."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment, library version, or runtime details are given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The failure mode is shown via the code path and expected JSON output, though no stack trace is present."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The issue is specifically about class-level alwaysAsId being reset in BeanSerializerBase."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: always serialize references as Object Id."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Observed behavior is stated: class-level annotation does not work as expected."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The discrepancy between class-level and property-level behavior is explicit."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "The provided test and code snippet are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No specific environment or dependency versions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report proposes a specific cause: alwaysAsId is reset when no ObjectIdInfo is found on the accessor."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation links the reset logic to the observed failure of class-level annotations."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The code excerpt from BeanSerializerBase serves as direct evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The explanation is internally consistent and matches the described behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "References specific artifacts such as BeanSerializerBase, findObjectIdInfo, and withAlwaysAsId."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names BeanSerializerBase, ObjectIdInfo, ObjectIdWriter, and TestObjectIdSerialization."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is Jackson object identity serialization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes a relevant code excerpt and a test snippet."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No external dependency version or integration is mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No OS, browser, framework, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The exact intended semantics of class-level versus property-level override are discussed as a question."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The triggering condition and test setup are concrete."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clearly stated: always export object ids."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report identifies the behavior and suggests the likely fix direction."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "BeanSerializerBase is identified as the likely code location."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The acceptance criterion is clear: class-level alwaysAsId should be preserved."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Edge cases and constraints are not discussed beyond the main scenario."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A plausible fix can be inferred from the described reset logic."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "A specific root cause is explicitly proposed: alwaysAsId is reset when no ObjectIdInfo is found."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The root cause references concrete code constructs: findObjectIdInfo, findObjectReferenceInfo, withAlwaysAsId."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report explains how the reset leads to class-level annotation being ignored."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The test class and expected JSON allow direct derivation of reproduction steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected concept is Jackson object identity serialization."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report distinguishes the symptom location from the likely defect location in BeanSerializerBase."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one main impacted area is described."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Mentions multiple technical concepts: BeanSerializerBase, ObjectIdInfo, ObjectIdWriter, ObjectIdResolver, annotations."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: @JsonIdentityReference(alwaysAsId=true) on class level does not serialize references as object IDs, while the same annotation on properties works correctly."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes identified: BeanSerializerBase, ObjectIdInfo, and the annotation classes @JsonIdentityInfo/@JsonIdentityReference. The problematic code path in BeanSerializerBase is pinpointed."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Code snippet from BeanSerializerBase provided showing the exact logic where alwaysAsId is reset. Test case with expected vs. actual output included."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer could reproduce by running the provided test case or applying @JsonIdentityReference(alwaysAsId=true) at class level and observing serialization behavior."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "BeanSerializerBase class and the specific code block handling ObjectIdInfo are explicitly named, allowing direct navigation to the fault location."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: class-level @JsonIdentityReference(alwaysAsId=true) is ignored, but property-level annotation works. The distinction is unambiguous."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A failing test case is provided in the report (testReallyAlwaysAsId), demonstrating expected output {\"a\":1,\"b\":2} vs. actual behavior."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Sequence is clear: annotation on class \u2192 serialization \u2192 alwaysAsId reset in BeanSerializerBase when no accessor-level ObjectIdInfo found \u2192 incorrect output."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "All referenced entities are named: ReallyAlwaysAsId, ReallyAlwaysContainer, BeanSerializerBase, ObjectIdInfo. A developer could locate these in the codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Technical terminology used accurately: ObjectIdInfo, alwaysAsId, accessor, ObjectIdReference. No misleading language detected."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific inputs provided: ReallyAlwaysAsId(13) and ReallyAlwaysContainer with properties a and b. These can be directly used in a test case."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Reproduction steps are implicit but derivable: create class with @JsonIdentityInfo/@JsonIdentityReference(alwaysAsId=true) at class level, serialize, observe output."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for Jackson or Java. Environment details are missing, though the bug appears version-agnostic."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Expected output explicitly stated: {\"a\":1,\"b\":2}. The failure mode (alwaysAsId not applied at class level) is clearly identified."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Report distinguishes this from similar bugs by specifying that property-level annotation works but class-level does not, and identifies the exact code path causing the issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior explicitly stated: both properties should serialize as object IDs (1 and 2), matching the output when annotation is on properties."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior stated: class-level @JsonIdentityReference(alwaysAsId=true) does not enforce ID-only serialization for all references."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Discrepancy is unambiguous: expected {\"a\":1,\"b\":2} vs. actual behavior where property b is not serialized as ID when annotation is only on class."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Reproduction steps are sufficient: apply @JsonIdentityReference(alwaysAsId=true) at class level and serialize. The provided test case is complete."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific environment conditions documented (Java version, Jackson version, build system). However, the bug appears to be code-logic based and likely reproducible across versions."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific potential cause proposed: alwaysAsId is reset in BeanSerializerBase when no ObjectIdInfo is found on the accessor, even though class-level annotation exists."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Causal mechanism is clear: the code checks for accessor-level ObjectIdInfo, and if not found, creates a default ObjectIdInfo that overwrites the class-level alwaysAsId setting."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Concrete evidence provided: code snippet from BeanSerializerBase showing the exact lines where alwaysAsId is reset via withAlwaysAsId(objectIdInfo.getAlwaysAsId())."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is internally coherent: class-level annotation works on properties with explicit annotation, but fails on properties without it\u2014consistent with the proposed mechanism."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "References specific artifacts: BeanSerializerBase class, withAlwaysAsId() method, findObjectReferenceInfo() call, and NAME_FOR_OBJECT_REF constant."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific classes and methods named: BeanSerializerBase, ObjectIdInfo, withAlwaysAsId(), findObjectReferenceInfo(), findObjectIdInfo()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem clearly identified: Jackson's serialization framework, specifically the ObjectId handling in BeanSerializerBase."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Code snippet from BeanSerializerBase provided showing the problematic logic. Test case with expected output included."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependencies or library versions mentioned. Jackson is implied but not explicitly named with version."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No environment details provided: OS, Java version, Jackson version, or build system are not specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all classes, methods, and annotations are specifically named."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and conditions are clearly specified: class-level @JsonIdentityReference(alwaysAsId=true) with no property-level override."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "Expected behavior is explicit: both properties should serialize as object IDs, as shown in the test assertion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version information is missing (Jackson version, Java version), though the bug appears to be version-independent."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements; the report is internally consistent about the problem and its cause."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Correct behavior is clear: preserve class-level alwaysAsId setting when creating default ObjectIdInfo for properties without explicit annotation."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Specific location identified: BeanSerializerBase, the code block handling ObjectIdInfo and the withAlwaysAsId() call."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior stated concretely: {\"a\":1,\"b\":2} output, with all references serialized as IDs."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Edge case identified: properties without explicit @JsonIdentityReference annotation should inherit class-level alwaysAsId setting."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "A developer could likely implement a fix by preserving the class-level alwaysAsId value when creating default ObjectIdInfo, though the exact implementation detail is not fully specified."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific root cause explicitly proposed: alwaysAsId is reset in BeanSerializerBase when no accessor-level ObjectIdInfo is found."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Root cause references specific code constructs: withAlwaysAsId() method call, findObjectReferenceInfo() invocation, and the ObjectIdInfo creation logic."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Causal chain articulated: class-level annotation \u2192 accessor checked for ObjectIdInfo \u2192 not found \u2192 default ObjectIdInfo created \u2192 alwaysAsId overwritten \u2192 incorrect serialization."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Concrete scenario provided: ReallyAlwaysContainer with ReallyAlwaysAsId properties. Complete, unambiguous reproduction steps can be derived: create instances, serialize, verify output."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Specific subsystem identified: BeanSerializerBase and ObjectId serialization logic in Jackson."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Symptom manifests in serialization output; underlying defect resides in BeanSerializerBase's ObjectIdInfo handling logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Multiple impacted areas identifiable: class-level annotation processing, property-level annotation processing, ObjectIdInfo creation, and serialization behavior."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Four or more distinct technical concepts identified: @JsonIdentityInfo, @JsonIdentityReference, BeanSerializerBase, ObjectIdInfo, alwaysAsId, ObjectIdWriter, accessor-level annotations."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.91
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.89
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.89
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.91
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.87
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.91
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.88
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.89
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.91
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.91
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.82
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.92
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.91
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.89
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.89
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.88
+      }
+    }
+  },
+  "percent_agreement": 0.9375,
+  "cohens_kappa": 0.7857142857142857,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

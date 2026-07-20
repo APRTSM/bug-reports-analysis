@@ -1,0 +1,1450 @@
+{
+  "bug": {
+    "bug_id": "JxPath-3",
+    "project": "JxPath",
+    "summary": "StackOverflow error on a call to 'JXPathContext.createPath()'",
+    "description": "I'm running into a StackOverflow error on a call to\n\n'JXPathContext.createPath()' whenever I have a path that looks like\n\n'a/b\n[1]\n/c'. I took a quick look at the code and it appears JXPath, when\n\ntrying to create its parent pointer, simply recreates an equivalent\n\npointer(???).\n\nHere is code to reproduce the problem.\n\nMap map = new HashMap();\n\nmap.put(\"a\", null);\n\nJXPathContext pathContext = JXPathContext.newContext(map);\n\npathContext.setFactory(new AbstractFactory() {\n\npublic boolean createObject(\n\nJXPathContext context, Pointer pointer, Object parent, String\n\nname, int index) {\n\nMap parentMap = (Map)parent;\n\nSystem.out.println(parent + \":\" + name + \":\" + index);\n\nif (index > -1) {\n\nList list = (List)parentMap.get(name);\n\nif (list == null) \n\n{\nlist = new ArrayList();\n}\n\nint size = list.size();\n\nfor (int i = size; i <= index; i++) {\nlist.add(i, null);\n}\n\nparentMap.put(name, list);\n\n} else {\nparentMap.put(name, new HashMap());\n}\n\nreturn true;\n\n}\n\n});\n\npathContext.createPath(\"a/b\n[1]\n/c\");\n\n***************\n\nI have continued looking into this, and found that the problem is that, if\n\nthe List is created with a 'null' element, JXPath gets stuck in infinite\n\nrecursion.\n\nTo discover this, I changed my Factory to implement the following method:\n\npublic boolean createObject(\n\nJXPathContext context, Pointer pointer, Object parent, \n\nString name, int index) {\n\nif (pointer instanceof NodePointer) {\nindex = ((NodePointer)pointer).getIndex();\n}\n\nSystem.out.println(parent + \":\" + name + \":\" + index);\n\nMap parentMap = (Map)parent;\n\nif (index > -1) {\n\nList list = (List)parentMap.get(name);\n\nif (list == null) { list = new ArrayList(); }\n\nint size = list.size();\n\nfor (int i = size; i <= index; i++) \n\n{\nlist.add(i, new HashMap()); // !!!!!! Don't set to 'null'\n}\n\nparentMap.put(name, list);\n\n} else \n\n{\nparentMap.put(name, new HashMap());\n}\n\nreturn true;\n\n}\n\nThen I ran the following code:\n\npathContext.createPath(\"a/b\n[1]\n/c\");\n\npathContext.createPath(\"a/b\n[2]\n/c\"); // STACK OVERFLOW HERE\n\nHere is the stack trace at the beginning, where\n\n'ValueUtils.expandCollection()' is called. It puts 'null' into the list,\n\nthus causing the stack overflow as we cycle between createPath() &\n\ncreateChild().\n\nThread \n[main]\n(Suspended (breakpoint at line 227 in DynamicPropertyPointer))\n\nDynamicPropertyPointer.createPath(JXPathContext) line: 227\n\nDynamicPropertyPointer(PropertyPointer).createChild(JXPathContext,\n\nQName, int) line: 188\n\nNullElementPointer.createPath(JXPathContext) line: 82\n\nNullPointer.createPath(JXPathContext) line: 86\n\nNullPropertyPointer.createPath(JXPathContext) line: 103\n\nNullPointer.createPath(JXPathContext) line: 86\n\nNullPropertyPointer.createPath(JXPathContext) line: 103\n\nJXPathContextReferenceImpl.createPath(String, Expression) line: 447\n\nJXPathContextReferenceImpl.createPath(String) line: 427\n\nTest.test4() line: 75\n\nTest.main(String[]) line: 38"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable StackOverflowError on JXPathContext.createPath() with a specific path pattern."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies JXPathContext.createPath(), createChild(), and DynamicPropertyPointer as the relevant code path."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes a stack trace naming DynamicPropertyPointer.createPath, NullPointer.createPath, and ValueUtils.expandCollection."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides runnable Java code and the triggering call path, enough to reproduce or investigate directly."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Points to DynamicPropertyPointer and related NullPointer/NullPropertyPointer classes as the starting point."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A developer can understand the failure scenario: createPath on a/b[1]/c or a/b[2]/c with null list elements."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report gives a concrete scenario that can be turned into a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The sequence is explicit: create map, set factory, call createPath, then observe recursion/stack overflow."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Named entities like JXPathContext, AbstractFactory, Pointer, NodePointer, and ValueUtils are specific enough to locate."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent with the stack trace and code path, describing recursion and collection expansion accurately."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific triggering inputs are given: a map with a null value and paths like a/b[1]/c and a/b[2]/c."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete reproduction code is included step by step."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No version, OS, or runtime details are provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reports a StackOverflowError and includes the relevant stack trace entries."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The null-element list case and recursion between createPath and createChild distinguish this bug from generic path failures."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: createPath should succeed without infinite recursion or stack overflow."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicit: StackOverflowError occurs."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The mismatch is clear: path creation should complete, but instead recurses until stack overflow."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The code snippet and path values are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environment or dependency versions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report explicitly proposes a cause: ValueUtils.expandCollection puts null into the list, causing recursion."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "It links the null list element to the cycle between createPath() and createChild()."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Evidence includes the stack trace and the modified factory behavior showing the null-element trigger."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The explanation is coherent and matches the observed stack overflow behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References specific artifacts such as ValueUtils.expandCollection, createPath(), and createChild()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names specific classes and methods: JXPathContext.createPath, DynamicPropertyPointer.createPath, NullPointer.createPath."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected subsystem is identifiable as JXPath pointer/path creation logic."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes a relevant stack trace and code snippets."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No external dependency or version information is mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Some references are broad, such as 'JXPath' and 'parent pointer', before the stack trace narrows them down."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering conditions are described concretely."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is sufficiently implied by the bug description and reproduction."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Version and environment information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "The report is internally consistent; no contradictions are evident."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report identifies the correct behavior and suggests the null-element recursion as the fix target."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "DynamicPropertyPointer, NullPointer, and ValueUtils.expandCollection are identifiable fix locations."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Acceptance criterion is clear: createPath should not stack overflow for indexed paths with null list elements."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The null-element edge case is explicitly documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "A plausible fix can be inferred from the report without extra clarification."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report explicitly proposes that ValueUtils.expandCollection inserts null and triggers recursion."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References the specific operation ValueUtils.expandCollection and the null insertion into the list."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explains the causal chain from null list elements to infinite recursion between createPath() and createChild()."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The scenario is concrete enough that full reproduction steps can be derived directly from the code and paths."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The affected subsystem is JXPath path/pointer creation."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "The symptom appears in createPath(), while the suspected defect is in collection expansion and pointer creation logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The report implicates multiple areas: JXPathContext, DynamicPropertyPointer, NullPointer, NullPropertyPointer, and ValueUtils."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It names more than three relevant technical concepts/classes/methods, including createPath, createChild, NodePointer, and ValueUtils.expandCollection."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable StackOverflow error with specific path pattern 'a/b[1]/c' and concrete reproduction code."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes identified: JXPathContext, DynamicPropertyPointer, PropertyPointer, NullElementPointer, NullPointer, NullPropertyPointer."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete stack trace provided showing exact call sequence from createPath() through multiple pointer classes."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reproduction code is complete and runnable; developer can immediately execute the provided test case."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Stack trace pinpoints DynamicPropertyPointer.createPath() line 227 as entry point; multiple pointer classes identified."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: StackOverflow occurs when creating paths with indexed elements followed by child paths."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Sufficient detail to write a test case: specific path pattern, factory implementation, and triggering sequence provided."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: createPath() calls createChild(), which calls createPath() again, causing infinite recursion."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "All referenced classes are named explicitly; stack trace shows exact file locations and line numbers."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terms used accurately: StackOverflow, infinite recursion, null elements, indexed paths, pointers."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific inputs provided: path 'a/b[1]/c', Map with 'a' key set to null, ArrayList with null elements."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Ordered reproduction steps provided: create context, set factory, call createPath() with specific path patterns."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for JXPath library or Java runtime environment."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific failure mode reported: StackOverflow exception with complete stack trace showing exact call sequence."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root cause identified: null elements in list cause infinite recursion between createPath() and createChild()."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior implied: createPath() should successfully create the path without StackOverflow."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior explicitly stated: StackOverflow error with detailed stack trace showing infinite recursion."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Discrepancy clear: expected successful path creation vs. observed StackOverflow exception."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reproduction steps are complete and sufficient; runnable code provided with specific path patterns."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No Java version, JXPath version, or OS information provided; environment setup details missing."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific root cause proposed: null elements in list cause infinite recursion between createPath() and createChild()."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal mechanism explained: ValueUtils.expandCollection() inserts null, triggering recursive calls between pointer methods."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Evidence provided: stack trace shows cycling between DynamicPropertyPointer, NullElementPointer, and NullPointer."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is coherent: null elements cause recursion; workaround (using HashMap instead of null) prevents overflow."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific artifacts referenced: DynamicPropertyPointer line 227, ValueUtils.expandCollection(), exact method names in stack trace."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Multiple classes named: JXPathContext, DynamicPropertyPointer, PropertyPointer, NullElementPointer, NullPointer, NullPropertyPointer, ValueUtils."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem identifiable: JXPath pointer hierarchy and path creation mechanism."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Stack trace provided with exact line numbers; reproduction code included; method call sequence documented."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external library versions specified; JXPath version not mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, Java version, or runtime environment details provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "All references are specific: class names, method names, and line numbers are explicit."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs are fully specified: Map structure, path patterns, factory implementation details provided."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear: path creation should complete without StackOverflow exception."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version information missing: JXPath version and Java version not specified."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions; report is internally consistent throughout."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Correct behavior is clear: createPath() should handle indexed paths without infinite recursion; null elements should not trigger cycling."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Faulty component identified: DynamicPropertyPointer.createPath() at line 227 is entry point; cycling involves multiple pointer classes."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior stated: createPath('a/b[1]/c') and createPath('a/b[2]/c') should complete without StackOverflow."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Edge case documented: null elements in lists trigger infinite recursion; workaround shows non-null objects prevent overflow."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could implement fix: prevent null insertion in lists or break recursion cycle in pointer creation logic."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Root cause explicitly proposed: null elements in list cause infinite recursion between createPath() and createChild()."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific code construct identified: ValueUtils.expandCollection() inserts null; cycling between DynamicPropertyPointer.createPath() and PropertyPointer.createChild()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal chain articulated: null element \u2192 NullElementPointer.createPath() \u2192 NullPointer.createPath() \u2192 NullPropertyPointer.createPath() \u2192 back to DynamicPropertyPointer."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete scenario fully specified: create context with Map, set factory, call createPath('a/b[1]/c') then createPath('a/b[2]/c'); steps are complete and determinable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem identified: JXPath pointer hierarchy (DynamicPropertyPointer, PropertyPointer, NullElementPointer, NullPointer, NullPropertyPointer)."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom manifests in createPath(); underlying defect resides in pointer creation and null element handling logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple areas identified: path creation, pointer hierarchy, null handling, list expansion via ValueUtils."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Four or more distinct technical concepts: JXPathContext, DynamicPropertyPointer, NullElementPointer, PropertyPointer, ValueUtils.expandCollection(), indexed paths."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.9791666666666666,
+  "cohens_kappa": 0.9210526315789472,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

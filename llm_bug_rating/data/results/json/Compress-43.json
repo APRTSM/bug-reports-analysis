@@ -1,0 +1,1427 @@
+{
+  "bug": {
+    "bug_id": "Compress-43",
+    "project": "Compress",
+    "summary": "[Zip] Local `Version Needed To Extract` does not match Central Directory",
+    "description": "Hi,\n\nThis is followup on an issue reported on Plexus Archiver - \nhttps://github.com/codehaus-plexus/plexus-archiver/issues/57\n\nPlexus Archiver uses \nZipArchiveOutputStream\nto create zip archives. It constructs the \nZipArchiveOutputStream\nusing \nBufferedOutputStream\n. As a result the output do not provide random access and additional data descriptor records are added. Unfortunately this leads to different values being set for \nversion needed to extract\nfield in the local file header and in the central directory. It looks like that the root cause is the way the local header \nversion needed to extract\nfield value is calculated:\n\nif\n(phased && !isZip64Required(entry.entry, zip64Mode)){\nputShort(INITIAL_VERSION, buf, LFH_VERSION_NEEDED_OFFSET);\n} \nelse\n{\nputShort(versionNeededToExtract(zipMethod, hasZip64Extra(ze)), buf, LFH_VERSION_NEEDED_OFFSET);\n}\n\nAs you can see the need for data descriptors is not taken into account. On other hand when the central directory is created the following is used to determine the minimum required version\n\nprivate\n\nint\nversionNeededToExtract(\nfinal\n\nint\nzipMethod, \nfinal\n\nboolean\nzip64) {\n\nif\n(zip64) {\n\nreturn\nZIP64_MIN_VERSION;\n}\n\n// requires version 2 as we are going to store length info\n\n// in the data descriptor\n\nreturn\n(isDeflatedToOutputStream(zipMethod)) ?\nDATA_DESCRIPTOR_MIN_VERSION :\nINITIAL_VERSION;\n}\n\nAs a side note: I'm not a zip expert by any means so I could be wrong, but my understanding is that if Deflate compression is used then the minimum required version should be 2.0 regardless if data descriptors are used or not."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: local and central directory version-needed fields differ."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies ZipArchiveOutputStream in Plexus Archiver as the affected component."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes code snippets and specific field names/logic for versionNeededToExtract."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Provides enough context about BufferedOutputStream, data descriptors, and header generation to start investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Points to the zip archive creation logic in ZipArchiveOutputStream and central directory/local header handling."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The problem is clearly identified as a mismatch in 'Version Needed To Extract' values."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The report follows a logical flow from symptom to suspected cause and code excerpts."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References to headers, central directory, and methods are specific and mostly unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Technical terms like data descriptor, central directory, and Zip64 are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specifies the triggering condition: using BufferedOutputStream and data descriptors."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "No explicit step-by-step reproduction procedure is provided."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No OS, version, or environment details are included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Reports a concrete failure: differing version-needed values in local header vs central directory."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Distinguishes the issue from a generic zip failure by naming the exact header field and the data-descriptor condition."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.3,
+        "reason": "Expected behavior is implied but not stated as a direct requirement."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicitly stated as mismatched values between local header and central directory."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy is clear: local header and central directory compute different minimum versions."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "The narrative suggests a scenario but does not provide sufficient explicit reproduction steps."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.25,
+        "reason": "Required environment or dependency conditions are not documented beyond BufferedOutputStream usage."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes the root cause as the local header calculation ignoring data descriptors."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Links the proposed cause to the observed mismatch in version-needed fields."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Supports the explanation with quoted code paths from local header and central directory logic."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is coherent: different version calculations lead to inconsistent output."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References technical artifacts such as code snippets and specific methods."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions ZipArchiveOutputStream and versionNeededToExtract logic."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The zip archive creation subsystem is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes code snippets showing the relevant logic."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "References Plexus Archiver as the external project using the library."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "No environment details such as OS, browser, or library version are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Some references are broad, such as 'the way the local header value is calculated.'"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Inputs and exact triggering conditions are only partially described."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.62,
+        "reason": "Expected behavior is implied rather than explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment and version information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.12,
+        "reason": "The report is consistent and does not contain contradictions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior is specific enough to identify the needed change in version calculation."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The relevant code location is identifiable in ZipArchiveOutputStream."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "The correct behavior is suggested but not explicitly stated as a concrete target."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Mentions the key condition of data descriptors and deflate compression."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "A developer would likely need additional investigation to confirm the exact fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A potential root cause is explicitly proposed in the report."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The root cause references specific code logic in the local header calculation."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report explains that ignoring data descriptors causes the mismatch."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A reproduction scenario can be inferred: create a zip with ZipArchiveOutputStream wrapped in BufferedOutputStream and data descriptors."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The zip archive creation and header-writing logic is the affected subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The report distinguishes the symptom in the output zip from the underlying calculation in code."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Only one subsystem is discussed; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report clearly describes a mismatch between 'Version Needed To Extract' in local file header vs central directory."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected component is ZipArchiveOutputStream, specifically the local file header version field calculation."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Actual code snippets from the source are provided showing the faulty logic."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report explains the trigger (BufferedOutputStream causing data descriptors), the affected code, and links to a related issue."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The subsystem is clearly identified as ZipArchiveOutputStream in the zip handling module."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report is well-written and grammatically coherent throughout."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The problem\u2014mismatched 'Version Needed To Extract' between local header and central directory\u2014is clearly stated."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Information flows logically: context, trigger, code reference, root cause, and a side note."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to fields, classes, and constants are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Technical terms like 'data descriptor', 'local file header', 'central directory', 'Deflate' are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The triggering condition is described: using BufferedOutputStream with ZipArchiveOutputStream causes non-random-access output and data descriptors."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No explicit numbered reproduction steps are provided; the scenario is described narratively."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No version numbers for Commons Compress or Java environment are mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The specific failure is described: different 'version needed to extract' values in local header vs central directory."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report pinpoints the exact code path and constant (INITIAL_VERSION vs DATA_DESCRIPTOR_MIN_VERSION) causing the discrepancy."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: local header and central directory should have matching 'version needed to extract' values."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is stated: different values are set in local file header vs central directory."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy between expected (matching values) and observed (mismatched values) is clearly identifiable."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No explicit step-by-step reproduction instructions are given, though the scenario is described."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No specific environment, OS, or library version dependencies are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report explicitly proposes the root cause: the local header version calculation ignores data descriptor requirements."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The proposed cause (missing data descriptor check in local header code) is directly linked to the mismatch symptom."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Code snippets are provided as evidence showing the differing logic between local header and central directory."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is internally coherent: phased mode skips the version check, but central directory uses the full check."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific code locations, constants (INITIAL_VERSION, DATA_DESCRIPTOR_MIN_VERSION, LFH_VERSION_NEEDED_OFFSET), and method names."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "ZipArchiveOutputStream, versionNeededToExtract, LFH_VERSION_NEEDED_OFFSET, INITIAL_VERSION, DATA_DESCRIPTOR_MIN_VERSION are all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The zip archive creation subsystem (Commons Compress ZipArchiveOutputStream) is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Code snippets from the source are included showing the faulty and reference implementations."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Plexus Archiver is referenced as an external dependency that triggered the discovery of this bug."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, Java version, or library version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "References are specific: named fields, constants, and methods are cited without vagueness."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The exact inputs (e.g., specific zip entries, compression settings) used to reproduce are not described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior (matching version fields) is reasonably clear from context."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "No version information for Commons Compress or Java is provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior is precisely described: local header version ignores data descriptor requirement when phased=true."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The code location is identified: the if/else block in the local header writing code of ZipArchiveOutputStream."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The fix target is implied: use versionNeededToExtract() (including data descriptor check) for the local header as well."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The condition (phased mode, non-random-access stream, Deflate compression) is documented as relevant to the fix."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "While the report is detailed, a developer would still need to verify zip spec requirements and test edge cases before implementing a fix confidently."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Root cause is explicitly stated: the phased branch sets INITIAL_VERSION without checking if data descriptors require a higher version."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific code construct: the if(phased && !isZip64Required(...)) branch and putShort(INITIAL_VERSION, ...) call."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The causal chain is articulated: phased mode \u2192 INITIAL_VERSION used \u2192 mismatch with central directory which uses versionNeededToExtract() including data descriptor check."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "From the narrative, one can infer: create a ZipArchiveOutputStream wrapping a BufferedOutputStream, add a deflated entry, and inspect the resulting zip file's local header vs central directory version fields."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "ZipArchiveOutputStream's local file header writing logic is clearly identified as the affected component."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The symptom (mismatched version fields) manifests in the zip file output, while the defect resides in the local header version calculation logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Only one primary area is identified; no multiple cross-cutting concerns are explicitly described beyond the local header vs central directory discrepancy."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.96
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.45000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.8
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.55,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.3,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.35,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.75
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.5,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.25,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.95
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.6200000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.75
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.78,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.12,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.45,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.45,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.29999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.98
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.55,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.9148936170212766,
+  "cohens_kappa": 0.7459459459459459,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.3)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.62)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.45)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.3)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.62)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.45)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.2964074471043288,
+      "Clarity": 1.2964074471043288,
+      "Specificity": -0.12964074471043277,
+      "Reproducibility": -0.12964074471043277,
+      "ReasoningQuality": 1.2964074471043288,
+      "TechnicalContext": 0.5833833511969481,
+      "Ambiguity": -0.12964074471043277,
+      "RepairReadiness": -1.5556889365251945,
+      "RootCauseEvidence": -0.12964074471043277,
+      "HiddenReproducibility": -1.5556889365251945,
+      "ImpactScope": -0.8426648406178135
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

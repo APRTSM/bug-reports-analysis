@@ -1,0 +1,1454 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-102",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "Version: 2.9.5\n\nAfter \n#219\nwas fixed, the default format for \njava.sql.Date\nserialization switched from string to numeric, following the default value of \nWRITE_DATES_AS_TIMESTAMPS\n.\n\nIn order to prevent breaks, I want \njava.sql.Date\nto serialize as a string, without changing behavior for \njava.util.Date\n(which has always serialized as a number by default).\n\nAccording to \n#219 (comment)\n, I should be able to revert the behavior for \njava.sql.Date\nonly with\n\nfinal ObjectMapper mapper = new ObjectMapper();\nmapper.configOverride(java.sql.Date.class).setFormat(JsonFormat.Value.forPattern(\"yyyy-MM-dd\"));\n\nThis doesn't seem to do anything, though. Looking at the code, it looks like it's because the custom format isn't actually added to \nSqlDateSerializer\nexcept in the \ncreateContextual\nmethod (\nhttps://github.com/FasterXML/jackson-databind/blob/master/src/main/java/com/fasterxml/jackson/databind/ser/std/DateTimeSerializerBase.java#L59\n).\n\nFor now, I've reverted this behavior with\n\nmapper.registerModule(new SimpleModule() {\n{\naddSerializer(\njava.sql.Date.class,\nnew SqlDateSerializer().withFormat(false, new SimpleDateFormat(\"yyyy-MM-dd\"))\n);\n}\n});\n\nbut it seems pretty hacky so I'd prefer the other method if possible."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Describes observable behavior change: java.sql.Date now serializes as numeric instead of string."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the code path via SqlDateSerializer and DateTimeSerializerBase.createContextual."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Includes a direct code reference and URL to DateTimeSerializerBase.java#L59."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Provides version, failing configOverride call, and a workaround that a developer can try immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Points to the serializer implementation in DateTimeSerializerBase/SqlDateSerializer as the starting component."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer can understand the failure: configOverride for java.sql.Date does not affect serialization."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A failing test could assert that java.sql.Date with a pattern override still serializes as a string."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The sequence is clear: after #219, default changed; applying configOverride does not work; workaround uses custom serializer."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Named entities like ObjectMapper, java.sql.Date, JsonFormat.Value, SqlDateSerializer, and SimpleModule are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Terminology is consistent: serialization, default format, contextualization, and custom format are used correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete input is given: java.sql.Date with configOverride(JsonFormat.Value.forPattern(\"yyyy-MM-dd\"))."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "No ordered reproduction steps are listed beyond the code snippet and observed behavior."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes version 2.9.5, which is enough to anchor the report."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Reports the failure mode as numeric serialization instead of string, though no verbatim exception is shown."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The issue is distinguished by affecting only java.sql.Date after #219, not java.util.Date."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is explicit: java.sql.Date should serialize as a string."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Observed behavior is explicit: it serializes as numeric instead of string."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The discrepancy between expected string output and observed numeric output is clear."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Reproduction is implied by code, but full steps are not fully enumerated."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "Version 2.9.5 is provided; no other environment dependencies are mentioned."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposes a specific cause: custom format is not added to SqlDateSerializer except in createContextual."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Links the missing custom format to the observed failure of configOverride to change serialization."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Supports the explanation with a code reference to DateTimeSerializerBase.java#L59."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is coherent and matches the described workaround."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "References concrete artifacts: SqlDateSerializer, createContextual, and the source file URL."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names ObjectMapper, java.sql.Date, JsonFormat.Value, SqlDateSerializer, and SimpleModule."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected module is identifiable as jackson-databind serialization code."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes a relevant source code link and code-level explanation."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "No external dependency or version beyond the library version is mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "Only library version is given; no OS, JVM, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The exact internal fix location is somewhat inferred from the serializer discussion."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.3,
+        "reason": "Inputs and conditions are concrete enough to attempt a targeted reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Expected behavior is clearly stated as string serialization for java.sql.Date."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "No environment details beyond version 2.9.5 are provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "The report is internally consistent and does not contradict itself."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "States the desired behavior and suggests the missing propagation of custom format as the fix area."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Identifies SqlDateSerializer and DateTimeSerializerBase.createContextual as the relevant code locations."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Acceptance criterion is concrete: java.sql.Date should serialize as yyyy-MM-dd when overridden."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.52,
+        "reason": "Edge cases and constraints are not discussed beyond the java.sql.Date vs java.util.Date distinction."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A plausible fix can be inferred from the missing custom format handling."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explicitly proposes that the custom format is not added to SqlDateSerializer except in createContextual."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References the specific construct createContextual and SqlDateSerializer."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Explains that missing format propagation causes configOverride to have no effect."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A concrete scenario is given from which a direct test can be derived: ObjectMapper with configOverride for java.sql.Date."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected concept is the java.sql.Date serialization subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Distinguishes symptom location in serialization from likely defect in serializer contextualization."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.42,
+        "reason": "Only one main impacted path is described, not multiple distinct areas."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Mentions ObjectMapper, java.sql.Date, SqlDateSerializer, DateTimeSerializerBase, JsonFormat.Value, and SimpleModule."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: configOverride for java.sql.Date format has no effect, contrasting with expected behavior from issue #219."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes identified: java.sql.Date, SqlDateSerializer, DateTimeSerializerBase, and the createContextual method."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Includes code snippet showing the non-working configOverride call and a working workaround using SimpleModule registration with explicit SqlDateSerializer."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer can immediately attempt to reproduce by calling configOverride on java.sql.Date and observing that format is not applied during serialization."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Pinpoints DateTimeSerializerBase.createContextual method and SqlDateSerializer as the fault location; provides GitHub link to exact code line."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: configOverride does not apply custom format to java.sql.Date serialization, while the workaround does."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "A developer could write a test asserting that configOverride with JsonFormat.Value.forPattern produces string output, which currently fails."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Sequence is unambiguous: after #219 fix, default behavior changed; configOverride should revert it but does not; workaround succeeds."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "All referenced entities are precisely identified: java.sql.Date, java.util.Date, SqlDateSerializer, DateTimeSerializerBase, createContextual method."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terminology is accurate: WRITE_DATES_AS_TIMESTAMPS, configOverride, JsonFormat.Value, serialization format, contextual serializer."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific input provided: configOverride(java.sql.Date.class).setFormat(JsonFormat.Value.forPattern('yyyy-MM-dd')); expected output is string format 'yyyy-MM-dd'."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Reproduction steps are implied but not fully ordered: create ObjectMapper, call configOverride with pattern, serialize java.sql.Date, observe numeric output instead of string."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Version 2.9.5 is explicitly stated; references specific prior issue #219."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Expected output (string 'yyyy-MM-dd') and observed output (numeric timestamp) are described, though no verbatim error message is provided."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report distinguishes this from general serialization issues by focusing on the interaction between configOverride and java.sql.Date specifically, contrasting with java.util.Date behavior."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is explicit: java.sql.Date should serialize as string 'yyyy-MM-dd' when configOverride is applied, without affecting java.util.Date (numeric)."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Observed behavior is stated: configOverride has no effect; java.sql.Date still serializes as numeric timestamp."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Discrepancy is clear: configOverride call should apply format but does not; workaround with SimpleModule does apply it."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Reproduction steps are not fully ordered or complete; developer must infer the exact serialization call and assertion needed."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version 2.9.5 and reference to #219 provide sufficient context; Jackson databind framework is implied."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report explicitly proposes root cause: custom format is not added to SqlDateSerializer except in createContextual method."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposed explanation is directly linked to symptom: configOverride does not invoke createContextual, so format is never applied."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Concrete evidence provided: GitHub link to DateTimeSerializerBase line 59 showing createContextual method; workaround demonstrates that explicit withFormat() call works."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explanation is internally coherent: configOverride mechanism does not trigger createContextual; workaround bypasses this by directly calling withFormat()."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific method name 'createContextual' and specific class 'SqlDateSerializer'; provides GitHub URL to exact code location."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes and methods named: java.sql.Date, java.util.Date, SqlDateSerializer, DateTimeSerializerBase, createContextual, ObjectMapper, SimpleModule."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem identifiable: Jackson databind serialization framework, specifically date/time serializer subsystem."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Code snippets provided: configOverride call and workaround using SimpleModule with explicit SqlDateSerializer registration."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Framework identified as Jackson databind; version 2.9.5 specified; references SimpleDateFormat and JsonFormat.Value."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No OS, JVM version, or runtime environment details provided; only Jackson version is specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are precise: java.sql.Date, SqlDateSerializer, createContextual method are all clearly identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Input parameters are specified: configOverride(java.sql.Date.class).setFormat(JsonFormat.Value.forPattern('yyyy-MM-dd'))."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clear: string format 'yyyy-MM-dd' for java.sql.Date; numeric for java.util.Date."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "JVM version, OS, and other environment details are missing, though Jackson version is provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictions detected; report is internally consistent about the problem and workaround."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Faulty behavior is precise enough to determine fix: configOverride must trigger createContextual or format must be applied during serialization initialization."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific component identified: SqlDateSerializer and DateTimeSerializerBase.createContextual method require modification."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior is concrete: configOverride(java.sql.Date.class).setFormat(...) should produce string output matching the pattern."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Constraints documented: java.util.Date must continue to serialize as numeric; only java.sql.Date behavior should change."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Developer could implement a fix by ensuring configOverride format is applied in SqlDateSerializer initialization or by modifying createContextual invocation logic."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific root cause explicitly proposed: custom format is not added to SqlDateSerializer except in createContextual method."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root cause references specific code construct: DateTimeSerializerBase.createContextual method at line 59; SqlDateSerializer class."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Causal chain articulated: configOverride does not invoke createContextual \u2192 format is never applied \u2192 serialization uses default numeric format."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Concrete scenario is described: create ObjectMapper, call configOverride with pattern, serialize java.sql.Date instance; steps are derivable but not fully explicit."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystem identifiable: date/time serialization in Jackson databind, specifically SqlDateSerializer."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report distinguishes symptom (configOverride has no effect) from defect location (createContextual method not invoked or format not applied)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple areas identified: configOverride mechanism, SqlDateSerializer, DateTimeSerializerBase, format application logic."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Four or more technical concepts named: java.sql.Date, java.util.Date, SqlDateSerializer, DateTimeSerializerBase, createContextual, ObjectMapper, configOverride, JsonFormat.Value, SimpleDateFormat."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": false,
+        "confidence_diff": 0.27,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.85
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.85
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.75
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.5,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.24999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.45,
+        "judge2_confidence": 0.7
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.55,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.3,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.72,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.92
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.75,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.32999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.52,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.82
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.38000000000000006,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.42,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.8958333333333334,
+  "cohens_kappa": 0.6078431372549021,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.4)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.52)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.42)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.4)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.52)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.42)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.7808688094430304,
+      "Clarity": 0.7808688094430304,
+      "Specificity": 0.7808688094430304,
+      "Reproducibility": -0.07808688094430297,
+      "ReasoningQuality": 0.7808688094430304,
+      "TechnicalContext": -0.07808688094430297,
+      "Ambiguity": -0.07808688094430297,
+      "RepairReadiness": 0.7808688094430304,
+      "RootCauseEvidence": -0.9370425713316364,
+      "HiddenReproducibility": -2.654953952106303,
+      "ImpactScope": -0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

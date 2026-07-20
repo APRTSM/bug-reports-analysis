@@ -1,0 +1,1432 @@
+{
+  "bug": {
+    "bug_id": "Jsoup-30",
+    "project": "Jsoup",
+    "summary": "No title",
+    "description": "[ ERROR ] throw execution exception:java.lang.StackOverflowError\n\njava.util.concurrent.ExecutionException: java.lang.StackOverflowError\n\nCaused by: java.lang.StackOverflowError\n\nat org.jsoup.safety.Whitelist.isSafeTag(Whitelist.java:323)\n\nat org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:115)\n\nat org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:127)\n\nat org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:127)\n\nat org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:127)\n\nat org.jsoup.safety.Cleaner.copySafeNodes(Cleaner.java:127)\n\nclean the url:\nhttp://blog.sina.com.cn/s/blog_501a5b1f0102dx6z.html\n\nIt's have to much \nwbr\ntags,when i search the page source ,found 24205.\n\ni look at org.jsoup.safety.Cleaner source code and add code like this\n\nprivate\n\nint\n\nnum\n= \n1\n;\n\n/**\n\n* Iterates the input and copies trusted nodes (tags, attributes, text) into\n\n* the destination.\n\n* \n\n* @param source\n\n* source of HTML\n\n* @param dest\n\n* destination element to copy into\n\n* @return number of discarded elements (that were considered unsafe)\n\n*/\n\nprivate\n\nint\n\ncopySafeNodes\n(\nElement\n\nsource\n, \nElement\n\ndest\n) {\n\nList\n<\nNode\n> \nsourceChildren\n= \nsource\n.\nchildNodes\n();\n\nint\n\nnumDiscarded\n= \n0\n;\n\nfor\n(\nNode\n\nsourceChild\n: \nsourceChildren\n) {\n\nnum\n++;\n\nlogger\n.\ninfo\n(\nnum\n);\n\nif\n(\nnum\n> \n2000\n) {\n\n//break this tag.\n\nbreak\n;\n}\n\nif\n(\nsourceChild\n\ninstanceof\n\nElement\n) {\n\nElement\n\nsourceEl\n= (\nElement\n) \nsourceChild\n;\n\nif\n(\nwhitelist\n.\nisSafeTag\n(\nsourceEl\n.\ntagName\n())) { \n// safe, clone\n\n// and copy safe\n\n// attrs\n\nElementMeta\n\nmeta\n= \ncreateSafeElement\n(\nsourceEl\n);\n\nElement\n\ndestChild\n= \nmeta\n.\nel\n;\n\ndest\n.\nappendChild\n(\ndestChild\n);\n\nnumDiscarded\n+= \nmeta\n.\nnumAttribsDiscarded\n;\n\nnumDiscarded\n+= \ncopySafeNodes\n(\nsourceEl\n, \ndestChild\n); \n// recurs\n\n} \nelse\n{ \n// not a safe tag, but it may have children (els or\n\n// text) that are, so recurse\n\nnumDiscarded\n++;\n\nnumDiscarded\n+= \ncopySafeNodes\n(\nsourceEl\n, \ndest\n);\n}\n} \nelse\n\nif\n(\nsourceChild\n\ninstanceof\n\nTextNode\n) {\n\nTextNode\n\nsourceText\n= (\nTextNode\n) \nsourceChild\n;\n\nTextNode\n\ndestText\n= \nnew\n\nTextNode\n(\nsourceText\n.\ngetWholeText\n(),\n\nsourceChild\n.\nbaseUri\n());\n\ndest\n.\nappendChild\n(\ndestText\n);\n} \n// else, we don't care about comments, xml proc instructions, etc\n\n}\n\nreturn\n\nnumDiscarded\n;\n}\n\nbut the clean result will be wrong and The layout will be chaos.\n\nHow can I solve this problem?"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reports a StackOverflowError during cleaning and wrong cleaned result."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies jsoup safety Cleaner/Whitelist as the affected component."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes stack trace and code excerpts from Cleaner.copySafeNodes and Whitelist.isSafeTag."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Provides the failing URL, error, and a description of the attempted fix."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Likely affected subsystem is jsoup HTML sanitization/cleaning."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Language is understandable despite grammar issues."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The problem is clearly a StackOverflowError in HTML cleaning."
+      },
+      "C3": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "Mixes error report, investigation notes, and question without a clear structure."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "References like 'it' and 'the layout' are somewhat ambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.79,
+        "reason": "Uses technical terms consistently: Cleaner, Whitelist, StackOverflowError, wbr tags."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specifies the triggering page and excessive wbr tags."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.41,
+        "reason": "Describes investigation and a code change, but not clear reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "No OS, browser, jsoup version, or runtime environment is given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes StackOverflowError and repeated stack frames."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Mentions the specific URL and 24205 wbr tags, distinguishing it from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.36,
+        "reason": "Expected behavior is implied by 'clean the url' but not explicitly stated."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is explicitly a StackOverflowError and wrong cleaned layout."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "The discrepancy is implied, but not stated as a clear expected-vs-observed comparison."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.44,
+        "reason": "A URL is given, but no step-by-step reproduction procedure is provided."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Suggests the deep recursion in copySafeNodes as the cause."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Links the recursion hypothesis to the StackOverflowError and many wbr tags."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Supports the hypothesis by citing the stack trace and counting 24205 wbr tags."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The explanation is coherent: deep nesting/repetition leads to recursion overflow."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References specific artifacts: Cleaner.copySafeNodes, Whitelist.isSafeTag, and the URL."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Mentions org.jsoup.safety.Whitelist and Cleaner methods."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The jsoup HTML cleaning/sanitization subsystem is identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes a stack trace and code snippet."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.22,
+        "reason": "No external dependencies or integrations beyond jsoup are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Contains vague phrases like 'The layout will be chaos' and 'How can I solve this problem?'"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Inputs are incomplete beyond one URL and a tag count."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Expected behavior is not clearly specified."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No direct contradictions are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The faulty behavior is specific: StackOverflowError when cleaning a page with many wbr tags."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely code location is Cleaner.copySafeNodes in jsoup."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.42,
+        "reason": "A concrete expected correct behavior is not explicitly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The many wbr tags are an important edge case affecting the fix."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.38,
+        "reason": "A developer would likely need more details to implement a correct fix without further investigation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "A root cause is strongly implied: excessive recursion in Cleaner.copySafeNodes."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "References the recursive copySafeNodes call and isSafeTag logic."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "Connects the recursion to the StackOverflowError on a page with 24205 wbr tags."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The narrative implies reproduction by cleaning the provided URL with jsoup."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is jsoup HTML cleaning/sanitization."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Symptom appears in Cleaner, while the suspected cause is recursive traversal logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.3,
+        "reason": "Only one subsystem is clearly implicated; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observable StackOverflowError is reported with a stack trace showing recursive copySafeNodes calls."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected component is identified as org.jsoup.safety.Cleaner.copySafeNodes and Whitelist.isSafeTag."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Stack trace, specific class/method references, and a URL triggering the issue are provided."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The URL, the cause (24205 wbr tags), and the stack trace provide enough context to begin investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The jsoup safety/cleaning subsystem (Cleaner, Whitelist) is clearly identified."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report is mostly understandable despite some formatting issues from code pasting."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The problem is clear: excessive wbr tags cause StackOverflowError via infinite recursion in copySafeNodes."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report presents error, cause, URL, explanation, and attempted fix in a logical order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References to Cleaner, Whitelist, copySafeNodes, and wbr tags are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Technical terms like StackOverflowError, recursion, whitelist, and tag names are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific triggering condition identified: a URL with 24205 wbr tags causing deep recursion."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The URL to clean is provided, implying the reproduction step is to run jsoup's cleaner on that URL."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No jsoup version, Java version, or OS information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific exception java.lang.StackOverflowError with full stack trace is reported."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The specific cause (24205 wbr tags leading to recursive overflow) distinguishes this from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Expected behavior (successful cleaning without error) is implied but not explicitly stated."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicitly stated: StackOverflowError during cleaning."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The discrepancy is clear: cleaning should succeed but instead throws StackOverflowError."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The URL is provided; running jsoup cleaner on it should reproduce the issue."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific jsoup version or Java environment details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The reporter explicitly identifies excessive wbr tags (24205) causing deep recursion as the cause."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation links the wbr tags to the recursive copySafeNodes calls shown in the stack trace."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Stack trace and the count of 24205 wbr tags serve as evidence for the proposed explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The reasoning is coherent: many nested/repeated tags \u2192 deep recursion \u2192 stack overflow."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References Cleaner.java line numbers, Whitelist.java, and includes the stack trace."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes (Cleaner, Whitelist), methods (copySafeNodes, isSafeTag), and line numbers are mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The jsoup safety/cleaning subsystem is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Stack trace and modified source code snippet are included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "jsoup library is referenced as the external dependency involved."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, Java version, or jsoup version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "References to components and behaviors are specific and unambiguous."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "The input (URL with 24205 wbr tags) is sufficiently described."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Expected behavior is not explicitly stated; it is only implied that cleaning should succeed."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "jsoup version and Java/environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior (unbounded recursion in copySafeNodes) is described precisely enough."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Cleaner.copySafeNodes is identified as the location requiring a fix."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The expected correct behavior (clean without overflow) is implied but not explicitly stated as a target."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The edge case of deeply nested or repeated tags is documented as the triggering condition."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would need to investigate the proper fix strategy; the reporter's workaround breaks layout, so the correct fix is unclear."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Root cause is explicitly identified: 24205 wbr tags causing unbounded recursion in copySafeNodes."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific method copySafeNodes in Cleaner.java with line numbers showing recursive calls."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The causal chain is articulated: many wbr tags \u2192 deep recursive calls \u2192 StackOverflowError."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "From the narrative, one can infer: fetch the given URL, run jsoup cleaner on it, and observe the StackOverflowError."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The jsoup Cleaner/Whitelist subsystem is clearly identified as affected."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "The report does not clearly distinguish between where the symptom manifests (stack overflow) and where the defect resides (recursion logic)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Only one area (copySafeNodes recursion) is identified; no cross-cutting concerns are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.8
+      },
+      "C4": {
+        "agreement": false,
+        "confidence_diff": 0.27,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.79,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": false,
+        "confidence_diff": 0.44,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.41,
+        "judge2_confidence": 0.85
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.5700000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.44000000000000006,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.36,
+        "judge2_confidence": 0.8
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": false,
+        "confidence_diff": 0.29999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.85
+      },
+      "R4": {
+        "agreement": false,
+        "confidence_diff": 0.41,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.44,
+        "judge2_confidence": 0.85
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.49999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.95
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.68,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.22,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.65,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.27999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.42,
+        "judge2_confidence": 0.7
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.31999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.38,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.95
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.65
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.45,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.3,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.8085106382978723,
+  "cohens_kappa": 0.5121107266435984,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.62)"
+      },
+      "C4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.41)"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.55)"
+      },
+      "R4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.44)"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.22)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.82 > 0.65)"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.62)"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.58)"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.41)"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.55)"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.44)"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.22)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge1 (higher confidence: 0.82 > 0.65)"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 4,
+      "RepairReadiness": 3,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 2,
+      "ambiguity_count": 4,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.2403473458920846,
+      "Clarity": 1.2403473458920846,
+      "Specificity": 0.5581563056514381,
+      "Reproducibility": -0.12403473458920834,
+      "ReasoningQuality": 1.2403473458920846,
+      "TechnicalContext": 0.5581563056514381,
+      "Ambiguity": -1.4884168150705013,
+      "RepairReadiness": -0.8062257748298548,
+      "RootCauseEvidence": -0.12403473458920834,
+      "HiddenReproducibility": -1.4884168150705013,
+      "ImpactScope": -0.8062257748298548
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

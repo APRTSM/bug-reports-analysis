@@ -1,0 +1,1456 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-108",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "So, it looks like \nreadTree()\nmethods in \nObjectMapper\n, \nObjectReader\nthat take input OTHER than \nJsonParser\n, and are given \"empty input\" (only white-space available before end), will\n\nReturn \nNullNode\n(Jackson 2.x up to and including 2.8)\n\nReturn \nnull\n(Jackson 2.9)\n\nLatter behavior is what \nreadTree(JsonParser)\nhas and will do; but this accidentally changed other methods due to refactoring that unified underlying call handling (and add checking for new \nDeserializationFeature.FAIL_ON_TRAILING_TOKENS\n).\n\nBehavior for this edge case was not being tested, apparently.\n\nNow: since behavior has been changed for all 2.9.x patch versions, I am not sure it should be changed for 2.9 branch. But it seems sub-optimal as behavior, and something to definitely change for 3.0... but probably also for 2.10.\n\nThere are multiple things we could do.\n\nChange it back to 2.8, to return \nNullNode\n\nChange to throw exception, as \"not valid\" use case\n\nChange it to return \nMissingNode\n\nLeave as-is, for rest of 2.x.\n\nAlthough it might seem best to revert it to (1), that seems somewhat wrong, problematic, as it would now not be possible to distinguish between JSON \nnull\nvalue and missing content.\n\nAnd although (2) would probably make sense, if designing API from scratch, it is probably too intrusive.\n\nSo I think (3) is the best way: it avoids returning \nnull\nor throwing Exception (both being likely to break 2.9 code), but still allows distinguishing between all possible input cases."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Describes a specific faulty behavior: readTree() on empty input returns NullNode in 2.8 and null in 2.9."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names the affected APIs: ObjectMapper.readTree() and ObjectReader.readTree(), including the JsonParser variant for comparison."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No stack trace, error message, logs, or code snippet is provided."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer can investigate by checking readTree() behavior on empty whitespace input using the described versions."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Points to ObjectMapper/ObjectReader readTree handling as the place to start reading code."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The failure scenario is clear even without codebase knowledge: empty whitespace input changes return value across versions."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A failing test could assert the return value for readTree() on empty input."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The triggering condition is unambiguous: input containing only whitespace before end-of-input."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "ObjectMapper, ObjectReader, JsonParser, NullNode, and MissingNode are named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Terminology is consistent and technically accurate about readTree behavior and node types."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The trigger is concrete: empty input with only whitespace before end-of-input."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "No ordered reproduction steps are given, only the condition and observed behavior."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Version information is specific: Jackson 2.x up to 2.8, 2.9, and 2.9.x patch versions."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The exact failure mode is reported as returning NullNode or null depending on version."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The issue is distinguished by the empty-input readTree behavior and the version-dependent return type."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is discussed explicitly as one of NullNode, exception, or MissingNode."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Observed behavior is explicitly stated: NullNode in 2.8 and null in 2.9."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy between versions and between readTree(JsonParser) and other readTree methods is clearly stated."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "Reproduction steps are not fully enumerated; only the input condition is described."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.3,
+        "reason": "No environment setup details beyond Jackson version are provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A specific cause is proposed: refactoring unified underlying call handling and added FAIL_ON_TRAILING_TOKENS checks."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The report links the refactoring to the changed behavior on empty input."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.25,
+        "reason": "No concrete code references, traces, or logs are provided as evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation is internally consistent and matches the described version change."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References specific technical artifacts such as readTree(JsonParser) and DeserializationFeature.FAIL_ON_TRAILING_TOKENS."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names specific APIs and types: ObjectMapper, ObjectReader, readTree, JsonParser, NullNode, MissingNode."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is identifiable as Jackson databind tree-reading code."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No stack traces, logs, screenshots, or code snippets are included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Jackson 2.x and DeserializationFeature.FAIL_ON_TRAILING_TOKENS are referenced by name."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "No OS, browser, runtime, or framework environment details are given beyond library version."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The exact methods affected are described generally as readTree() methods taking input other than JsonParser."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Inputs and reproduction conditions are not fully specified beyond empty whitespace input."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "The report discusses multiple possible expected behaviors, so the correct behavior is not settled."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Material environment/version details are missing except for Jackson version ranges."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "The report is not contradictory; it consistently describes the version-dependent behavior."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report explains the behavior change and suggests the intended fix direction."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The likely fix area is identifiable as ObjectMapper/ObjectReader readTree handling."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A concrete acceptance criterion is implied: define the return value for empty input consistently."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "The edge case of empty whitespace input is explicitly documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "A plausible fix can be inferred from the report, though exact code still needs inspection."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A specific cause is explicitly proposed: refactoring unified underlying call handling."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The root cause references a specific operation: added checking for DeserializationFeature.FAIL_ON_TRAILING_TOKENS."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report explains the causal chain from refactoring to changed empty-input behavior."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A concrete scenario is given from which reproduction steps can be derived: readTree on whitespace-only input."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is identifiable as tree-reading in Jackson databind."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The symptom is the return value, while the likely defect is in shared readTree handling."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "Only one main impacted area is described; multiple distinct impacted areas are not detailed."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "At least three technical concepts are named: ObjectMapper, ObjectReader, JsonParser, NullNode, MissingNode, and FAIL_ON_TRAILING_TOKENS."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: readTree() methods return different types (NullNode vs null) depending on Jackson version when given empty input."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific methods identified: readTree() in ObjectMapper and ObjectReader; distinguishes from other readTree variants that take JsonParser."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No stack traces, error messages, or code snippets provided; only high-level description of return value differences across versions."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Developer could attempt reproduction by calling readTree() with empty input on different Jackson versions; scenario is sufficiently concrete."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes named (ObjectMapper, ObjectReader) and methods identified (readTree); developer knows where to start investigating."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Failure scenario is clear: readTree() with empty input produces inconsistent return values across versions."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "A developer could write a test case: call readTree() with empty/whitespace-only input and assert return type."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: empty input \u2192 readTree() called \u2192 inconsistent return value (NullNode vs null) depending on version."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "ObjectMapper and ObjectReader are standard Jackson classes; readTree() is a well-known method; easily locatable."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terms used accurately: NullNode, null, JsonParser, DeserializationFeature.FAIL_ON_TRAILING_TOKENS are precise Jackson concepts."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Input condition specified: 'empty input' (only whitespace before end); concrete enough for test case."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No step-by-step reproduction steps provided; only describes the condition and expected behavior difference."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific versions mentioned: Jackson 2.x up to 2.8, 2.9, and 2.10; version-related ambiguity is addressed."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific return values reported: NullNode (2.8), null (2.9); exact failure modes are documented."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report distinguishes this from normal behavior by focusing on empty input edge case and version-specific inconsistency."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior is implied: readTree() should return consistent type across versions; report discusses desired behavior (MissingNode proposed)."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior explicitly stated: returns NullNode in 2.8, null in 2.9; clear enough to recognize failure."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Discrepancy is unambiguous: same input produces different return types across versions."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Reproduction steps are incomplete; report describes condition but not detailed procedural steps (e.g., exact method calls, input format)."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Jackson version is the critical environmental condition; report specifies affected versions (2.8, 2.9, 2.10)."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report explicitly proposes root cause: refactoring that unified underlying call handling and added FAIL_ON_TRAILING_TOKENS checking."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Causal link is plausible: refactoring changed behavior for readTree() methods taking non-JsonParser input, causing return type inconsistency."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Report references DeserializationFeature.FAIL_ON_TRAILING_TOKENS and mentions refactoring; provides some evidence of cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is internally coherent: refactoring unified call handling, accidentally changed behavior, behavior not tested."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References specific technical artifact: DeserializationFeature.FAIL_ON_TRAILING_TOKENS; mentions refactoring of underlying call handling."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes named: ObjectMapper, ObjectReader; specific method: readTree(); specific feature: DeserializationFeature.FAIL_ON_TRAILING_TOKENS."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Affected subsystem is Jackson's tree reading functionality; ObjectMapper and ObjectReader are core classes."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No stack traces, logs, or code snippets provided; only high-level description of behavior difference."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson library is referenced by name and specific versions (2.8, 2.9, 2.10) are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, runtime, or other environment details provided; only Jackson version information is given."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "References are specific: ObjectMapper, ObjectReader, readTree(), empty input; no vague descriptions."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Input description 'empty input (only whitespace)' is somewhat vague; exact input format (e.g., empty string, stream with spaces) not fully specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior is discussed: report proposes MissingNode as best solution; correctness criterion is clear."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Jackson versions are specified; no material environmental information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Report is internally consistent; no contradictory statements that would mislead a developer."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report proposes specific solution (return MissingNode) and explains why; correct behavior is determinable."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specific components identified: ObjectMapper.readTree(), ObjectReader.readTree(); developer knows where to apply fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior stated: return MissingNode for empty input; serves as acceptance criterion."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Report discusses constraints: need to distinguish between JSON null and missing content; version compatibility concerns (2.9 vs 2.10 vs 3.0)."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could implement fix (return MissingNode instead of null) using report information; some investigation may be needed for refactored code location."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report explicitly proposes root cause: refactoring that unified underlying call handling and added FAIL_ON_TRAILING_TOKENS checking."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References specific code construct: DeserializationFeature.FAIL_ON_TRAILING_TOKENS; mentions refactoring of underlying call handling."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Causal chain is articulated: refactoring unified call handling \u2192 behavior changed for non-JsonParser readTree() methods \u2192 inconsistent return types."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Report describes scenario (empty input to readTree) but does not provide fully determinable, step-by-step reproduction steps; exact input format and method invocation details are underspecified."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystem identified: readTree() methods in ObjectMapper and ObjectReader; tree reading functionality."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report distinguishes symptom (inconsistent return values) from root cause (refactoring of underlying call handling)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report mentions multiple areas: ObjectMapper, ObjectReader, JsonParser, DeserializationFeature; cross-cutting concern of version compatibility."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report names multiple technical concepts: ObjectMapper, ObjectReader, readTree(), JsonParser, NullNode, MissingNode, DeserializationFeature.FAIL_ON_TRAILING_TOKENS."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.6799999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.88
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.45000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.8
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.35,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.75
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.5800000000000001,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.3,
+        "judge2_confidence": 0.88
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.57,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.25,
+        "judge2_confidence": 0.82
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.6499999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.45000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.9
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.72,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.82
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.45000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    }
+  },
+  "percent_agreement": 0.8541666666666666,
+  "cohens_kappa": 0.540983606557377,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.3)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.82 > 0.25)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.85)"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.75)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.35)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.3)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge2 (higher confidence: 0.82 > 0.25)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.85)"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.75)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.35)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 4,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.16329931618554508,
+      "Clarity": 1.0614455552060438,
+      "Specificity": 0.16329931618554508,
+      "Reproducibility": 0.16329931618554508,
+      "ReasoningQuality": 1.0614455552060438,
+      "TechnicalContext": -0.7348469228349536,
+      "Ambiguity": 0.16329931618554508,
+      "RepairReadiness": 1.0614455552060438,
+      "RootCauseEvidence": -0.7348469228349536,
+      "HiddenReproducibility": -2.531139400875951,
+      "ImpactScope": 0.16329931618554508
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

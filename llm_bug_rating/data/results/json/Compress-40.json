@@ -1,0 +1,1429 @@
+{
+  "bug": {
+    "bug_id": "Compress-40",
+    "project": "Compress",
+    "summary": "Overflow in BitInputStream",
+    "description": "in Class BitInputStream.java(\\src\\main\\java\\org\\apache\\commons\\compress\\utils),\n\nfuncion:\n\npublic long readBits(final int count) throws IOException {\n\nif (count < 0 || count > MAXIMUM_CACHE_SIZE) \n\n{\nthrow new IllegalArgumentException(\"count must not be negative or greater than \" + MAXIMUM_CACHE_SIZE);\n}\n\nwhile (bitsCachedSize < count) {\n\nfinal long nextByte = in.read();\n\nif (nextByte < 0) \n\n{\nreturn nextByte;\n}\n\nif (byteOrder == ByteOrder.LITTLE_ENDIAN) \n\n{\nbitsCached |= (nextByte << bitsCachedSize);\n}\n\nelse \n\n{\nbitsCached <<= 8;\nbitsCached |= nextByte;\n}\n\nbitsCachedSize += 8;\n\n}\n\nfinal long bitsOut;\n\nif (byteOrder == ByteOrder.LITTLE_ENDIAN) \n\n{\nbitsOut = (bitsCached & MASKS[count]);\nbitsCached >>>= count;\n}\n\nelse \n\n{\nbitsOut = (bitsCached >> (bitsCachedSize - count)) & MASKS[count];\n}\n\nbitsCachedSize -= count;\n\nreturn bitsOut;\n\n}\n\nI think here \"bitsCached |= (nextByte << bitsCachedSize);\" will overflow in some cases. for example, below is a test case:\n\npublic static void test() {\n\nByteArrayInputStream in = new ByteArrayInputStream(new byte[]\n\n{87, 45, 66, 15,\n90, 29, 88, 61, 33, 74}\n\n);\n\nBitInputStream bin = new BitInputStream(in, ByteOrder.LITTLE_ENDIAN);\n\ntry \n\n{\nlong ret = bin.readBits(5);\nret = bin.readBits(63);\nret = bin.readBits(12);\n}\n\ncatch (Exception e) \n\n{\ne.printStackTrace();\n}\n\n}\n\noverflow occur in \"bin.readBits(63);\" , so ,result in wrong result from \"bin.readBits(12);\""
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reports observable faulty behavior: overflow in readBits(63) causing wrong result from readBits(12)."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the affected component as BitInputStream.java and the readBits method."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes code snippet and a concrete test case, though no stack trace or error log."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Provides enough context to start investigating: method, line of concern, and triggering test."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Likely affected subsystem is org.apache.commons.compress.utils.BitInputStream."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Language is understandable despite minor grammar issues."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The problem is clearly identified as overflow in BitInputStream.readBits."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Report follows a logical flow: summary, code location, suspected line, then test case."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References to class, method, and byte order are specific and mostly unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Technical terms like overflow, ByteOrder.LITTLE_ENDIAN, and readBits are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Gives specific triggering inputs: ByteArrayInputStream data and LITTLE_ENDIAN mode."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides concrete reproduction steps in code form: call readBits(5), readBits(63), readBits(12)."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No OS, library version, or runtime environment information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Describes the failure as overflow and wrong result from the later readBits call."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The issue is narrowed to a specific shift/or operation in LITTLE_ENDIAN handling, not a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Expected behavior is implied but not explicitly stated."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Observed behavior is stated: overflow occurs in readBits(63) and the next result is wrong."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The discrepancy is identifiable as incorrect output after the overflow."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The code snippet is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No environment or dependency requirements are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explicitly proposes the cause: bitsCached |= (nextByte << bitsCachedSize) may overflow."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Links the proposed overflow to the wrong result from the subsequent readBits call."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "Provides a test case but no deeper evidence such as logs or numeric expected/actual values."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The explanation is internally consistent with the described LITTLE_ENDIAN shift operation."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "References a specific code expression in BitInputStream.readBits."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Mentions BitInputStream.java and the readBits method."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected module is identifiable as org.apache.commons.compress.utils."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes a code snippet and a test case, though no logs or screenshots."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "References ByteArrayInputStream and ByteOrder as relevant APIs."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Some references are vague, such as 'overflow occur' and 'wrong result,' without exact values."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Inputs are given, but expected output and exact failing values are not fully specified."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Expected behavior is not clearly stated, only that the result is wrong."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Environment and version information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No direct contradictions are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior is specific enough to target the LITTLE_ENDIAN shift logic."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The likely fix location is identifiable in BitInputStream.readBits."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A concrete expected correct behavior is not explicitly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "The report includes the triggering condition of reading 63 bits after 5 bits in LITTLE_ENDIAN mode."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "A developer would likely need further investigation to confirm the exact fix and expected semantics."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A potential root cause is explicitly proposed: overflow in the shift/or expression."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The root cause references the specific construct bitsCached |= (nextByte << bitsCachedSize)."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report connects the overflow to the incorrect later read result."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The narrative implies reproducible steps: create BitInputStream with the given bytes and call the listed readBits sequence."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is the BitInputStream bit-reading logic."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "The report identifies the symptom and code location, but not a separate underlying defect location beyond the same method."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Only one component is discussed; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report describes an integer overflow in BitInputStream.readBits producing wrong results."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected component is explicitly identified: BitInputStream.java in org.apache.commons.compress.utils."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Full method code is provided along with a concrete test case showing where overflow occurs."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Code, test case, and specific line causing the issue are all provided, giving enough context to investigate."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Subsystem is clearly identified: BitInputStream in Apache Commons Compress utils."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report is written in understandable English with minor grammatical issues but overall coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The problem\u2014overflow in bitsCached |= (nextByte << bitsCachedSize)\u2014is clearly stated."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report presents code, identifies the problematic line, then provides a test case in logical order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to variables, methods, and classes are unambiguous and tied to actual code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Technical terms like overflow, bitsCached, ByteOrder, LITTLE_ENDIAN are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific input bytes and sequence of readBits calls (5, 63, 12) that trigger the overflow are provided."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A concrete test method with exact byte array and call sequence is included."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No version of Apache Commons Compress or Java environment is mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Wrong result from bin.readBits(12) is reported as the observable failure, though no exact wrong value is given."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The specific shift operation and the condition (bitsCachedSize causing overflow) distinguish this from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Expected correct output values are not explicitly stated."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior\u2014wrong result from readBits(12) due to overflow in readBits(63)\u2014is described."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Expected vs. observed values are not numerically compared; discrepancy is implied but not quantified."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The test method with exact byte array and call sequence is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "No environment details (Java version, library version) are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report explicitly proposes that 'nextByte << bitsCachedSize' causes overflow."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The proposed overflow is linked to wrong result in subsequent readBits(12) call."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A test case demonstrating the overflow scenario is provided as evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The explanation is coherent: shifting by large bitsCachedSize overflows a long, corrupting bitsCached."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific code line 'bitsCached |= (nextByte << bitsCachedSize)' is referenced as the fault location."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Class BitInputStream.java, method readBits, variables bitsCached, bitsCachedSize, and MASKS are all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Subsystem is org.apache.commons.compress.utils, specifically BitInputStream."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Full method source code and a test snippet are included; no stack trace or log output provided."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external dependencies beyond the class itself are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, Java version, or library version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "References are specific\u2014exact class, method, and line are identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs are fully specified with exact byte array and call sequence."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Expected correct output values are not stated, leaving expected behavior underspecified."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Library version and Java version are not mentioned."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The faulty line 'bitsCached |= (nextByte << bitsCachedSize)' is precisely identified as causing overflow."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "BitInputStream.java, method readBits, specific line is clearly identified."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "The correct behavior (expected output values) is not explicitly stated, only implied to be non-overflowing."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The condition triggering the bug (bitsCachedSize large enough to cause shift overflow) is documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would need to determine the correct fix (e.g., cast to long before shift) and verify expected outputs independently."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Root cause explicitly proposed: integer overflow in 'nextByte << bitsCachedSize' when bitsCachedSize is large."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific operation 'nextByte << bitsCachedSize' in readBits is cited as the problematic code construct."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report explains that overflow corrupts bitsCached, which then causes wrong result in the subsequent readBits(12) call."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The test method with exact byte array and call sequence allows reproduction even without numbered steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "BitInputStream.readBits in Apache Commons Compress is clearly the affected component."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom (wrong result in readBits(12)) is distinguished from defect location (overflow in readBits(63) shift operation)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one method and one code path are identified; no cross-cutting concerns or multiple areas mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.95
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.1499999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": false,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.75
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.78
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.28,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.93
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.98
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.78
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.8723404255319149,
+  "cohens_kappa": 0.6448362720403022,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.84 > 0.75)"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.62)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.74)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.68)"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Selected judge1 (higher confidence: 0.84 > 0.75)"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.62)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.74)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.68)"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 2,
+      "RepairReadiness": 3,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 2,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.34350288425444,
+      "Clarity": 1.34350288425444,
+      "Specificity": 0.5656854249492378,
+      "Reproducibility": -0.2121320343559644,
+      "ReasoningQuality": 1.34350288425444,
+      "TechnicalContext": -0.2121320343559644,
+      "Ambiguity": -0.2121320343559644,
+      "RepairReadiness": -0.9899494936611666,
+      "RootCauseEvidence": -0.2121320343559644,
+      "HiddenReproducibility": -1.7677669529663689,
+      "ImpactScope": -0.9899494936611666
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

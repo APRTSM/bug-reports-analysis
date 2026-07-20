@@ -1,0 +1,1452 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-28",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "I found that deserializing from an empty object (\n{}\n) to ObjectNode field in a class field fails.\n\nHere is the minimum code to reproduce:\n\npublic\n\nclass\n\nMain\n\n{\n\npublic\n\nstatic\n\nclass\n\nMyValue\n\n{\n\nprivate\n\nfinal\n\nObjectNode\n\nobject\n;\n\n@\nJsonCreator\n\npublic\n\nMyValue\n(\nObjectNode\n\nobject\n) { \nthis\n.\nobject\n= \nobject\n; }\n\n@\nJsonValue\n\npublic\n\nObjectNode\n\ngetObject\n() { \nreturn\n\nobject\n; }\n}\n\npublic\n\nstatic\n\nvoid\n\nmain\n(\nString\n[] \nargs\n)\n\nthrows\n\nException\n\n{\n\nObjectMapper\n\nom\n= \nnew\n\nObjectMapper\n();\n\nObjectNode\n\nobject\n= \nnew\n\nObjectNode\n(\nJsonNodeFactory\n.\ninstance\n);\n\nString\n\njson\n= \nom\n.\nwriteValueAsString\n(\nobject\n);\n\nSystem\n.\nout\n.\nprintln\n(\n\"json: \"\n+\njson\n);\n\nObjectNode\n\nde1\n= \nom\n.\nreadValue\n(\njson\n, \nObjectNode\n.\nclass\n); \n// this works\n\nSystem\n.\nout\n.\nprintln\n(\n\"Deserialized to ObjectNode: \"\n+\nde1\n);\n\nMyValue\n\nde2\n= \nom\n.\nreadValue\n(\njson\n, \nMyValue\n.\nclass\n); \n// but this throws exception\n\nSystem\n.\nout\n.\nprintln\n(\n\"Deserialized to MyValue: \"\n+\nde2\n);\n}\n}\n\nResult is:\n\njson: {}\nDeserialized to ObjectNode: {}\nException in thread \"main\" com.fasterxml.jackson.databind.JsonMappingException: Can not deserialize instance of com.fasterxml.jackson.databind.node.ObjectNode out of END_OBJECT token\nat [Source: {}; line: 1, column: 2]\nat com.fasterxml.jackson.databind.JsonMappingException.from(JsonMappingException.java:148)\nat com.fasterxml.jackson.databind.DeserializationContext.mappingException(DeserializationContext.java:854)\nat com.fasterxml.jackson.databind.DeserializationContext.mappingException(DeserializationContext.java:850)\nat com.fasterxml.jackson.databind.deser.std.JsonNodeDeserializer$ObjectDeserializer.deserialize(JsonNodeDeserializer.java:104)\nat com.fasterxml.jackson.databind.deser.std.JsonNodeDeserializer$ObjectDeserializer.deserialize(JsonNodeDeserializer.java:83)\nat com.fasterxml.jackson.databind.deser.BeanDeserializerBase.deserializeFromObjectUsingNonDefault(BeanDeserializerBase.java:1095)\nat com.fasterxml.jackson.databind.deser.BeanDeserializer.deserializeFromObject(BeanDeserializer.java:294)\nat com.fasterxml.jackson.databind.deser.BeanDeserializer.deserialize(BeanDeserializer.java:131)\nat com.fasterxml.jackson.databind.ObjectMapper._readMapAndClose(ObjectMapper.java:3731)\nat com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:2724)\nat Main.main(Main.java:35)\n\nIf the object is not empty (e.g. \n{\"k\":\"v\"}\n), it works:\n\n...\n\nObjectNode\n\nobject\n= \nnew\n\nObjectNode\n(\nJsonNodeFactory\n.\ninstance\n);\n\nobject\n.\nput\n(\n\"k\"\n, \n\"v\"\n); \n// added\n\n...\n\njson: {\"k\":\"v\"}\nDeserialized to ObjectNode: {\"k\":\"v\"}\nDeserialized to MyValue: io.digdag.cli.Main$MyValue@17550481\n\nEnvironment:\n\njackson-core 2.6.2\n\njackson-databind 2.6.2\n\nJava 8 (\nJava(TM) SE Runtime Environment (build 1.8.0_20-b26)\n)"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes a concrete faulty behavior: deserializing '{}' into a MyValue field of type ObjectNode throws an exception, while non-empty input works."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the code path via @JsonCreator constructor taking ObjectNode and ObjectMapper.readValue into MyValue."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a full stack trace ending in JsonNodeDeserializer$ObjectDeserializer.deserialize and BeanDeserializer.deserializeFromObjectUsingNonDefault."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides minimal reproducible code, exact JSON inputs, and the observed exception, enough to investigate immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Points to jackson-databind deserialization of ObjectNode via JsonNodeDeserializer and BeanDeserializerBase."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A developer can understand the failure scenario from the code and output without guessing."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The report is specific enough to derive a failing test: empty ObjectNode JSON into a @JsonCreator wrapper class."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The sequence is explicit: serialize empty ObjectNode, deserialize to ObjectNode succeeds, deserialize to MyValue fails."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Referenced entities are named precisely: ObjectMapper, ObjectNode, JsonNodeFactory, JsonNodeDeserializer, BeanDeserializer."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent with Jackson deserialization and the reported exception matches the described failure."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The triggering input '{}' and the non-empty counterexample '{\"k\":\"v\"}' are concrete."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report gives ordered reproduction code in main() form."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "Environment is specified as jackson-core/databind 2.6.2 on Java 8."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports the exact exception message: 'Can not deserialize instance of ... ObjectNode out of END_OBJECT token'."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The empty-object-only failure distinguishes this issue from the working non-empty case."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is implied clearly: MyValue should deserialize the same way ObjectNode does."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicit: deserialization throws JsonMappingException on END_OBJECT."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The discrepancy is clear: ObjectNode succeeds, MyValue fails for the same '{}' JSON."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The reproduction steps are complete in the provided main method."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Relevant environment details are given: Jackson 2.6.2 and Java 8."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "The report does not explicitly propose a root cause; it only shows the failure."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No causal explanation is provided linking a specific cause to the symptom."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Evidence is present, but not as support for a proposed explanation."
+      },
+      "Q4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "There is no explicit explanation to assess for coherence."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "The report cites technical artifacts, but not as part of a stated explanation."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names ObjectMapper, ObjectNode, JsonNodeFactory, JsonCreator, JsonValue, and stack trace classes."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is Jackson databind deserialization, specifically JsonNode/ObjectNode handling."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a relevant stack trace and exact exception message."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No external dependency beyond Jackson itself is relevantly named with version details beyond the library versions."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides runtime and library versions: Java 8 and jackson-core/databind 2.6.2."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "References are specific, not vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Inputs and conditions are fully described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Expected behavior is sufficiently inferable from the working direct ObjectNode case."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Environment/version information is present."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No contradictory statements are present; the empty and non-empty cases are consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The bug and desired behavior are clear enough to infer that empty ObjectNode deserialization through @JsonCreator should work."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely fix area is identifiable: JsonNodeDeserializer/ObjectDeserializer and BeanDeserializerBase handling."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Acceptance criterion is concrete: '{}' should deserialize into MyValue with an empty ObjectNode."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The edge case of empty object versus non-empty object is explicitly documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A plausible fix can be inferred from the report without extra clarification."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No specific code construct is named as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No causal chain from root cause to failure is articulated."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report contains a fully concrete scenario from which exact reproduction steps can be derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The affected concept is identifiable as Jackson databind's ObjectNode/JsonNode deserialization path."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom occurs in MyValue deserialization, while the underlying path appears to be ObjectNode deserialization."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Only one clear impacted area is described; no multiple cross-cutting areas are identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report mentions multiple technical concepts: ObjectMapper, ObjectNode, JsonNodeFactory, JsonCreator, JsonValue, and deserializer classes."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable failure: deserialization of empty object {} to ObjectNode field throws exception, while non-empty object works."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific class MyValue with ObjectNode field and @JsonCreator/@JsonValue annotations are identified."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete stack trace provided showing JsonMappingException at JsonNodeDeserializer$ObjectDeserializer.deserialize() with exact token position."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Minimal reproducible code example provided; developer can immediately run and reproduce the exact failure."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Fault location pinpointed to JsonNodeDeserializer$ObjectDeserializer.deserialize() at line 104 via stack trace."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Failure scenario is clear: empty JSON object {} fails to deserialize to ObjectNode field in @JsonCreator constructor."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Sufficient detail to write a failing test: create MyValue class with ObjectNode field, attempt readValue with empty JSON."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Sequence is unambiguous: serialize empty ObjectNode to '{}', deserialize directly works, deserialize via MyValue fails."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "MyValue class, ObjectNode type, @JsonCreator and @JsonValue annotations are all precisely identified."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terms (ObjectNode, JsonCreator, JsonValue, END_OBJECT token) used accurately and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific input provided: empty JSON object '{}' that triggers failure; non-empty '{\"k\":\"v\"}' that works."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete, ordered reproduction steps provided: create ObjectMapper, create empty ObjectNode, serialize, deserialize to MyValue."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Environment specified: jackson-core 2.6.2, jackson-databind 2.6.2, Java 8 (build 1.8.0_20-b26)."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Exact exception message and stack trace provided verbatim showing END_OBJECT token error at line 1, column 2."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Bug is uniquely identified: empty object deserialization to ObjectNode field with @JsonCreator fails; non-empty works."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clear: deserialization should succeed for empty object just as it does for non-empty objects."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior explicitly stated: JsonMappingException thrown with END_OBJECT token error."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: empty object fails while non-empty succeeds; direct deserialization to ObjectNode works."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reproduction steps are complete and sufficient: minimal code example can be run directly without additional investigation."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment conditions documented: specific Jackson versions and Java version provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Report does not explicitly propose a root cause; it only describes the symptom and contrasts with working cases."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No causal mechanism proposed linking the empty object to the END_OBJECT token deserialization failure."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No evidence provided supporting a specific explanation; only symptom description and stack trace."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Information is internally coherent: empty object fails, non-empty works, direct ObjectNode deserialization works."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No specific explanation proposed; stack trace shows location but not the underlying cause."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes named: MyValue, ObjectNode, JsonNodeFactory, ObjectMapper, JsonCreator, JsonValue."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem identifiable: Jackson databind deserialization, specifically JsonNodeDeserializer."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete stack trace provided showing exact failure location and token state."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "External dependencies named with versions: jackson-core 2.6.2, jackson-databind 2.6.2."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Environment details provided: Java 8 (build 1.8.0_20-b26), Jackson versions 2.6.2."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No vague references; all components and classes are explicitly named."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs are concrete: empty JSON object '{}' and non-empty '{\"k\":\"v\"}' are both specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clear: deserialization should succeed for empty objects as it does for non-empty."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Environment information is specific: Jackson versions and Java version provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions; report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Correct behavior is clear (empty object should deserialize), but the code change needed is not obvious without root cause analysis."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Faulty component identified: JsonNodeDeserializer$ObjectDeserializer.deserialize() at line 104."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is clear: deserialization of empty JSON object to ObjectNode field should succeed."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Edge case documented: empty object vs. non-empty object; @JsonCreator and @JsonValue annotations are relevant."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Root cause not identified; developer would need to investigate why END_OBJECT token causes failure in empty object case."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific root cause is explicitly proposed; only symptom description provided."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific code construct or logic error identified as the root cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No causal chain articulated; stack trace shows location but not the underlying logic error."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete scenario provided: empty ObjectNode serialized to '{}', then deserialized to MyValue class with @JsonCreator constructor."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem identifiable: Jackson databind deserialization, specifically JsonNodeDeserializer."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom manifests in MyValue deserialization; underlying defect likely in JsonNodeDeserializer handling of empty objects."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one primary area identified (JsonNodeDeserializer); no multiple impacted areas or cross-cutting concerns mentioned."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Multiple technical concepts identified: ObjectNode, JsonNodeDeserializer, @JsonCreator, @JsonValue, ObjectMapper, JsonMappingException."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 1.0,
+        "judge2_confidence": 0.95
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.26,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.6
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.85
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.7
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.9375,
+  "cohens_kappa": 0.8518518518518519,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.88)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.6)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.88)"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.6)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 1,
+      "TechnicalContext": 5,
+      "Ambiguity": 0,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 0,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 0.7102705857155676,
+      "Clarity": 0.7102705857155676,
+      "Specificity": 0.7102705857155676,
+      "Reproducibility": 0.7102705857155676,
+      "ReasoningQuality": -1.3731897990500972,
+      "TechnicalContext": 0.7102705857155676,
+      "Ambiguity": 0.7102705857155676,
+      "RepairReadiness": 0.7102705857155676,
+      "RootCauseEvidence": -1.8940548952415133,
+      "HiddenReproducibility": -1.3731897990500972,
+      "ImpactScope": -0.33145960666726476
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

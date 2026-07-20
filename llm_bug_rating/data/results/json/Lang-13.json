@@ -1,0 +1,1426 @@
+{
+  "bug": {
+    "bug_id": "Lang-13",
+    "project": "Lang",
+    "summary": "SerializationUtils throws ClassNotFoundException when cloning primitive classes",
+    "description": "If a serializable object contains a reference to a primitive class, e.g. int.class or int[].class, the SerializationUtils throw a ClassNotFoundException when trying to clone that object.\n\nimport org.apache.commons.lang3.SerializationUtils;\nimport org.junit.Test;\n\npublic class SerializationUtilsTest {\n\n@Test\npublic void primitiveTypeClassSerialization(){\nClass<?> primitiveType = int.class;\n\nClass<?> clone = SerializationUtils.clone(primitiveType);\nassertEquals(primitiveType, clone);\n}\n}\n\nThe problem was already reported as a java bug \nhttp://bugs.sun.com/view_bug.do?bug_id=4171142\nand ObjectInputStream is fixed since java version 1.4.\n\nThe SerializationUtils problem arises because the SerializationUtils internally use the ClassLoaderAwareObjectInputStream that overrides the ObjectInputStream's\n\nresoleClass method without delegating to the super method in case of a ClassNotFoundException.\n\nI understand the intention of the ClassLoaderAwareObjectInputStream, but this implementation should also implement a fallback to the original implementation.\n\nFor example:\n\nprotected Class<?> resolveClass(ObjectStreamClass desc) throws IOException, ClassNotFoundException {\nString name = desc.getName();\ntry {\nreturn Class.forName(name, false, classLoader);\n} catch (ClassNotFoundException ex) {\ntry {\nreturn Class.forName(name, false, Thread.currentThread().getContextClassLoader());\n} catch (Exception e) {\nreturn super.resolveClass(desc);\n}\n}\n}\n\nHere is the code in ObjectInputStream that fixed the java bug.\n\nprotected Class<?> resolveClass(ObjectStreamClass desc)\nthrows IOException, ClassNotFoundException\n{\nString name = desc.getName();\ntry {\nreturn Class.forName(name, false, latestUserDefinedLoader());\n} catch (ClassNotFoundException ex) {\nClass cl = (Class) primClasses.get(name);\nif (cl != null) {\nreturn cl;\n} else {\nthrow ex;\n}\n}\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports observable failure: SerializationUtils.clone throws ClassNotFoundException."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected component is identified as SerializationUtils and its internal ClassLoaderAwareObjectInputStream."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes exception type, code snippet, and a proposed fix in resolveClass."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides a concrete test case and explains the failure path enough to start investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points to the likely subsystem: SerializationUtils deserialization logic and ClassLoaderAwareObjectInputStream."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Language is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as cloning primitive class references failing."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report follows a logical flow: symptom, example, explanation, proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References to SerializationUtils, ClassLoaderAwareObjectInputStream, and ObjectInputStream are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terms are used consistently, though there is a typo in 'resolveClass'."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Trigger is specific: cloning objects containing int.class or int[].class."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Provides a JUnit test snippet that reproduces the issue."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No application, library version, OS, or runtime version is given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reports ClassNotFoundException as the failure output."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes the issue as primitive class serialization/cloning, not a generic clone failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated by the assertEquals on the cloned primitive class."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: ClassNotFoundException is thrown."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The discrepancy is clear: clone should return the same class, but instead fails."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The included test snippet is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No environment or dependency requirements are documented beyond Java/Commons Lang context."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Proposes a cause: ClassLoaderAwareObjectInputStream does not fall back to super.resolveClass."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Links the proposed cause to the ClassNotFoundException when cloning primitive classes."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with a code example and reference to the Java bug fix."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is coherent and matches the described failure path."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References technical artifacts such as resolveClass, ObjectInputStream, and Class.forName."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Mentions SerializationUtils, ClassLoaderAwareObjectInputStream, ObjectInputStream, and resolveClass."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The affected subsystem is identifiable as serialization/deserialization in Commons Lang."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a code snippet and exception type."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No external libraries or services beyond Java and Commons Lang are specifically relevantly detailed."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Some references are broad, such as 'serializable object contains a reference to a primitive class'."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The triggering input is specific enough with int.class and int[].class."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clear from the assertEquals example."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Environment and version information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior is precise: cloning primitive class references fails with ClassNotFoundException."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The likely fix location is identifiable: ClassLoaderAwareObjectInputStream.resolveClass."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected correct behavior is stated: clone should return the same class."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The primitive-class edge case is documented and relevant to the fix."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "A developer would likely still need to inspect the implementation and tests to confirm the exact change."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes that resolveClass lacks fallback to the original implementation."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific code constructs: resolveClass, Class.forName, and super.resolveClass."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explains that missing fallback causes ClassNotFoundException for primitive classes."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The narrative and test snippet imply a reproducible clone call on int.class."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The impacted concept is serialization/deserialization in SerializationUtils."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Symptom appears in SerializationUtils.clone, while defect is in ClassLoaderAwareObjectInputStream.resolveClass."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Only one main subsystem is described; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Report clearly describes ClassNotFoundException thrown by SerializationUtils when cloning primitive classes."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Affected component is SerializationUtils and specifically ClassLoaderAwareObjectInputStream.resolveClass method."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report includes code snippet, specific method reference, and proposed fix with code examples."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Sufficient context provided: test case, root cause explanation, and fix suggestion."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Subsystem identified as SerializationUtils / ClassLoaderAwareObjectInputStream in commons-lang3."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Report is well-written, grammatically coherent, and easy to follow."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Problem is clearly stated: ClassNotFoundException when cloning primitive class references."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Information flows logically: problem description, test case, root cause, and proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References to SerializationUtils, ClassLoaderAwareObjectInputStream, and resolveClass are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms (ClassNotFoundException, resolveClass, ObjectInputStream, primitive classes) used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific triggering condition: serializable object containing reference to primitive class like int.class or int[].class."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Concrete test case provided showing exact reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No specific OS, JDK version, or commons-lang3 version mentioned beyond referencing Java 1.4 fix."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific exception ClassNotFoundException is identified as the failure."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report distinguishes this from generic failure by pinpointing ClassLoaderAwareObjectInputStream.resolveClass not delegating to super."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected behavior: clone should succeed and return equivalent primitive class."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior: ClassNotFoundException is thrown."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Discrepancy is clear: clone should work but throws ClassNotFoundException instead."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Test case provided is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific environment dependencies (JDK version, library version) explicitly documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root cause explicitly proposed: ClassLoaderAwareObjectInputStream.resolveClass does not fall back to super when ClassNotFoundException occurs."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Proposed cause directly linked to ClassNotFoundException symptom."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Evidence provided via Java bug reference and ObjectInputStream source code showing the correct handling of primitive classes."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explanation is coherent: missing fallback to super.resolveClass causes primitive class lookup to fail."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References specific method resolveClass, class ClassLoaderAwareObjectInputStream, and includes code from ObjectInputStream."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "SerializationUtils, ClassLoaderAwareObjectInputStream, resolveClass, ObjectInputStream, ObjectStreamClass all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Affected subsystem is commons-lang3 serialization utilities."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Code snippets included: test case, proposed fix, and ObjectInputStream reference implementation."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References Java's ObjectInputStream and a known Java bug (bug_id=4171142)."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No explicit OS, JDK version, or library version specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific and well-defined; no vague terms."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs clearly described: int.class and int[].class as primitive type references."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clear: clone should succeed without exception."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Specific library version and JDK version are not explicitly stated."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements found in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Faulty behavior precisely described: resolveClass does not fall back to super for primitive class names."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ClassLoaderAwareObjectInputStream.resolveClass is explicitly identified as the location needing a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Expected correct behavior stated: fall back to super.resolveClass when ClassNotFoundException occurs."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Edge case documented: primitive class names not resolvable via Class.forName with a classloader."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report provides exact proposed fix code that a developer could implement directly."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root cause explicitly stated: ClassLoaderAwareObjectInputStream.resolveClass does not delegate to super on ClassNotFoundException."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific method resolveClass in ClassLoaderAwareObjectInputStream and missing super delegation are referenced."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Causal chain articulated: missing super.resolveClass fallback \u2192 primitive class not found \u2192 ClassNotFoundException thrown."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Test case in the report provides clear reproducible steps even without numbered list format."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ClassLoaderAwareObjectInputStream in commons-lang3 SerializationUtils is clearly identified."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom (ClassNotFoundException in SerializationUtils.clone) distinguished from defect location (ClassLoaderAwareObjectInputStream.resolveClass)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one affected area identified; no cross-cutting concerns or multiple impacted modules mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.98
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.2300000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.99
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.98
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.9361702127659575,
+  "cohens_kappa": 0.784732824427481,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.0157987663695807,
+      "Clarity": 1.0157987663695807,
+      "Specificity": 0.3950328535881702,
+      "Reproducibility": 0.3950328535881702,
+      "ReasoningQuality": 1.0157987663695807,
+      "TechnicalContext": 0.3950328535881702,
+      "Ambiguity": 0.3950328535881702,
+      "RepairReadiness": -2.0880307975374715,
+      "RootCauseEvidence": -0.22573305919324022,
+      "HiddenReproducibility": -1.467264884756061,
+      "ImpactScope": -0.8464989719746506
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

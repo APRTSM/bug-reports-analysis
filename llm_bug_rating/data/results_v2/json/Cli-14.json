@@ -1,0 +1,1460 @@
+{
+  "bug": {
+    "bug_id": "Cli-14",
+    "project": "Cli",
+    "summary": "adding a FileValidator results in ClassCastException in parser.parseAndHelp(args)",
+    "description": "When I add a FileValidator.getExistingFileInstance() to an Argument, I get a ClassCastException when I parse args.\n\nBelow is a testcase invoke with\n\njava org.apache.commons.cli2.issues.CLI2Sample -classpath commons-cli-2.0-SNAPSHOT.jar --file-name path-to-an-existing-file\n\nRun it and you get:\n\nException in thread \"main\" java.lang.ClassCastException: java.io.File cannot be cast to java.lang.String\n\nat org.apache.commons.cli2.validation.FileValidator.validate(FileValidator.java:122)\n\nat org.apache.commons.cli2.option.ArgumentImpl.validate(ArgumentImpl.java:250)\n\nat org.apache.commons.cli2.option.ParentImpl.validate(ParentImpl.java:123)\n\nat org.apache.commons.cli2.option.DefaultOption.validate(DefaultOption.java:175)\n\nat org.apache.commons.cli2.option.GroupImpl.validate(GroupImpl.java:264)\n\nat org.apache.commons.cli2.commandline.Parser.parse(Parser.java:105)\n\nat org.apache.commons.cli2.commandline.Parser.parseAndHelp(Parser.java:125)\n\nat org.apache.commons.cli2.issues.CLI2Sample.main(CLI2Sample.java:38)\n\nComment out the withValidator call and it runs with no exception. \n\nI also get a similar ClassCastException if I add a \n\n.withValidator(NumberValidator.getIntegerInstance())\n\nto another option/argument.\n\nHere is the source\n\npackage org.apache.commons.cli2.issues;\n\nimport java.io.File;\n\nimport org.apache.commons.cli2.CommandLine;\n\nimport org.apache.commons.cli2.Group;\n\nimport org.apache.commons.cli2.builder.ArgumentBuilder;\n\nimport org.apache.commons.cli2.builder.DefaultOptionBuilder;\n\nimport org.apache.commons.cli2.builder.GroupBuilder;\n\nimport org.apache.commons.cli2.commandline.Parser;\n\nimport org.apache.commons.cli2.option.DefaultOption;\n\nimport org.apache.commons.cli2.validation.FileValidator;\n\npublic class CLI2Sample\n\n{\n\npublic static void main(String[] args)\n\n{\nfinal DefaultOptionBuilder obuilder = new DefaultOptionBuilder();\nfinal ArgumentBuilder abuilder = new ArgumentBuilder();\nfinal GroupBuilder gbuilder = new GroupBuilder();\nDefaultOption fileNameOption = obuilder\n.withShortName(\"f\")\n.withLongName(\"file-name\")\n.withRequired(true)\n.withDescription(\"name of an existing file\")\n.withArgument(abuilder\n.withName(\"file-name\")\n.withValidator(FileValidator.getExistingFileInstance())\n.create())\n.create();\nGroup options = gbuilder\n.withName(\"options\")\n.withOption(fileNameOption)\n.create();\nParser parser = new Parser();\nparser.setHelpTrigger(\"--help\");\nparser.setGroup(options);\nCommandLine cl = parser.parseAndHelp(args);\n}\n\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes a concrete faulty behavior: parsing args throws ClassCastException when a FileValidator is added."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies the code path and classes: FileValidator.validate, ArgumentImpl.validate, Parser.parseAndHelp."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a full stack trace with exact exception and line numbers."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides a runnable testcase command and source snippet sufficient to investigate."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Points directly to FileValidator and the parser/argument validation path as the starting point."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A developer can understand the failure scenario from the command, code, and stack trace."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A failing test could assert that parsing an existing file with FileValidator should not throw ClassCastException."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The trigger is unambiguous: add FileValidator.getExistingFileInstance() and parse an existing file argument."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Referenced entities are specific and locatable: CLI2Sample, Parser, FileValidator, ArgumentImpl."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Terminology is consistent: ClassCastException during validation of a File-valued argument."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Gives a concrete input: --file-name path-to-an-existing-file."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "The report includes an ordered invocation and code setup, though not a numbered step list."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No OS, Java version, or library version beyond commons-cli-2.0-SNAPSHOT is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports the exact exception text and stack trace."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The combination of FileValidator and ClassCastException on File-to-String cast is distinctive."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is implied: parsing should succeed without exception when validating an existing file."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicit: java.io.File cannot be cast to java.lang.String."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The discrepancy is clear: with validator it crashes, without it it runs normally."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The command and source are enough to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Environment details are incomplete; only the jar snapshot and command are given."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The report does not explicitly propose a root cause, only the symptom and stack trace."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No causal explanation is provided beyond the exception location."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The stack trace supports the failure location in FileValidator.validate."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report is internally consistent: validator added leads to cast exception; removing it avoids the crash."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "It references exact artifacts such as FileValidator.validate(FileValidator.java:122) and Parser.parseAndHelp."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Names specific classes and methods: FileValidator, ArgumentImpl.validate, Parser.parseAndHelp."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected module is identifiable as commons-cli2 validation/parser/option code."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a relevant stack trace."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependency names or versions are relevantly detailed beyond commons-cli-2.0-SNAPSHOT."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No OS, JVM, or other runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.2,
+        "reason": "Some references are broad, but the main failure path is specific."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and trigger are concrete."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is sufficiently implied by the report."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Version/runtime details that could affect reproduction are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The fix goal is clear: avoid casting File to String during validation."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The likely fix location is directly identified by the stack trace in FileValidator.validate."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Acceptance criterion is concrete: parsing an existing file with FileValidator should not throw."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Edge cases and constraints are not discussed."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A developer could plausibly implement a fix from the report and stack trace alone."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No specific code construct is named as the cause, only the failing cast in the stack trace."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "The causal chain is not articulated beyond the exception occurrence."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The command and source snippet define a concrete scenario from which reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected subsystem is identifiable: validation/parser/option handling in commons-cli2."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Symptom appears in Parser.parseAndHelp, while the fault is in FileValidator.validate."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one main impacted path is clearly described."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "At least three technical concepts are named: FileValidator, ArgumentImpl, Parser, plus Group/DefaultOption."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: ClassCastException thrown when FileValidator is added to an Argument during parsing."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes identified: FileValidator, ArgumentImpl, Parser, and the validate() method at FileValidator.java:122."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Complete stack trace provided showing exact exception type, location (FileValidator.java:122), and call chain through validation methods."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Minimal reproducible test case provided with exact command line invocation and source code; developer can immediately run and debug."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Fault location pinpointed to FileValidator.validate() at line 122, with clear indication that the issue occurs during argument validation."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Failure scenario is clear: adding FileValidator to an Argument causes ClassCastException during parsing; unfamiliar developer can understand the issue."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Sufficient detail to write a failing test: create option with FileValidator, parse with valid file path, expect ClassCastException at FileValidator.validate()."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Sequence is unambiguous: add validator \u2192 call parseAndHelp() \u2192 exception thrown in validate() method; no alternative interpretations."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "All referenced entities are identifiable: FileValidator, ArgumentImpl, Parser classes are named; method locations are specified in stack trace."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terminology used accurately: ClassCastException, validator, argument, parser are used correctly and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific input provided: path to an existing file; concrete triggering event: calling parseAndHelp() with FileValidator attached."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Complete ordered reproduction steps: compile with commons-cli-2.0-SNAPSHOT.jar, run with --file-name and existing file path, observe exception."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Version specified: commons-cli-2.0-SNAPSHOT.jar; Java version implied but not explicitly stated; sufficient to rule out most version ambiguity."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Exact exception message provided verbatim: 'java.lang.ClassCastException: java.io.File cannot be cast to java.lang.String' with precise line number."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Report distinguishes this from general validation issues by noting the specific type mismatch (File vs String) and providing exact stack trace location."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit: parsing should succeed without exception when valid file path is provided; correctness criterion is clear."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior explicitly stated: ClassCastException with exact message and stack trace showing File cannot be cast to String."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected successful parse, observed ClassCastException; difference is clear and identifiable."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Reproduction steps are complete: provide source code, compile, run with specific command line arguments; sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Dependencies specified (commons-cli-2.0-SNAPSHOT.jar); Java environment implied; sufficient for most reproduction, though Java version not explicit."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report implicitly proposes cause: FileValidator expects String but receives File object; not explicitly stated but strongly suggested by exception message."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Proposed explanation (type mismatch) is linked to symptoms; causal mechanism is plausible: validator receives wrong type during validation."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Evidence provided: exception message 'java.io.File cannot be cast to java.lang.String' directly supports type mismatch hypothesis."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explanation is coherent: type mismatch at FileValidator.validate() is consistent with stack trace and exception message; no contradictions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "References specific artifacts: FileValidator.java:122, exact exception message, method names (validate, parseAndHelp); concrete locations provided."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific classes named: FileValidator, ArgumentImpl, Parser, DefaultOption, GroupImpl; specific methods: validate(), parseAndHelp(), parse()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Affected subsystem identifiable: validation framework (FileValidator, NumberValidator) and parser (Parser, ArgumentImpl); source files locatable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Complete stack trace provided; source code snippet included; exception message with exact line number (FileValidator.java:122) directly relevant."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "External dependency named: commons-cli-2.0-SNAPSHOT.jar with version; NumberValidator also mentioned as similarly affected."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "OS, browser, and specific Java version not provided; only commons-cli version specified; environment details are incomplete."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No vague references; all entities (FileValidator, ArgumentImpl, Parser) are specifically named and locatable."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Inputs are concrete: existing file path; parameters are specified in source code; conditions are clear."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "Expected behavior is clear: parsing should succeed without exception; correct behavior is unambiguous."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Java version not specified; OS not mentioned; these could affect reproduction but are likely not critical for this specific issue."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions; report is internally consistent: validator causes exception, commenting it out resolves the issue."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Faulty behavior is clear: FileValidator receives File instead of String; correct behavior is to handle File type or convert appropriately."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific location identified: FileValidator.validate() at line 122; developer knows exactly where to start fixing."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is concrete: parsing with FileValidator should succeed without ClassCastException when valid file path provided."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Relevant constraint identified: FileValidator must handle File objects, not just Strings; NumberValidator has similar issue."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Developer could implement fix: modify FileValidator.validate() to accept File type or add type conversion; information is sufficient for plausible fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Root cause is implicitly proposed: FileValidator.validate() expects String but receives File; type mismatch is the core issue."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Root cause references specific code: FileValidator.validate() method at line 122; cast operation 'java.io.File cannot be cast to java.lang.String' is named."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Causal chain is articulated: Argument receives File from parser \u2192 FileValidator.validate() attempts String cast \u2192 ClassCastException; chain is verifiable."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete scenario provided: add FileValidator to Argument, parse with existing file path; complete and unambiguous reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific subsystem identified: validation framework (FileValidator, NumberValidator); likely affects all validators with type assumptions."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Symptom manifests in Parser.parseAndHelp(); underlying defect resides in FileValidator.validate() type handling logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Multiple impacted areas identified: FileValidator, NumberValidator, ArgumentImpl validation; cross-cutting concern is type handling in validators."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Multiple technical concepts named: FileValidator, NumberValidator, ArgumentImpl, Parser, validate(), parseAndHelp(), File, String types; four or more distinct concepts."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.91
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.93
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 1.0,
+        "judge2_confidence": 0.96
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.97
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.89
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.97
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.85
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.89
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.96
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.92
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.97
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.73,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.93
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.87
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.82
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.86
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.89
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.09000000000000008,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.84
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.92
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.7708333333333334,
+  "cohens_kappa": 0.3160621761658032,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.88)"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.92 > 0.85)"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.85)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.93 > 0.2)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.97 > 0.86)"
+      },
+      "RC2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.89)"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.93 > 0.84)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.88)"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge1 (higher confidence: 0.92 > 0.85)"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.85)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Selected judge2 (higher confidence: 0.93 > 0.2)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Selected judge1 (higher confidence: 0.97 > 0.86)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.89)"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Selected judge1 (higher confidence: 0.93 > 0.84)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 3,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.7683498199278325,
+      "Clarity": 0.7683498199278325,
+      "Specificity": 0.7683498199278325,
+      "Reproducibility": 0.7683498199278325,
+      "ReasoningQuality": -0.4390570399587612,
+      "TechnicalContext": 0.16464638998453562,
+      "Ambiguity": 0.16464638998453562,
+      "RepairReadiness": 0.7683498199278325,
+      "RootCauseEvidence": -2.2501673297886517,
+      "HiddenReproducibility": -1.646463899845355,
+      "ImpactScope": 0.16464638998453562
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

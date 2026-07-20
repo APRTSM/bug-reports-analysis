@@ -1,0 +1,1463 @@
+{
+  "bug": {
+    "bug_id": "JacksonCore-18",
+    "project": "JacksonCore",
+    "summary": "No title",
+    "description": "(note: moved from \nFasterXML/jackson-databind#1316\nreported by \n@gmethvin\n)\n\nWhen I've enabled the \nWRITE_BIGDECIMAL_AS_PLAIN\nsetting on Jackson 2.7.5, Jackson will attempt to write out the whole number, no matter how large the exponent.\n\nFor example, the following code:\n\nObjectMapper\n\nmapper\n= \nnew\n\nObjectMapper\n().\nenable\n(\nJsonGenerator\n.\nFeature\n.\nWRITE_BIGDECIMAL_AS_PLAIN\n);\n\nmapper\n.\nwriteValueAsString\n(\nnew\n\njava\n.\nmath\n.\nBigDecimal\n(\n\"9.223372E+1010671858\"\n));\n\ntriggers the exception:\n\njava.lang.OutOfMemoryError: Java heap space\nat java.lang.AbstractStringBuilder.<init>(AbstractStringBuilder.java:68)\nat java.lang.StringBuilder.<init>(StringBuilder.java:101)\nat java.math.BigDecimal.toPlainString(BigDecimal.java:2964)\nat com.fasterxml.jackson.core.json.WriterBasedJsonGenerator.writeNumber(WriterBasedJsonGenerator.java:690)\nat com.fasterxml.jackson.databind.ser.std.NumberSerializer.serialize(NumberSerializer.java:45)\nat com.fasterxml.jackson.databind.ser.std.NumberSerializer.serialize(NumberSerializer.java:19)\nat com.fasterxml.jackson.databind.ser.DefaultSerializerProvider.serializeValue(DefaultSerializerProvider.java:130)\nat com.fasterxml.jackson.databind.ObjectMapper._configAndWriteValue(ObjectMapper.java:3612)\nat com.fasterxml.jackson.databind.ObjectMapper.writeValueAsString(ObjectMapper.java:2980)\n... 23 elided\n\nI know technically Jackson is doing what you're telling it to do (so if you don't feel this is an issue feel free to close it). But it would be nice if \nWRITE_BIGDECIMAL_AS_PLAIN\nset a reasonable length on the number, so as not to leave users open to denial of service vulnerabilities.\n\n(Actually, I think this might technically be an issue in jackson-core; let me know if I should resubmit.)"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes observable faulty behavior: enabling WRITE_BIGDECIMAL_AS_PLAIN on Jackson 2.7.5 causes an OutOfMemoryError for a huge BigDecimal."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the code path through JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN, WriterBasedJsonGenerator.writeNumber, and NumberSerializer."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes a stack trace with java.math.BigDecimal.toPlainString and Jackson generator/serializer methods."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Provides a concrete code snippet and input value that can be used to reproduce the failure immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Points to jackson-core/WriterBasedJsonGenerator and jackson-databind/NumberSerializer as the likely starting points."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A developer can understand the failure scenario: a large BigDecimal with WRITE_BIGDECIMAL_AS_PLAIN enabled triggers OOM."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report gives a concrete input and expected failure mode, enough to write a regression test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The triggering condition is unambiguous: enable the feature and serialize the specified BigDecimal."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Referenced entities are named precisely enough to locate them: ObjectMapper, JsonGenerator.Feature, WriterBasedJsonGenerator, NumberSerializer."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Terminology is consistent and accurate; the report correctly describes a denial-of-service risk from unbounded expansion."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific input is given: BigDecimal(\"9.223372E+1010671858\") with WRITE_BIGDECIMAL_AS_PLAIN enabled."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Ordered reproduction is implicit and concrete: create ObjectMapper, enable feature, call writeValueAsString on the BigDecimal."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Version information is included: Jackson 2.7.5."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports the exact failure mode and exception: java.lang.OutOfMemoryError: Java heap space, with stack trace."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The combination of feature, version, and extreme exponent uniquely identifies this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Expected behavior is implied as not expanding to an unbounded plain string, but it is not stated as a concrete correctness criterion."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicit: Jackson attempts to write the whole number and throws OutOfMemoryError."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy is clear: serialization should be bounded/safe, but instead it exhausts heap on the given input."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report contains enough code and input to attempt reproduction without further clarification."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "No environment details beyond Jackson 2.7.5 are provided; runtime/heap settings are missing."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "The report suggests a possible issue in jackson-core but does not explicitly propose a specific root cause."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No explicit causal explanation is given beyond the symptom and a general DoS concern."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "Evidence is provided for the failure, but not for a proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report is internally consistent: enabling the feature leads to BigDecimal.toPlainString and OOM."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "References concrete artifacts such as WRITE_BIGDECIMAL_AS_PLAIN, BigDecimal.toPlainString, and WriterBasedJsonGenerator.writeNumber."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names specific classes and methods: ObjectMapper, BigDecimal, WriterBasedJsonGenerator.writeNumber, NumberSerializer.serialize."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The affected modules are identifiable as jackson-databind and jackson-core."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a relevant stack trace directly tied to the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "No external dependency or library version beyond Jackson 2.7.5 is named."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "No OS, JVM version, browser, or hardware details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report is somewhat vague about whether the issue belongs in jackson-core or jackson-databind."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Inputs and triggering condition are sufficiently described."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Expected behavior is not explicitly stated beyond a suggestion to cap length."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Environment/version details that could affect reproduction are missing, aside from Jackson 2.7.5."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The fix direction is implied: avoid unbounded plain-string expansion for huge BigDecimals."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Likely fix location is identifiable from the stack trace: WriterBasedJsonGenerator.writeNumber and related serializer code."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Acceptance criteria are not explicitly stated as a concrete expected output or error."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.52,
+        "reason": "Edge cases and bounds for acceptable length are not specified."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "A plausible fix can be inferred from the report: guard WRITE_BIGDECIMAL_AS_PLAIN against extreme exponents or lengths."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "The report does not explicitly state a root cause, only a suspected location in jackson-core."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No specific code construct or logic error is explicitly proposed."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A causal chain is implied by the stack trace but not articulated as a root-cause explanation."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report contains a concrete scenario from which exact reproduction steps can be derived directly."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Affected concepts are identifiable: BigDecimal serialization and JSON generation."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The symptom appears in ObjectMapper.writeValueAsString, while the likely defect is in WriterBasedJsonGenerator.writeNumber."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Only a few related components are named; multiple impacted areas are not clearly enumerated."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "At least three technical concepts are present: WRITE_BIGDECIMAL_AS_PLAIN, BigDecimal.toPlainString, WriterBasedJsonGenerator, NumberSerializer, ObjectMapper."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: OutOfMemoryError when serializing BigDecimal with WRITE_BIGDECIMAL_AS_PLAIN enabled, distinguishable from normal operation."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes identified: JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN, WriterBasedJsonGenerator.writeNumber(), NumberSerializer.serialize()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete stack trace provided showing exact exception path from ObjectMapper.writeValueAsString() through WriterBasedJsonGenerator.writeNumber() to BigDecimal.toPlainString()."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Minimal reproducible code example provided; developer can immediately run the exact code snippet to reproduce the OutOfMemoryError."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Stack trace pinpoints WriterBasedJsonGenerator.writeNumber() at line 690 as the immediate fault location where toPlainString() is called."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: enabling WRITE_BIGDECIMAL_AS_PLAIN with a large-exponent BigDecimal causes memory exhaustion during serialization."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer could write a failing test case directly from the provided code: create ObjectMapper with the feature enabled, serialize the specific BigDecimal value, expect OutOfMemoryError."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Sequence is unambiguous: enable feature \u2192 call writeValueAsString() with large-exponent BigDecimal \u2192 OutOfMemoryError in toPlainString(). No alternative interpretations."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Classes and methods are named precisely (WriterBasedJsonGenerator, NumberSerializer, BigDecimal.toPlainString()), though exact file locations are not provided."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology is accurate: WRITE_BIGDECIMAL_AS_PLAIN feature, BigDecimal, OutOfMemoryError, toPlainString() conversion\u2014all used correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific input provided: BigDecimal(\"9.223372E+1010671858\") with concrete exponent value that triggers the issue."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Ordered reproduction steps are explicit: create ObjectMapper, enable WRITE_BIGDECIMAL_AS_PLAIN, call writeValueAsString() with the specified BigDecimal."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson version 2.7.5 is specified; Java version is not explicitly stated but can be inferred from stack trace format."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Exact exception type and message provided verbatim: 'java.lang.OutOfMemoryError: Java heap space' with full stack trace."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The combination of WRITE_BIGDECIMAL_AS_PLAIN feature with extremely large exponent (E+1010671858) uniquely identifies this issue as a denial-of-service vulnerability."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Expected behavior is implicitly stated: serialization should complete without exhausting heap memory, or reject unreasonably large numbers."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicitly stated: OutOfMemoryError with specific stack trace showing failure in BigDecimal.toPlainString()."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Discrepancy is clear: expected successful serialization or graceful failure; observed uncontrolled memory consumption leading to OutOfMemoryError."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reproduction steps are complete and sufficient: enable feature, serialize the specific BigDecimal value, observe OutOfMemoryError."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Jackson 2.7.5 is specified; Java version and heap size are not explicitly stated but standard defaults would trigger the issue."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report proposes specific cause: WRITE_BIGDECIMAL_AS_PLAIN calls BigDecimal.toPlainString() which attempts to expand the entire number, causing memory exhaustion."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal mechanism is plausible: large exponent (E+1010671858) expands to enormous plain string, exhausting heap during StringBuilder allocation in toPlainString()."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Stack trace provides concrete evidence: BigDecimal.toPlainString() \u2192 AbstractStringBuilder.<init>() \u2192 OutOfMemoryError, directly supporting the proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explanation is internally coherent: feature enables plain string conversion, large exponent requires enormous string, memory exhaustion follows logically."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific methods: WriterBasedJsonGenerator.writeNumber() line 690, BigDecimal.toPlainString(), AbstractStringBuilder.<init>()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes and methods named: ObjectMapper, JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN, WriterBasedJsonGenerator, NumberSerializer, BigDecimal."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Affected subsystem identifiable: jackson-core JSON generation layer, specifically WriterBasedJsonGenerator and its number serialization logic."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete stack trace provided with exact line numbers (WriterBasedJsonGenerator.java:690, BigDecimal.java:2964) directly relevant to the failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson version 2.7.5 specified; java.math.BigDecimal is standard library; no external dependencies mentioned but not required for this issue."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Java version, OS, and heap size not specified; these details would help confirm reproducibility but are not critical for understanding the bug."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No vague references; all components are specifically named (WriterBasedJsonGenerator, WRITE_BIGDECIMAL_AS_PLAIN, BigDecimal)."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Input is fully specified: exact BigDecimal value with concrete exponent; no ambiguity about what triggers the bug."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior is reasonably clear: serialization should not cause OutOfMemoryError; though exact desired behavior (reject or limit) is not explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Java version and heap size are not specified; these could affect reproducibility, though the issue would likely occur in most standard environments."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements; report is internally consistent from symptom description through stack trace to proposed cause."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Faulty behavior is clear: toPlainString() is called unconditionally; correct behavior would limit expansion or reject unreasonably large exponents."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific location identified: WriterBasedJsonGenerator.writeNumber() line 690 where toPlainString() is called; this is where the fix should be applied."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Expected behavior is stated implicitly: serialization should complete without OutOfMemoryError; could be achieved by limiting exponent or rejecting large values."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Constraints are implied: must handle large exponents gracefully; must not exhaust heap; should maintain backward compatibility for reasonable values."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Developer could implement a plausible fix: add exponent check before calling toPlainString(), or set a reasonable limit on plain string length."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root cause explicitly proposed: WRITE_BIGDECIMAL_AS_PLAIN feature calls BigDecimal.toPlainString() unconditionally on large-exponent values."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific code constructs named: WriterBasedJsonGenerator.writeNumber() calls BigDecimal.toPlainString(); the operation is identified precisely."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal chain is clear: feature enabled \u2192 writeNumber() called \u2192 toPlainString() invoked \u2192 StringBuilder attempts to allocate enormous string \u2192 OutOfMemoryError."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete scenario provided: enable WRITE_BIGDECIMAL_AS_PLAIN, serialize BigDecimal(\"9.223372E+1010671858\"). Complete, unambiguous, deterministic reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystem identified: WriterBasedJsonGenerator in jackson-core, specifically the number serialization code path."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom manifests in ObjectMapper.writeValueAsString(); underlying defect resides in WriterBasedJsonGenerator.writeNumber() and its use of toPlainString()."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Multiple areas affected: JsonGenerator feature flag, WriterBasedJsonGenerator, NumberSerializer, BigDecimal serialization; potential cross-cutting concern for all large-exponent numbers."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Four or more distinct technical concepts identified: WRITE_BIGDECIMAL_AS_PLAIN feature, WriterBasedJsonGenerator, BigDecimal.toPlainString(), NumberSerializer, ObjectMapper."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.8
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.85
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.28,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.95
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.75,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.7999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.75
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.28,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.52,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.95
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.75
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.7083333333333334,
+  "cohens_kappa": 0.1703703703703702,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.55)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.58)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "Q2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "Q3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.68)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.62)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.55)"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.52)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "RC2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "RC3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.55)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.55)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.58)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.68)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.62)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.55)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.52)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.55)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.6862435664967211,
+      "Clarity": 0.6862435664967211,
+      "Specificity": 0.6862435664967211,
+      "Reproducibility": 0.6862435664967211,
+      "ReasoningQuality": 0.6862435664967211,
+      "TechnicalContext": -0.15249857033260453,
+      "Ambiguity": -0.15249857033260453,
+      "RepairReadiness": 0.6862435664967211,
+      "RootCauseEvidence": -0.9912407071619301,
+      "HiddenReproducibility": -2.6687249808205813,
+      "ImpactScope": -0.15249857033260453
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

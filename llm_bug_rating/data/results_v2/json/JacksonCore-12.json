@@ -1,0 +1,1453 @@
+{
+  "bug": {
+    "bug_id": "JacksonCore-12",
+    "project": "JacksonCore",
+    "summary": "No title",
+    "description": "There's a unit test to repro the issue below. Basically, when you're on a FIELD_NAME token, if you call getTokenLocation() and then nextToken() and then getTokenLocation() again, you'll get the same location for both calls to getTokenLocation(), even though you've advanced to a new token.\n\nThe issue seems to be the _nextToken logic in ReaderBasedJsonParser and UTF8StreamJsonParser. When calling nextToken() on a FIELD_NAME, it calls _nextAfterName(), which updates _currToken but doesn't update _tokenInputRow and _tokenInputCol for the new token's location.\n\nI started to try to fix it, but the _nextToken logic is spread across so much code that it looked like it'd be a pretty major surgery. Not something I'm willing to do at this point. :-)\n\npublic void testTokenLocationAfterFieldName() throws Exception\n{\n_testTokenLocationAfterFieldName(false);\n_testTokenLocationAfterFieldName(true);\n}\n\nprivate void _testTokenLocationAfterFieldName(Boolean useStream) throws Exception\n{\nfinal String DOC = \"{\\\"name\\\":123}\";\nJsonFactory jf = new JsonFactory();\nJsonParser jp = useStream ?\njf.createJsonParser(new ByteArrayInputStream(DOC.getBytes(\"UTF-8\")))\n: jf.createJsonParser(new StringReader(DOC));\n\nassertEquals(JsonToken.START_OBJECT, jp.nextToken());\nassertEquals(JsonToken.FIELD_NAME, jp.nextToken());\nassertEquals(JsonToken.VALUE_NUMBER_INT, jp.nextToken());\nassertEquals(1, jp.getTokenLocation().getLineNr());\nassertEquals(9, jp.getTokenLocation().getColumnNr());\njp.close();\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable wrong behavior: getTokenLocation() returns the same location after advancing past FIELD_NAME."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names specific code paths: ReaderBasedJsonParser, UTF8StreamJsonParser, _nextToken, and _nextAfterName()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a concrete unit test and exact token sequence showing the failure."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides reproduction code, input JSON, and expected assertions sufficient to investigate immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Points to specific parser classes and the token advancement logic where the bug likely starts."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A developer can understand the failure scenario from the described token flow and test."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The test and assertion make the failing behavior concrete enough for a failing test case."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The sequence FIELD_NAME -> nextToken() -> getTokenLocation() is stated unambiguously."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Referenced entities are named precisely enough to locate them in the codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology like token location, FIELD_NAME, and _nextAfterName() is used consistently and correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Uses a concrete input string: {\"name\":123}."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides ordered reproduction steps via the unit test sequence."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No version, OS, or runtime environment details are given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Reports the exact expected line and column values and the incorrect repeated location behavior."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The bug is distinguished by the FIELD_NAME transition and stale token location after nextToken()."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Expected behavior is explicit: the new token should have updated location 1:9."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is explicit: getTokenLocation() returns the same location twice."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The mismatch between expected updated location and stale location is clearly stated."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The test code is sufficient to attempt reproduction without extra clarification."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "Environment details are limited to parser construction; no broader setup info is provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explicitly proposes the cause as _nextToken/_nextAfterName not updating token location fields."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Links the cause to the symptom: advancing from FIELD_NAME leaves stale row/column values."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with the unit test and the named parser methods."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The explanation is internally consistent with the described token transition."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References concrete artifacts such as ReaderBasedJsonParser, UTF8StreamJsonParser, and _nextAfterName()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific classes and methods are named."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is identifiable as JSON parser token handling."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes a relevant unit test snippet and exact assertions."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "No external dependency or library version details are provided beyond JsonFactory/JsonParser."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No OS, browser, framework, or runtime version information is included."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report broadly points to _nextToken logic spread across code, which is somewhat underspecified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Inputs and triggering conditions are concrete enough to reproduce."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clearly stated by the test assertion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Version/environment information that could affect reproduction is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Describes the incorrect behavior and the needed correction: update token location on FIELD_NAME transition."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies likely fix locations in ReaderBasedJsonParser and UTF8StreamJsonParser."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The assertion on line 1, column 9 serves as a concrete acceptance criterion."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Edge cases and constraints beyond the shown scenario are not documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A plausible fix is inferable from the report without further clarification."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes the root cause in _nextToken/_nextAfterName logic."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific code constructs: _currToken, _tokenInputRow, and _tokenInputCol."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explains the causal chain from missing location update to repeated stale token location."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The unit test and JSON input fully determine a concrete reproduction scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem is the JSON parser token location tracking."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes symptom location from likely defect location in parser advancement logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one main defect area is identified, not multiple impacted areas."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names multiple technical concepts: ReaderBasedJsonParser, UTF8StreamJsonParser, _nextToken, _nextAfterName, getTokenLocation()."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: getTokenLocation() returns the same location before and after nextToken() when transitioning from FIELD_NAME token, which is clearly incorrect."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific classes identified: ReaderBasedJsonParser and UTF8StreamJsonParser; specific method identified: _nextAfterName(); specific fields: _currToken, _tokenInputRow, _tokenInputCol."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Includes a complete, runnable unit test (testTokenLocationAfterFieldName) that directly reproduces the issue with concrete assertions."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer could immediately run the provided unit test to reproduce the bug and inspect the two parser classes mentioned to investigate the _nextAfterName() method."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Pinpoints ReaderBasedJsonParser and UTF8StreamJsonParser classes, _nextAfterName() method, and specific fields (_tokenInputRow, _tokenInputCol) that are not being updated."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: calling getTokenLocation() twice around nextToken() yields identical locations when they should differ after token advancement."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The provided unit test is a direct, complete test case that a developer could use without modification to verify the bug and the fix."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: nextToken() on FIELD_NAME \u2192 _nextAfterName() called \u2192 _currToken updated but location fields not updated \u2192 getTokenLocation() returns stale location."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "All referenced entities are precisely identified: JsonParser, FIELD_NAME token, VALUE_NUMBER_INT token, getTokenLocation(), nextToken() methods."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology is accurate: FIELD_NAME token, nextToken(), getTokenLocation(), _currToken, _tokenInputRow, _tokenInputCol are all correctly used."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific input provided: DOC = \"{\\\"name\\\":123}\"; specific conditions: on FIELD_NAME token; specific expected output: line 1, column 9."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete ordered reproduction steps provided in unit test: create parser, call nextToken() three times, call getTokenLocation() twice, assert equality (which fails)."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for JsonFactory, JsonParser, or the framework itself; no OS or runtime environment specified."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific failure mode described: getTokenLocation() returns identical values (line 1, column 9) for both calls when the second should reflect the new token position."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report uniquely identifies the issue: location tracking failure specifically after FIELD_NAME token transition, not a general nextToken() problem."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is explicit: after advancing from FIELD_NAME to VALUE_NUMBER_INT, getTokenLocation() should return the new token's location (line 1, column 9)."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: getTokenLocation() returns the same location before and after nextToken(), failing the equality assertion in the test."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected different locations, observed identical locations; the unit test assertion failure directly demonstrates this."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reproduction steps are complete and sufficient: the provided unit test can be run directly without additional investigation or setup."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No environmental conditions documented: no Java version, no JsonFactory configuration details, no parser mode specifics beyond the useStream boolean."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report explicitly proposes a specific cause: _nextAfterName() updates _currToken but fails to update _tokenInputRow and _tokenInputCol."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposed explanation is directly linked to symptoms: stale location fields cause getTokenLocation() to return outdated values after token advancement."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Evidence provided: identifies specific fields (_tokenInputRow, _tokenInputCol) that are not updated, and references the _nextAfterName() method where the update should occur."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is internally coherent: if location fields are not updated when _currToken is updated, getTokenLocation() will return stale values\u2014this is logically consistent."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific technical artifacts: _nextAfterName() method, _currToken, _tokenInputRow, _tokenInputCol fields in ReaderBasedJsonParser and UTF8StreamJsonParser."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes named: ReaderBasedJsonParser, UTF8StreamJsonParser; specific methods: nextToken(), getTokenLocation(), _nextAfterName(); specific fields: _currToken, _tokenInputRow, _tokenInputCol."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem is identifiable: JSON parsing token location tracking in ReaderBasedJsonParser and UTF8StreamJsonParser classes."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes a complete, runnable unit test that directly reproduces the issue; test code is a relevant technical artifact."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "JsonFactory and JsonParser are referenced by name; however, no version information is provided for these libraries."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environment details are missing: no Java version, no OS, no framework version, no runtime information provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No vague references; all entities (classes, methods, fields, tokens) are precisely named and identifiable."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and conditions are fully specified: concrete JSON string, specific token sequence, specific method calls in a runnable test."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clear: getTokenLocation() should return the current token's location, not a stale location from a previous token."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version information is missing: no JsonFactory version, no Java version, no framework version specified; this could affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions detected; the report is internally consistent in describing the problem and its cause."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Faulty behavior is described precisely: location fields not updated after token advancement; correct behavior is clear: update _tokenInputRow and _tokenInputCol in _nextAfterName()."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific components identified: ReaderBasedJsonParser and UTF8StreamJsonParser classes; specific method: _nextAfterName(); specific fields requiring updates: _tokenInputRow, _tokenInputCol."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior is concrete: getTokenLocation() should return the new token's location (line 1, column 9) after advancing from FIELD_NAME to VALUE_NUMBER_INT."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report notes that _nextToken logic is spread across much code, suggesting the fix requires careful coordination across multiple code paths; this is a relevant constraint."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A developer could implement a plausible fix: update _tokenInputRow and _tokenInputCol in _nextAfterName() when _currToken is updated; however, the report acknowledges this may require broader refactoring."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific root cause explicitly proposed: _nextAfterName() updates _currToken but does not update _tokenInputRow and _tokenInputCol."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Root cause references specific code constructs: _nextAfterName() method, _currToken field, _tokenInputRow field, _tokenInputCol field in ReaderBasedJsonParser and UTF8StreamJsonParser."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal chain is clear: _nextAfterName() is called when nextToken() is invoked on FIELD_NAME; it updates _currToken but not location fields; getTokenLocation() reads stale location fields; result is identical locations."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report provides a complete, concrete unit test scenario from which unambiguous reproduction steps can be directly derived: create parser with JSON, call nextToken() three times, call getTokenLocation() twice, observe identical values."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystems identified: ReaderBasedJsonParser and UTF8StreamJsonParser classes; specific method: _nextAfterName(); specific concern: token location tracking."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report distinguishes symptom (getTokenLocation() returns stale values) from defect location (_nextAfterName() not updating location fields)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report notes that _nextToken logic is spread across much code, suggesting the fix may affect multiple code paths; however, specific cross-cutting concerns are not detailed."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report names multiple distinct technical concepts: ReaderBasedJsonParser, UTF8StreamJsonParser, _nextAfterName(), _currToken, _tokenInputRow, _tokenInputCol, JsonToken.FIELD_NAME, getTokenLocation()."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.9166666666666666,
+  "cohens_kappa": 0.7009345794392522,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": 0.07808688094430297,
+      "Ambiguity": -0.7808688094430304,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

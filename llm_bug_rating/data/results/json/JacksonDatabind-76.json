@@ -1,0 +1,1430 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-76",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "When deserializing using a builder class with a non-default constructor and any number of mutator methods annotated with @JsonUnwrapped, the \nBuilderBasedDeserializer::deserializeUsingPropertyBasedWithUnwrapped\nmethod cuts short the process of adding SettableBeanProperties.\n\nThe logic dictates that once all properties necessary to construct the builder have been found, the builder is constructed using all known SettableBeanProperties that have been found up to that point in the tokenizing process.\n\nTherefore, in the case that the builder has a single property required for construction, and that property is found anywhere other than at the end of the JSON content, any properties subsequent to the constructor property are not evaluated and are left with their default values.\n\nGiven the following classes:\n\n@\nJsonDeserialize\n(\nbuilder\n= \nEmployee\n.\nBuilder\n.\nclass\n)\n\npublic\n\nclass\n\nEmployee\n{\n\nprivate\n\nfinal\n\nlong\n\nid\n;\n\nprivate\n\nfinal\n\nName\n\nname\n;\n\nprivate\n\nfinal\n\nint\n\nage\n;\n\nprivate\n\nEmployee\n(\nBuilder\n\nbuilder\n) {\n\nid\n= \nbuilder\n.\nid\n;\n\nname\n= \nbuilder\n.\nname\n;\n\nage\n= \nbuilder\n.\nage\n;\n}\n\npublic\n\nlong\n\ngetId\n() {\n\nreturn\n\nid\n;\n}\n\npublic\n\nName\n\ngetName\n() {\n\nreturn\n\nname\n;\n}\n\npublic\n\nint\n\ngetAge\n() {\n\nreturn\n\nage\n;\n}\n\n@\nJsonPOJOBuilder\n(\nwithPrefix\n= \n\"set\"\n)\n\npublic\n\nstatic\n\nclass\n\nBuilder\n{\n\nprivate\n\nfinal\n\nlong\n\nid\n;\n\nprivate\n\nName\n\nname\n;\n\nprivate\n\nint\n\nage\n;\n\n@\nJsonCreator\n\npublic\n\nBuilder\n(\n@\nJsonProperty\n(\n\"emp_id\"\n) \nlong\n\nid\n) {\n\nthis\n.\nid\n= \nid\n;\n}\n\n@\nJsonUnwrapped\n\npublic\n\nvoid\n\nsetName\n(\nName\n\nname\n) {\n\nthis\n.\nname\n= \nname\n;\n}\n\n@\nJsonProperty\n(\n\"emp_age\"\n)\n\npublic\n\nvoid\n\nsetAge\n(\nint\n\nage\n) {\n\nthis\n.\nage\n= \nage\n;\n}\n\npublic\n\nEmployee\n\nbuild\n() {\n\nreturn\n\nnew\n\nEmployee\n(\nthis\n);\n}\n}\n}\n\npublic\n\nclass\n\nName\n{\n\nprivate\n\nfinal\n\nString\n\nfirst\n;\n\nprivate\n\nfinal\n\nString\n\nlast\n;\n\n@\nJsonCreator\n\npublic\n\nName\n(\n\n@\nJsonProperty\n(\n\"emp_first_name\"\n) \nString\n\nfirst\n,\n\n@\nJsonProperty\n(\n\"emp_last_name\"\n) \nString\n\nlast\n\n) {\n\nthis\n.\nfirst\n= \nfirst\n;\n\nthis\n.\nlast\n= \nlast\n;\n}\n\npublic\n\nString\n\ngetFirst\n() {\n\nreturn\n\nfirst\n;\n}\n\npublic\n\nString\n\ngetLast\n() {\n\nreturn\n\nlast\n;\n}\n}\n\nAnd given the following JSON string:\n\n{\n\n\"emp_age\"\n: \n30\n,\n\n\"emp_id\"\n: \n1234\n,\n\n\"emp_first_name\"\n: \n\"\nJohn\n\"\n,\n\n\"emp_last_name\"\n: \n\"\nDoe\n\"\n\n}\n\nWe will see the following output:\n\nEmployee\n\nemp\n= \nnew\n\nObjectMapper\n().\nreadValue\n(\njson\n, \nEmployee\n.\nclass\n);\n\nSystem\n.\nout\n.\nprintln\n(\nemp\n.\ngetAge\n()); \n// 30\n\nSystem\n.\nout\n.\nprintln\n(\nemp\n.\ngetId\n()); \n// 1234\n\nSystem\n.\nout\n.\nprintln\n(\nemp\n.\ngetName\n()); \n// null\n\nHowever, if we place the \nemp_id\nproperty at the end of the JSON string, we would get the following output:\n\nEmployee\n\nemp\n= \nnew\n\nObjectMapper\n().\nreadValue\n(\njson\n, \nEmployee\n.\nclass\n);\n\nSystem\n.\nout\n.\nprintln\n(\nemp\n.\ngetAge\n()); \n// 30\n\nSystem\n.\nout\n.\nprintln\n(\nemp\n.\ngetId\n()); \n// 1234\n\nSystem\n.\nout\n.\nprintln\n(\nemp\n.\ngetName\n()); \n// Name Object\n\nIf we were to place \nemp_age\nand \nemp_first_name\nand \nemp_last_name\nall after the \nemp_id\nproperty in the JSON string, we would get the following output:\n\nEmployee\n\nemp\n= \nnew\n\nObjectMapper\n().\nreadValue\n(\njson\n, \nEmployee\n.\nclass\n);\n\nSystem\n.\nout\n.\nprintln\n(\nemp\n.\ngetAge\n()); \n// 0\n\nSystem\n.\nout\n.\nprintln\n(\nemp\n.\ngetId\n()); \n// 1234\n\nSystem\n.\nout\n.\nprintln\n(\nemp\n.\ngetName\n()); \n// null"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes observable faulty deserialization behavior: fields after the constructor property are not applied."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies the affected functionality as builder-based JSON deserialization with @JsonUnwrapped."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes concrete class definitions, JSON input, and method name BuilderBasedDeserializer::deserializeUsingPropertyBasedWithUnwrapped."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides enough class and input context to start investigating the deserialization flow."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Points to the builder-based deserializer subsystem and unwrapped property handling."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as missing evaluation of properties after the constructor property."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "It follows a logical structure: description, example classes, JSON, then observed outputs."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References to Employee, Builder, Name, and JSON properties are specific and mostly unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terms like deserializing, builder class, @JsonUnwrapped, and SettableBeanProperties are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specifies the triggering condition: a builder with a non-default constructor and @JsonUnwrapped mutators, with property order in JSON."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Gives concrete reproduction examples using ObjectMapper.readValue and different JSON property orders."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No environment, library version, OS, or framework version is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reports specific outputs: getName() is null and getAge() becomes 0 in certain cases."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The issue is distinguished by the interaction of property order, property-based builder construction, and unwrapped properties."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Expected behavior is implied but not stated as a direct explicit expectation."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated with concrete outputs."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The discrepancy is clear: expected Name and age values are not populated when constructor property appears earlier."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The examples are sufficient to attempt reproduction with the provided classes and JSON."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No required environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Proposes a likely cause: deserializeUsingPropertyBasedWithUnwrapped cuts short adding SettableBeanProperties."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is tied to the symptom that later properties remain at default values."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No direct evidence beyond the observed examples is provided for the proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The explanation is internally consistent with the described property-order-dependent behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References a specific method and SettableBeanProperties."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Mentions BuilderBasedDeserializer::deserializeUsingPropertyBasedWithUnwrapped and annotated builder methods."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is identifiable as builder-based deserialization with unwrapped properties."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes code snippets for Employee, Builder, Name, and JSON input/output examples."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "No external dependencies or integrations are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.89,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Some references are broad, such as 'the process of adding SettableBeanProperties.'"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report does not fully specify all conditions beyond property order and annotations."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Expected behavior is implied rather than explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Environment and version information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior is specific enough to identify the needed change in unwrapped property handling."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely fix location is identifiable from the named deserializer method."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.76,
+        "reason": "The correct behavior is implied by examples but not explicitly stated as a target."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The key edge case of constructor property order is documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would likely need more investigation into the code path and version specifics."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A potential root cause is explicitly proposed: the method cuts short adding SettableBeanProperties."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report references a specific method and SettableBeanProperties logic."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It explains that early construction causes later properties to be skipped, matching the observed defaults."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The narrative clearly implies reproducible steps using the provided classes and JSON property order."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The affected concept is identifiable as builder-based deserialization with unwrapped properties."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom appears in Employee fields, while the underlying defect is in BuilderBasedDeserializer."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Only one main subsystem is described; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report clearly describes observable faulty behavior: properties after the constructor property are not deserialized when using @JsonUnwrapped with a builder."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected component is explicitly identified: BuilderBasedDeserializer::deserializeUsingPropertyBasedWithUnwrapped."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Code snippets, class definitions, JSON input, and expected vs actual output are all provided, giving strong debugging context."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report provides classes, JSON, method name, and behavioral description sufficient to begin investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The subsystem is clearly identified as BuilderBasedDeserializer in Jackson's deserialization module."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report is written in clear, grammatically coherent English with well-structured explanations."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly stated: @JsonUnwrapped properties after the constructor property are ignored during builder-based deserialization."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Information flows logically: problem description, code examples, JSON input, observed outputs, and variations are presented in order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to classes, methods, annotations, and JSON properties are unambiguous and consistently named."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms like @JsonUnwrapped, @JsonCreator, BuilderBasedDeserializer, SettableBeanProperties are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific triggering condition is described: builder with non-default constructor + @JsonUnwrapped mutator + constructor property not last in JSON."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete reproduction steps are implied through the provided classes, JSON, and ObjectMapper usage code."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No Jackson version, Java version, or OS information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific outputs are reported (null for getName(), 0 for getAge()) under different JSON orderings."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report distinguishes the issue by JSON property ordering and the specific combination of @JsonUnwrapped with a builder constructor property."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected behavior is implied: all properties should be deserialized regardless of JSON property order."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated with concrete output values (null, 0) for each scenario."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy is clear: properties after the constructor property in JSON are not applied, resulting in null/default values."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Full class definitions, JSON strings, and ObjectMapper usage are provided, making reproduction feasible."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific library version, Java version, or environment details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report explicitly proposes that deserializeUsingPropertyBasedWithUnwrapped cuts short property processing once constructor properties are found."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The proposed explanation (early builder construction) is directly linked to the symptom (subsequent properties being null/default)."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Multiple JSON ordering scenarios with different outputs serve as evidence supporting the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The explanation is internally coherent: once constructor args are satisfied, builder is constructed early, skipping remaining properties."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation references the specific method BuilderBasedDeserializer::deserializeUsingPropertyBasedWithUnwrapped and SettableBeanProperties."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "BuilderBasedDeserializer::deserializeUsingPropertyBasedWithUnwrapped, @JsonUnwrapped, @JsonCreator, @JsonPOJOBuilder, SettableBeanProperties are all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected subsystem is Jackson's builder-based deserialization module."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Code snippets for classes and JSON input are included, along with expected output values."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson (ObjectMapper) is referenced as the external library involved."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No OS, Java version, or Jackson version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific and well-defined; no vague or underspecified references are present."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs (JSON strings, class definitions) are fully specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior (all properties deserialized regardless of order) is clearly implied, though not stated as a formal requirement."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Jackson version and Java/environment details are missing, which could be relevant for debugging."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior is precisely described: builder is constructed prematurely when constructor properties are found, skipping remaining properties."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The method BuilderBasedDeserializer::deserializeUsingPropertyBasedWithUnwrapped is explicitly identified as the location requiring a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior is implied: all properties should be applied to the builder before building, regardless of JSON order."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The edge case (constructor property not last in JSON) and the interaction with @JsonUnwrapped are documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "While the report is detailed, a developer would likely need to inspect the actual source code of deserializeUsingPropertyBasedWithUnwrapped to implement a fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root cause is explicitly proposed: deserializeUsingPropertyBasedWithUnwrapped constructs the builder as soon as all constructor properties are found, ignoring remaining tokens."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The root cause references the specific method deserializeUsingPropertyBasedWithUnwrapped and the logic of SettableBeanProperties collection."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The causal chain is articulated: early builder construction \u2192 subsequent properties not evaluated \u2192 null/default values in output."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reproduction steps can be inferred: create the provided classes, serialize the given JSON with emp_id not last, deserialize with ObjectMapper, observe null getName()."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected module is clearly BuilderBasedDeserializer in Jackson's databind deserialization subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom (null/default property values) manifests in the deserialized object, while the defect resides in deserializeUsingPropertyBasedWithUnwrapped logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "The report focuses on a single method/path; no multiple cross-cutting areas are identified."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.96
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.97
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.95
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.96
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.851063829787234,
+  "cohens_kappa": 0.5385694249649369,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.97 > 0.78)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.84)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.76)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Selected judge2 (higher confidence: 0.97 > 0.78)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.84)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.76)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 4,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 4,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.1470786693528088,
+      "Clarity": 1.1470786693528088,
+      "Specificity": 0.516185401208764,
+      "Reproducibility": 0.516185401208764,
+      "ReasoningQuality": 1.1470786693528088,
+      "TechnicalContext": 0.516185401208764,
+      "Ambiguity": -1.3764944032233704,
+      "RepairReadiness": -1.3764944032233704,
+      "RootCauseEvidence": -0.11470786693528078,
+      "HiddenReproducibility": -1.3764944032233704,
+      "ImpactScope": -0.7456011350793256
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

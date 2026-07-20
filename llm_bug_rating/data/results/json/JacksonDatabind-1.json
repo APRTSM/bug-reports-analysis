@@ -1,0 +1,1427 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-1",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "Example:\n\npublic\n\nclass\n\nTestOuter\n{\n\n@\nJsonFormat\n(\nshape\n= \nJsonFormat\n.\nShape\n.\nARRAY\n)\n\npublic\n\nArrayList\n<\nTestInner\n> \narray\n;\n\npublic\n\nTestOuter\n() {\n\nthis\n.\narray\n= \nnew\n\nArrayList\n<\nTestInner\n>();\n\nthis\n.\narray\n.\nadd\n(\nnew\n\nTestInner\n(\n1\n, \n\"one\"\n));\n\nthis\n.\narray\n.\nadd\n(\nnew\n\nTestInner\n(\n0\n, \nnull\n));\n}\n\nprivate\n\nclass\n\nTestInner\n{\n\npublic\n\nint\n\ni\n;\n\npublic\n\nString\n\nmayBeNull\n;\n\npublic\n\nTestInner\n(\nint\n\ni\n, \nString\n\ns\n) {\n\nthis\n.\ni\n= \ni\n;\n\nthis\n.\nmayBeNull\n= \ns\n;\n}\n}\n}\n\nSerializing an instance of TestOuter will produce the following incorrect result (as of Jackson 2.2.1):\n\n\"array\"\n: [[\n1\n, \n\"\none\n\"\n], [\n0\n, \nnull\n, \nnull\n]]\n\nwhere the null value is duplicated. The expected result would be:\n\n\"array\"\n: [[\n1\n, \n\"\none\n\"\n], [\n0\n, \nnull\n]]\n\nI tracked the issue down to:\n\npackage\n\ncom\n.\nfasterxml\n.\njackson\n.\ndatabind\n.\nser\n;\n\n// ...\n\npublic\n\nclass\n\nBeanPropertyWriter\n{\n\n// ...\n\npublic\n\nvoid\n\nserializeAsColumn\n(\nObject\n\nbean\n, \nJsonGenerator\n\njgen\n, \nSerializerProvider\n\nprov\n)\n\nthrows\n\nException\n\n{\n\nObject\n\nvalue\n= \nget\n(\nbean\n);\n\nif\n(\nvalue\n== \nnull\n) { \n// nulls need specialized handling\n\nif\n(\n_nullSerializer\n!= \nnull\n) {\n\n_nullSerializer\n.\nserialize\n(\nnull\n, \njgen\n, \nprov\n);\n} \nelse\n{ \n// can NOT suppress entries in tabular output\n\njgen\n.\nwriteNull\n();\n}\n}\n\n// otherwise find serializer to use\n\nJsonSerializer\n<\nObject\n> \nser\n= \n_serializer\n;\n\n// ... ...\n\nwhere I suspect there is a missing \"return\", to exit the function once handling of the null value in the dedicated branch is done.\n\nAs it is now, a null value is first serialized in the dedicated branch (jgen.writeNull()), and then execution continues on the \"normal\" (non-null) path and eventually the value is serialized once again."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes observable incorrect serialization output with a duplicated null value."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies Jackson databind serialization and BeanPropertyWriter.serializeAsColumn."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes code reference and a suspected missing return in BeanPropertyWriter."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides example classes, output, and the suspected code path to investigate."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points to the BeanPropertyWriter component in jackson-databind."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as duplicated null serialization."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It presents example, observed output, expected output, then suspected cause in order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References to TestOuter, TestInner, and BeanPropertyWriter are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Terminology like JsonFormat, JsonGenerator, SerializerProvider, and null serializer is used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Gives the triggering condition: a null field inside an ARRAY-shaped JsonFormat serialization."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "No explicit numbered reproduction steps are provided."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes version information: Jackson 2.2.1."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Shows the incorrect serialized output and the expected output."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The duplicated null in array serialization is a specific failure, not a generic error."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected behavior is explicitly stated as the array element containing a single null."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated as a duplicated null in the output."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The discrepancy between expected and observed JSON is clear."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The example code is sufficient to attempt reproduction, though not step-by-step."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "No environment or dependency conditions beyond the Jackson version are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes a missing return in BeanPropertyWriter.serializeAsColumn."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Links the missing return to the duplicated null symptom."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Cites the code branch where null is serialized and then execution continues."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is internally consistent and matches the observed output."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References concrete technical artifacts: BeanPropertyWriter, serializeAsColumn, jgen.writeNull()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Mentions BeanPropertyWriter and JsonFormat-related serialization code."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The jackson-databind serialization subsystem is identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes a code excerpt from BeanPropertyWriter."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References Jackson as the relevant external library."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Provides library version 2.2.1, though no OS or browser details."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific rather than vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Inputs and triggering condition are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clearly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Broader environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The faulty behavior is precise: null array elements are serialized twice."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The likely fix location is identified as BeanPropertyWriter.serializeAsColumn."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The expected correct output is explicitly given."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The null-value edge case in ARRAY-shaped serialization is documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "A developer may still need to inspect surrounding serializer logic to confirm the fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "A missing return is explicitly proposed as the root cause."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The root cause references the specific branch in serializeAsColumn and jgen.writeNull()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report explains that execution continues after null handling, causing duplicate serialization."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The narrative and example code are enough to infer how to trigger the bug."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is Jackson databind serialization, specifically BeanPropertyWriter."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The symptom appears in serialized JSON, while the suspected defect is in BeanPropertyWriter."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one subsystem and one code path are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report describes a concrete observable bug: null values are duplicated in serialized output."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected component is identified as BeanPropertyWriter.serializeAsColumn in Jackson's databind serialization module."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report includes the specific class, method, and code snippet where the bug resides, along with the incorrect output."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Code example, incorrect output, expected output, and the suspected code location are all provided."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The subsystem is clearly identified: com.fasterxml.jackson.databind.ser.BeanPropertyWriter."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report is written in clear, grammatically coherent English despite having no title."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly stated: null values are duplicated when serializing with @JsonFormat(shape=ARRAY)."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report follows a logical order: example code, observed output, expected output, root cause analysis."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References to classes, methods, and behaviors are unambiguous and specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terminology (serializer, null, JsonGenerator, etc.) is used consistently throughout."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The triggering condition is specifically a null field in a class serialized as ARRAY shape using @JsonFormat."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A complete, self-contained code example is provided that reproduces the issue."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Jackson version 2.2.1 is explicitly mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The specific incorrect output is shown: [0, null, null] instead of [0, null]."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report pinpoints the exact method and the suspected missing 'return' statement, distinguishing it from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected output is explicitly stated: [[1, \"one\"], [0, null]]."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed output is explicitly stated: [[1, \"one\"], [0, null, null]]."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The discrepancy (extra null) is clearly identifiable from the comparison of expected vs. observed output."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The provided code example is sufficient to reproduce the issue by serializing a TestOuter instance."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson 2.2.1 is specified; no other environmental dependencies are needed beyond the library itself."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The reporter explicitly proposes a missing 'return' statement as the cause."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The explanation directly links the missing return to the double serialization of null values."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The code snippet from BeanPropertyWriter.serializeAsColumn is provided as evidence supporting the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The logic is coherent: without a return, execution falls through to the non-null path and serializes again."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The explanation references the specific method, class, and code construct (missing return after jgen.writeNull())."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "BeanPropertyWriter, serializeAsColumn, JsonGenerator, SerializerProvider, and _nullSerializer are all explicitly mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected subsystem is com.fasterxml.jackson.databind.ser."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A code snippet from the relevant class and method is included in the report."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Jackson 2.2.1 is referenced as the external library involved."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only the Jackson version is mentioned; OS, JVM, or other environment details are absent."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "References are specific and well-defined; no vague terms are used."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The input (TestOuter with a null field) is clearly described with code."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Expected behavior is explicitly stated with the correct output."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "JVM version and OS are not mentioned, though Jackson version is provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The faulty behavior (double null serialization) is precisely described."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The exact class and method (BeanPropertyWriter.serializeAsColumn) are identified."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The expected correct behavior (single null written) is clearly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The condition (null value with no _nullSerializer) that triggers the bug is documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A developer could add the missing 'return' after jgen.writeNull() based solely on this report."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "A missing 'return' statement after the null handling branch is explicitly proposed as the root cause."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The root cause references the specific code construct: the if-else block in serializeAsColumn lacking a return."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The causal chain is articulated: without return, execution continues to the non-null path and serializes null a second time."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The narrative provides a complete code example and serialization call that can be inferred as reproduction steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The affected module is clearly com.fasterxml.jackson.databind.ser.BeanPropertyWriter."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The symptom (duplicate null in output) is distinguished from the defect location (missing return in serializeAsColumn)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one affected area is identified; no cross-cutting concerns or multiple impacted areas are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": false,
+        "confidence_diff": 0.3999999999999999,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.32000000000000006,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.30000000000000004,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.9148936170212766,
+  "cohens_kappa": 0.6654804270462632,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.55)"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.58)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.62)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.55)"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.58)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.62)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 0.7694837640638656,
+      "Clarity": 0.7694837640638656,
+      "Specificity": 0.7694837640638656,
+      "Reproducibility": 0.7694837640638656,
+      "ReasoningQuality": 0.7694837640638656,
+      "TechnicalContext": 0.7694837640638656,
+      "Ambiguity": 0.20519567041703088,
+      "RepairReadiness": -2.051956704170308,
+      "RootCauseEvidence": -0.35909242322980384,
+      "HiddenReproducibility": -1.4876686105234733,
+      "ImpactScope": -0.9233805168766386
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

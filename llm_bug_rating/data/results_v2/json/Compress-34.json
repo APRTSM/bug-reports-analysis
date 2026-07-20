@@ -1,0 +1,1453 @@
+{
+  "bug": {
+    "bug_id": "Compress-34",
+    "project": "Compress",
+    "summary": "Exception in X7875_NewUnix.parseFromLocalFileData when parsing 0-sized \"ux\" local entry",
+    "description": "When trying to detect content type of a zip file with Tika 1.10 (which uses Commons Compress 1.9 internally) in manner like this:\n\nbyte\n[] content = ... \n// whole zip file.\n\nString\nname = \n\"TR_01.ZIP\"\n;\nTika tika = \nnew\nTika();\n\nreturn\ntika.detect(content, name);\n\nit throws an exception:\n\njava.lang.ArrayIndexOutOfBoundsException: 13\nat org.apache.commons.compress.archivers.zip.X7875_NewUnix.parseFromLocalFileData(X7875_NewUnix.java:199)\nat org.apache.commons.compress.archivers.zip.X7875_NewUnix.parseFromCentralDirectoryData(X7875_NewUnix.java:220)\nat org.apache.commons.compress.archivers.zip.ExtraFieldUtils.parse(ExtraFieldUtils.java:174)\nat org.apache.commons.compress.archivers.zip.ZipArchiveEntry.setCentralDirectoryExtra(ZipArchiveEntry.java:476)\nat org.apache.commons.compress.archivers.zip.ZipFile.readCentralDirectoryEntry(ZipFile.java:575)\nat org.apache.commons.compress.archivers.zip.ZipFile.populateFromCentralDirectory(ZipFile.java:492)\nat org.apache.commons.compress.archivers.zip.ZipFile.<init>(ZipFile.java:216)\nat org.apache.commons.compress.archivers.zip.ZipFile.<init>(ZipFile.java:192)\nat org.apache.commons.compress.archivers.zip.ZipFile.<init>(ZipFile.java:153)\nat org.apache.tika.parser.pkg.ZipContainerDetector.detectZipFormat(ZipContainerDetector.java:141)\nat org.apache.tika.parser.pkg.ZipContainerDetector.detect(ZipContainerDetector.java:88)\nat org.apache.tika.detect.CompositeDetector.detect(CompositeDetector.java:77)\nat org.apache.tika.Tika.detect(Tika.java:155)\nat org.apache.tika.Tika.detect(Tika.java:183)\nat org.apache.tika.Tika.detect(Tika.java:223)\n\nThe zip file does contain two .jpg images and is not a \"special\" (JAR, Openoffice, ... ) zip file.\n\nUnfortunately, the contents of the zip file is confidential and so I cannot attach it to this ticket as it is, although I can provide the parameters supplied to\n\norg.apache.commons.compress.archivers.zip.X7875_NewUnix.parseFromLocalFileData(X7875_NewUnix.java:199) as caught by the debugger:\n\ndata = {\nbyte\n[13]@2103}\n0 = 85\n1 = 84\n2 = 5\n3 = 0\n4 = 7\n5 = -112\n6 = -108\n7 = 51\n8 = 85\n9 = 117\n10 = 120\n11 = 0\n12 = 0\noffset = 13\nlength = 0\n\nThis data comes from the local zip entry for the first file, it seems the method tries to read more bytes than is actually available in the buffer.\n\nIt seems that first 9 bytes of the buffer are 'UT' extended field with timestamp, followed by 0-sized 'ux' field (bytes 9-12) that is supposed to contain UID/GID - according to infozip's doc the 0-size is common for global dictionary, but the local dictionary should contain complete data. In this case for some reason it does contain 0-sized data.\n\nNote that 7zip and unzip can unzip the file without even a warning, so Commons Compress should be also able to handle that file correctly without choking on that exception."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observable exception is described with stack trace and behavior during Tika.detect on a ZIP file."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific code path is identified: X7875_NewUnix.parseFromLocalFileData and related ZipContainerDetector/ZipFile calls."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes full stack trace and debugger values for data, offset, and length at the failure point."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reproduction is possible from the described Tika.detect(content, name) call and the reported ZIP contents."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points directly to Commons Compress ZIP extra field handling, especially X7875_NewUnix and ZipFile."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Failure scenario is explained clearly: detecting a ZIP triggers ArrayIndexOutOfBoundsException."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A failing test could assert that Tika.detect on the described ZIP should not throw."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is mostly clear: detect ZIP, parse central directory, hit 0-sized ux extra field."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Named classes and methods are specific enough to locate code in Commons Compress and Tika."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent: local file data, central directory data, extra field, UID/GID."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Triggering condition is concrete: a ZIP whose first entry has a 0-sized 'ux' local extra field."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "No ordered step-by-step reproduction procedure is given beyond a code snippet."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Mentions Tika 1.10 and Commons Compress 1.9, but no OS/runtime details."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports the exact exception and stack trace: ArrayIndexOutOfBoundsException: 13."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The 0-sized 'ux' local extra field with UT timestamp data is a distinguishing detail."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: Commons Compress should handle the file without choking."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicit: ArrayIndexOutOfBoundsException in X7875_NewUnix.parseFromLocalFileData."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Mismatch is clear: unzip/7zip succeed, but Tika/Commons Compress throws."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "Reproduction steps are incomplete because the confidential ZIP is not provided."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Version info is partial; environment specifics needed to reproduce are missing."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Proposes a cause: the method reads more bytes than available in the buffer."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Links the cause to the symptom by noting the 0-sized 'ux' field and the out-of-bounds read."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with debugger values for data, offset, and length."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The explanation is coherent and matches the stack trace and buffer contents."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "References concrete artifacts: X7875_NewUnix.parseFromLocalFileData, bytes 9-12, and ArrayIndexOutOfBoundsException."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods are named throughout the stack trace."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Affected subsystem is identifiable as Commons Compress ZIP extra field parsing."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a stack trace and debugger dump directly relevant to the failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "Tika 1.10 and Commons Compress 1.9 are named as the relevant external libraries."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "No OS, browser, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The exact ZIP contents are not fully specified because the file is confidential."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "Inputs are incomplete without the actual ZIP file or exact entry metadata."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear: no exception during detection/parsing."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "Environment/version details are incomplete beyond library versions."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Correct behavior is clear: handle 0-sized ux extra field without exception."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Likely fix location is directly identified in X7875_NewUnix.parseFromLocalFileData."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: Tika.detect should not throw on the described ZIP."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Edge case of 0-sized local 'ux' extra field is explicitly documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "A plausible fix can be inferred: bounds-check or tolerate zero-length local extra data."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explicit root cause is proposed: the method tries to read more bytes than available."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References the specific operation in X7875_NewUnix.parseFromLocalFileData on the extra field buffer."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Causal chain is stated: 0-sized ux local field leads to out-of-bounds access and exception."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "A concrete scenario is described, but complete unambiguous steps are not fully derivable without the ZIP."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem is ZIP extra field parsing in Commons Compress."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Symptom appears in Tika.detect, while defect likely resides in Commons Compress parsing code."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Mentions multiple areas: Tika, ZipContainerDetector, ZipFile, ExtraFieldUtils, X7875_NewUnix."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "More than three technical concepts are named, including Tika.detect, ZipFile, ExtraFieldUtils, and X7875_NewUnix."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable ArrayIndexOutOfBoundsException with specific exception type and line number (X7875_NewUnix.java:199), clearly distinguishing from normal behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific class (X7875_NewUnix) and method (parseFromLocalFileData) are identified, along with the exact line number where the exception occurs."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Complete stack trace provided showing the call chain from Tika.detect() through ZipFile initialization to the failing method; debugger output shows exact byte array state (data=[13 bytes], offset=13, length=0)."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Developer can immediately investigate by examining X7875_NewUnix.parseFromLocalFileData at line 199 with the provided byte array state; reproduction requires a specific zip file which is not provided but the exact failure conditions are documented."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific module (org.apache.commons.compress.archivers.zip), class (X7875_NewUnix), and method (parseFromLocalFileData) are precisely identified."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: parsing a zip file with Tika triggers an exception in Commons Compress when handling a 0-sized 'ux' extra field; a developer unfamiliar with the codebase can understand the basic flow."
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "While the failure is clear, the actual zip file is not provided (confidential), making it impossible to write a failing test case without reconstructing a zip with the specific byte structure described."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Sequence is unambiguous: Tika.detect() \u2192 ZipFile initialization \u2192 central directory parsing \u2192 X7875_NewUnix.parseFromLocalFileData() with 0-sized 'ux' field causes ArrayIndexOutOfBoundsException."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "All referenced components are precisely identified: X7875_NewUnix class, parseFromLocalFileData method, 'ux' extra field type, and the exact byte positions in the data buffer."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Technical terminology is accurate: 'extra field', 'UT' (timestamp), 'ux' (UID/GID), 'local entry', 'central directory' are used correctly per infozip documentation."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specific input condition is described: a zip file containing two .jpg images with a 0-sized 'ux' extra field in the local entry; exact byte array state is provided (13 bytes with offset=13, length=0)."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Reproduction steps are high-level (create Tika instance, call detect on zip content) but the actual zip file is not provided, preventing direct reproduction without reconstructing the file."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific versions are provided: Tika 1.10 and Commons Compress 1.9; these are sufficient to identify the affected codebase."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Exact exception type (ArrayIndexOutOfBoundsException: 13) and complete stack trace are provided; debugger output shows exact byte array contents and parameters."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The combination of 0-sized 'ux' field following a 'UT' field, with specific byte values and the offset/length mismatch, uniquely identifies this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior is implicit but clear: the zip file should be parsed without exception, as 7zip and unzip handle it correctly; Commons Compress should handle 0-sized 'ux' fields gracefully."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicitly stated: ArrayIndexOutOfBoundsException at X7875_NewUnix.java:199 with exact byte array state and parameters provided."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is clear: expected behavior (successful parsing like 7zip/unzip) vs. observed behavior (ArrayIndexOutOfBoundsException); the root cause (0-sized 'ux' field) is identified."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Reproduction steps are incomplete because the actual zip file is not provided; while the byte array state is documented, reconstructing the exact zip file structure would require additional effort."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environmental conditions are specified: Tika 1.10, Commons Compress 1.9; the zip file structure (two .jpg images, non-special zip) is described."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report explicitly proposes a specific cause: the method attempts to read more bytes than available in the buffer when handling a 0-sized 'ux' extra field."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Proposed explanation is directly linked to symptoms: offset=13 and length=0 in a 13-byte buffer means the method tries to access data beyond the buffer bounds, causing ArrayIndexOutOfBoundsException."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Concrete evidence is provided: exact byte array contents, offset/length values, and reference to infozip documentation explaining that 0-sized 'ux' fields are valid in local entries."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Explanation is internally coherent: 0-sized field \u2192 offset=13, length=0 \u2192 method tries to read beyond buffer \u2192 ArrayIndexOutOfBoundsException; no contradictions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explanation references specific artifacts: X7875_NewUnix.java:199, exact byte values (85, 84, 5, 0, 7, -112, -108, 51, 85, 117, 120, 0, 0), offset=13, length=0."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods named: X7875_NewUnix, parseFromLocalFileData, parseFromCentralDirectoryData, ExtraFieldUtils.parse, ZipArchiveEntry.setCentralDirectoryExtra, ZipFile."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected subsystem is precisely identified: org.apache.commons.compress.archivers.zip package, specifically the extra field parsing logic for 'ux' (UID/GID) fields."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Complete stack trace is provided showing the call chain; debugger output shows exact byte array state with all 13 bytes listed individually."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "External dependencies are named with versions: Tika 1.10, Commons Compress 1.9; infozip documentation is referenced for the 'ux' field specification."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Environment details are minimal: only Tika 1.10 and Commons Compress 1.9 versions are provided; OS, JVM version, and other runtime details are not specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all technical entities are precisely named (X7875_NewUnix, 'ux' field, offset, length, etc.)."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The actual zip file is not provided (confidential), making it impossible to directly reproduce without reconstructing the file structure; however, the byte array state is documented."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear: the zip file should parse without exception, as demonstrated by 7zip and unzip handling it correctly."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Some environment details are missing: OS, JVM version, and other runtime specifics are not provided, though they may not be critical for this bug."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions; the report is internally consistent: 0-sized field \u2192 offset/length mismatch \u2192 exception."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Correct behavior is clear: handle 0-sized 'ux' extra fields gracefully without attempting to read beyond buffer bounds; the fix would involve bounds checking in parseFromLocalFileData."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific location is identified: X7875_NewUnix.parseFromLocalFileData at line 199 is where the bounds check is needed."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected correct behavior is concrete: parse the zip file without exception, matching the behavior of 7zip and unzip; 0-sized 'ux' fields should be handled gracefully."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Relevant constraints are documented: 0-sized 'ux' fields are valid per infozip documentation; the fix must handle this edge case without breaking normal parsing."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "A developer could implement a bounds check in parseFromLocalFileData to handle length=0 case; the exact byte array state and offset/length values provide sufficient context for the fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific root cause is explicitly proposed: the parseFromLocalFileData method does not properly handle 0-sized 'ux' extra fields and attempts to read beyond the available buffer."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Root cause references specific code construct: X7875_NewUnix.parseFromLocalFileData method at line 199, which fails to validate that length > 0 before accessing buffer elements."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Causal chain is articulated: 0-sized 'ux' field (length=0) \u2192 method attempts to read data at offset=13 in 13-byte buffer \u2192 ArrayIndexOutOfBoundsException at line 199."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "While the byte array state is documented, the actual zip file is not provided; complete and unambiguous reproduction steps cannot be directly derived without reconstructing the zip file structure."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific subsystem identified: org.apache.commons.compress.archivers.zip extra field parsing, specifically the X7875_NewUnix class handling 'ux' fields."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Symptom manifests in Tika.detect() but underlying defect resides in X7875_NewUnix.parseFromLocalFileData; the report distinguishes between the two."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Multiple impacted areas identified: ZipFile initialization, central directory parsing, extra field parsing, and the specific 'ux' field handler; the fix may affect other extra field types."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Multiple technical concepts identified: X7875_NewUnix, ExtraFieldUtils, ZipArchiveEntry, ZipFile, 'ux' extra field, 'UT' extra field, offset/length parameters, buffer bounds."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.88
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.8
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.95
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.75
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.09000000000000008,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.93
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 1.0,
+        "judge2_confidence": 0.95
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.7
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.93
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      }
+    }
+  },
+  "percent_agreement": 0.9166666666666666,
+  "cohens_kappa": 0.6999999999999997,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.82)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.82)"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 0,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": false,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.8426648406178135,
+      "Clarity": 0.8426648406178135,
+      "Specificity": 0.12964074471043277,
+      "Reproducibility": 0.12964074471043277,
+      "ReasoningQuality": 0.8426648406178135,
+      "TechnicalContext": 0.12964074471043277,
+      "Ambiguity": -0.5833833511969481,
+      "RepairReadiness": 0.8426648406178135,
+      "RootCauseEvidence": -0.5833833511969481,
+      "HiddenReproducibility": -2.7224556389190906,
+      "ImpactScope": 0.12964074471043277
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

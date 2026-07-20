@@ -1,0 +1,1463 @@
+{
+  "bug": {
+    "bug_id": "Closure-129",
+    "project": "Closure",
+    "summary": "Casting a function before calling it produces bad code and breaks plugin code",
+    "description": "1. Compile this code with ADVANCED_OPTIMIZATIONS:\r\nconsole.log( /** @type {function(!string):!string} */ ((new window.ActiveXObject( 'ShockwaveFlash.ShockwaveFlash' ))['GetVariable'])( '$version' ) );\r\n\r\nproduces:\r\n\r\n'use strict';console.log((0,(new window.ActiveXObject(&quot;ShockwaveFlash.ShockwaveFlash&quot;)).GetVariable)(&quot;$version&quot;));\r\n\r\n2. Compare with this code:\r\nconsole.log( /** @type {!string} */ ((new window.ActiveXObject( 'ShockwaveFlash.ShockwaveFlash' ))['GetVariable']( '$version' )) )\r\n\r\nproduces:\r\n\r\n'use strict';console.log((new window.ActiveXObject(&quot;ShockwaveFlash.ShockwaveFlash&quot;)).GetVariable(&quot;$version&quot;));\r\n\r\n\r\nNotice the (0,...) wrapping around the GetVariable function in the first example. This causes the call to fail in every browser (this code is IE-only but it's just for a minimal example). The second version produces a warning that the type of GetVariable could not be determined (I enabled type warnings), and it wouldn't be possible to define these in an externs file without making a horrible mess.\r\n\r\nThis applies to all cases where functions are cast, but only causes problems (other than bloat) with plugins like this. It seems to serve no purpose whatsoever, so I assume it is a bug.\r\n\r\nRunning on a mac, not sure what version but it reports Built on: 2013/02/12 17:00, so will have been downloaded about that time."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable bad output and runtime failure: the casted call compiles to code that breaks in browsers."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Identifies the affected code path as casting a function before calling it, with examples using ActiveXObject.GetVariable."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Includes concrete compiled output showing the problematic '(0, ...)' wrapping and the contrasting output."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides minimal repro input and the resulting output, enough to investigate without clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Points to the compiler behavior around function casts/call generation, giving a clear starting area in the codebase."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer can understand the failure scenario from the examples and explanation."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report gives a concrete input/output pair suitable for a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The triggering condition is clear: casting a function before invoking it."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References specific entities like window.ActiveXObject and GetVariable, which are locatable in code or externs."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology is consistent: it distinguishes casted function calls, warnings, and generated code."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific triggering inputs are shown, including the exact JavaScript expressions."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The report includes a clear two-step compile-and-compare reproduction."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Only a vague build date and mac are given; no exact version or environment details."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Shows the exact generated code with the '(0, ...)' wrapping and the differing output."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The issue is specifically about casted function calls producing bad code, distinguishing it from a generic plugin problem."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: the call should compile without the extra wrapping and should work."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is explicitly stated: the generated code fails in every browser."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The discrepancy between the two compiled outputs is clearly shown."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The report gives enough code and compiler mode to attempt reproduction directly."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environment details are incomplete; only 'mac' and a build date are mentioned."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "The report does not explicitly propose a root cause, only says it seems to serve no purpose."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No explicit causal explanation is given beyond the symptom and generated code."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "It provides output examples but no evidence supporting a specific cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The description is internally consistent and matches the shown outputs."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "References concrete artifacts like GetVariable, ADVANCED_OPTIMIZATIONS, and the exact emitted code."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Names specific API usage: window.ActiveXObject and GetVariable."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The affected subsystem is the compiler/code generation path for function casts."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes directly relevant generated code snippets."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "No external dependency version is named beyond the generic ActiveXObject/Flash plugin reference."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.79,
+        "reason": "Only 'mac' and a build timestamp are provided; no precise runtime/browser version."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "The exact compiler component causing the wrapping is not identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering code are concrete enough to reproduce."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior is reasonably inferable from the comparison and complaint about failure."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Version/environment details are incomplete and could affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The report makes clear the fix should avoid wrapping casted function calls in a way that changes semantics."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.76,
+        "reason": "It does not identify the exact class or method to change."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: compiled output should not break the call and should match the working form."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Edge cases and constraints are only broadly mentioned, not explicitly documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A plausible fix can be inferred from the bad code generation example alone."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific code construct is named as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The causal chain is implied by the output, but not articulated as a root-cause explanation."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The concrete code examples fully determine the reproduction scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "The bug affects compiler code generation for function calls/casts."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The symptom is in emitted JavaScript, while the defect is in the compiler transformation."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one main affected area is described; multiple impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Mentions several technical concepts: casts, function calls, ADVANCED_OPTIMIZATIONS, ActiveXObject, and GetVariable."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: unwanted (0,...) wrapping in compiled output that breaks plugin code execution."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Identifies the affected code path: function type casting with ADVANCED_OPTIMIZATIONS, specifically the type annotation processing logic."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes concrete debugging artifacts: two side-by-side code examples showing input, compiled output, and the problematic (0,...) wrapping."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer can immediately reproduce by compiling the provided code snippet with ADVANCED_OPTIMIZATIONS and observing the output difference."
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Does not pinpoint specific module or class; identifies only the general feature area (type casting and optimization logic)."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clear: function type casts produce incorrect (0,...) wrapping that breaks execution in browsers."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Precise enough to write a failing test: compile provided code with ADVANCED_OPTIMIZATIONS and verify output contains (0,...)."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: apply function type cast \u2192 compile with ADVANCED_OPTIMIZATIONS \u2192 observe (0,...) wrapping in output."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Does not identify specific compiler components; references only 'type casting' and 'optimization' generically."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Technical terminology used accurately: JSDoc type annotations, ADVANCED_OPTIMIZATIONS, function casting, plugin code."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Provides concrete input: exact JSDoc type annotation and code structure that triggers the bug."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Reproduction steps are concrete: compile provided code with ADVANCED_OPTIMIZATIONS and compare output."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Includes version info: built on 2013/02/12 17:00, though not a full semantic version number."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reports specific output verbatim: shows exact (0,...) wrapping in compiled code and contrasts with correct output."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Distinguishes this from similar issues: specifically about function type casts (not value casts) with ADVANCED_OPTIMIZATIONS."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is explicit: compiled code should not wrap function calls with (0,...) when type-cast."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Observed behavior is explicit: (0,...) wrapping appears in compiled output, causing execution failure."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Discrepancy is unambiguous: first example produces (0,...) wrapping; second example (value cast) does not."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Reproduction steps are complete: provide code, compile with ADVANCED_OPTIMIZATIONS, observe output."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Missing specific compiler setup details; does not specify how to invoke compiler or exact configuration."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Proposes specific potential cause: function type casting logic incorrectly applies (0,...) wrapping."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Links explanation to symptoms: (0,...) wrapping is applied during function type cast compilation, causing execution failure."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides concrete evidence: side-by-side code examples showing the problematic output directly."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Explanation is coherent: function casts produce (0,...), value casts do not; (0,...) breaks execution."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Does not reference specific method names, log lines, or exact code locations in the compiler."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Names specific APIs: window.ActiveXObject, GetVariable method, JSDoc type annotations."
+      },
+      "T2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Does not identify specific compiler modules or source files; references only general optimization logic."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes relevant artifacts: two code examples showing input and compiled output with the problematic (0,...) wrapping."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Does not reference external dependencies; focuses on compiler behavior with standard JavaScript."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Provides environment: Mac OS, compiler built 2013/02/12 17:00; though incomplete version info."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "References are specific: function type casting, ADVANCED_OPTIMIZATIONS, (0,...) wrapping are all clear."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs are fully specified: exact code snippet with JSDoc type annotation provided."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clear: compiled code should not include (0,...) wrapping for function casts."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Missing specific compiler invocation details and exact version number; build date is approximate."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "No contradictions; report is internally consistent between examples and conclusions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Faulty behavior is clear enough to determine fix: remove (0,...) wrapping from function type-cast compilation."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Does not identify specific component or method requiring fix; only indicates 'type casting logic' generally."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is concrete: compiled output should match the value-cast example (no (0,...) wrapping)."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Identifies relevant constraint: fix must apply to all function casts, not just this specific case."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Developer would need to locate the type-cast compilation logic; report does not provide enough code location specificity."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "Explicitly proposes root cause: function type casting logic incorrectly applies (0,...) wrapping."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Does not reference specific code constructs, method names, or API calls in the compiler implementation."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Causal chain is articulated: function type cast \u2192 (0,...) wrapping applied \u2192 execution fails in browsers."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Concrete scenario provided: compile specific code with ADVANCED_OPTIMIZATIONS; complete and unambiguous steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies affected subsystem: function type casting logic within ADVANCED_OPTIMIZATIONS compilation."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "Distinguishes symptom (incorrect output) from defect (type casting compilation logic)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Does not identify multiple impacted areas; focuses on single issue (function type casting)."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Names relevant concepts: function type casting, JSDoc annotations, ADVANCED_OPTIMIZATIONS, plugin code, browser execution."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "A5": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.91
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": false,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.94
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.92
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.89
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.93
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.91
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.82
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.89
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.75
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.87
+      },
+      "T2": {
+        "agreement": false,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.79,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.91
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.7
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.82
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.72
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.83
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.89
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.85
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.83
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.78
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.7083333333333334,
+  "cohens_kappa": 0.3225806451612904,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "Q3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.83 > 0.75)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.77)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.82 > 0.72)"
+      },
+      "P5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.8 > 0.72)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.83)"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.8)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "Selected judge1 (higher confidence: 0.83 > 0.75)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.77)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.76,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge2 (higher confidence: 0.82 > 0.72)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge1 (higher confidence: 0.8 > 0.72)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.83)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.8)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 4,
+      "ReasoningQuality": 4,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 0.933138949631687,
+      "Clarity": 0.933138949631687,
+      "Specificity": 0.933138949631687,
+      "Reproducibility": 0.2916059217599022,
+      "ReasoningQuality": 0.2916059217599022,
+      "TechnicalContext": 0.2916059217599022,
+      "Ambiguity": 0.2916059217599022,
+      "RepairReadiness": 0.2916059217599022,
+      "RootCauseEvidence": -2.274526189727237,
+      "HiddenReproducibility": -1.632993161855452,
+      "ImpactScope": -0.3499271061118826
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

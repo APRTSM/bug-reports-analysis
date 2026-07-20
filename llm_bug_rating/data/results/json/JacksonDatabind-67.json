@@ -1,0 +1,1429 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-67",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "We have a module that extends simple model to allow us to accept enum names in lower case in a fairly generic manner\n\nInside that we add the \nmodifyKeyDeserializer\n\nThe incoming class (using immutables) is mapped to a guava immutable map.\n\nWalking through the code:\n\ncom.fasterxml.jackson.datatype.guava.deser.ImmutableMapDeserializer.createContextual\n\ncalls DeserializationContext.findKeyDeserializer\n\ncalls DeserializerCache.findKeyDeserializer\n\ncalls BasicDeserializerFactory.createKeyDeserializer\n\nwhich has the code:\n\n// the only non-standard thing is this:\n\nif\n(\ndeser\n== \nnull\n) {\n\nif\n(\ntype\n.\nisEnumType\n()) {\n\nreturn\n\n_createEnumKeyDeserializer\n(\nctxt\n, \ntype\n);\n}\n\ndeser\n= \nStdKeyDeserializers\n.\nfindStringBasedKeyDeserializer\n(\nconfig\n, \ntype\n);\n}\n\nSince we are an enum type, it returns the value in the \n_createEnumKeyDeserializer\n, which is the standard enum deserializer.\n\nBelow that block is the check for the hasDeserializerModifiers, but since we have returned already, it is never called, so we can't override the behaviour.\n\nModule fragment:\n\nsetDeserializerModifier\n(\nnew\n\nBeanDeserializerModifier\n() {\n\n@\nOverride\n\n@\nSuppressWarnings\n(\n\"unchecked\"\n)\n\npublic\n\nJsonDeserializer\n<\nEnum\n> \nmodifyEnumDeserializer\n(\n\nDeserializationConfig\n\nconfig\n,\n\nfinal\n\nJavaType\n\ntype\n,\n\nBeanDescription\n\nbeanDesc\n,\n\nfinal\n\nJsonDeserializer\n<?> \ndeserializer\n) {\n\nreturn\n\nnew\n\nJsonDeserializer\n<\nEnum\n>() {\n\n@\nOverride\n\npublic\n\nEnum\n\ndeserialize\n(\nJsonParser\n\njp\n, \nDeserializationContext\n\nctxt\n) \nthrows\n\nIOException\n{\n\nClass\n<? \nextends\n\nEnum\n> \nrawClass\n= (\nClass\n<\nEnum\n<?>>) \ntype\n.\ngetRawClass\n();\n\nreturn\n\nEnum\n.\nvalueOf\n(\nrawClass\n, \njp\n.\ngetValueAsString\n().\ntoUpperCase\n());\n}\n};\n}\n\n@\nOverride\n\npublic\n\nKeyDeserializer\n\nmodifyKeyDeserializer\n(\n\nDeserializationConfig\n\nconfig\n,\n\nJavaType\n\ntype\n,\n\nKeyDeserializer\n\ndeserializer\n) {\n\nif\n(!\ntype\n.\nisEnumType\n()) {\n\nreturn\n\nsuper\n.\nmodifyKeyDeserializer\n(\nconfig\n, \ntype\n, \ndeserializer\n);\n}\n\nreturn\n\nnew\n\nKeyDeserializer\n() {\n\n@\nOverride\n\n@\nSuppressWarnings\n(\n\"unchecked\"\n)\n\npublic\n\nObject\n\ndeserializeKey\n(\nString\n\nkey\n, \nDeserializationContext\n\nctxt\n)\n\nthrows\n\nIOException\n, \nJsonProcessingException\n{\n\nClass\n<? \nextends\n\nEnum\n> \nrawClass\n= (\nClass\n<\nEnum\n<?>>) \ntype\n.\ngetRawClass\n();\n\nreturn\n\nEnum\n.\nvalueOf\n(\nrawClass\n, \nkey\n.\ntoUpperCase\n());\n}\n};\n}\n});\n\nI appreciate the code around here is fairly complex.\n\nRelated issues (possibly):\n\n#749\n\n#1313"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes faulty behavior: modifyKeyDeserializer is never called for enum keys in ImmutableMapDeserializer."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected functionality is identified as enum key deserialization for Guava ImmutableMap via Jackson."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes code path references and method names such as ImmutableMapDeserializer.createContextual and BasicDeserializerFactory.createKeyDeserializer."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides enough context to start investigating the deserializer selection flow and the modifier bypass."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Likely affected subsystem is Jackson key deserialization, specifically enum key handling in the Guava module."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Language is understandable overall, though formatting is rough."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The problem is clearly identified as inability to override enum key deserialization behavior."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The report follows a logical walkthrough of the call chain and then shows the module fragment."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Referenced classes and methods are specific and mostly unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Technical terms like key deserializer, enum type, and BeanDeserializerModifier are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Triggering condition is described: enum names in lower case inside a Guava immutable map."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "No numbered reproduction steps are provided."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No version, OS, or framework version information is included."
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "No explicit error message, exception, or failing output is shown."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The issue is distinguished by the specific interaction between enum key deserialization and modifyKeyDeserializer being bypassed."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.3,
+        "reason": "Expected behavior is implied by the custom modifier, but not stated explicitly as a requirement."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is explicit: modifyKeyDeserializer is never called for enum types."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The discrepancy is clear: lower-case enum keys should be handled, but standard enum deserializer is returned instead."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "The narrative suggests a scenario but does not provide complete reproduction steps."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.25,
+        "reason": "No environment or dependency conditions are documented beyond use of Guava and Jackson."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A potential cause is explicitly proposed: early return in createKeyDeserializer prevents modifiers from running."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is directly linked to the symptom that custom enum key handling is bypassed."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Evidence is provided by the quoted control flow and the note that the modifier check is after the return."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The explanation is internally consistent and matches the described call chain."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References specific technical artifacts such as methods, classes, and the modifier hook."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Mentions concrete classes and methods including ImmutableMapDeserializer.createContextual and modifyKeyDeserializer."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is identifiable as Jackson Guava immutable map deserialization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes code excerpts and a detailed call path."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "References Guava and Jackson as the relevant external libraries."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "No OS, browser, framework version, or other environment details are given."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are broad, such as 'a module that extends simple model' and 'fairly generic manner.'"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Inputs and exact triggering data are not fully specified."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.62,
+        "reason": "Expected behavior is implied rather than clearly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Version and environment information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "The report is consistent and does not contain obvious contradictions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior is precise enough to identify the needed change in enum key deserializer selection."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The likely code location is identifiable in BasicDeserializerFactory.createKeyDeserializer."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "The correct behavior is implied by the custom modifier, but not explicitly stated as a target."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "The enum lower-case key handling constraint is documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.42,
+        "reason": "A developer would likely need further investigation into the framework internals and intended extension points."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report explicitly proposes the root cause: an early return before hasDeserializerModifiers is checked."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The root cause references a specific code construct: the return from _createEnumKeyDeserializer in createKeyDeserializer."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The causal link is stated: returning early prevents modifyKeyDeserializer from being called."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A reproduction scenario can be inferred: deserialize a Guava ImmutableMap with enum keys in lower case using the custom module."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is Jackson enum key deserialization for Guava ImmutableMap."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom manifests in ImmutableMapDeserializer, while the underlying defect is in BasicDeserializerFactory.createKeyDeserializer."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "Only one main path is discussed; multiple impacted areas are not identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report describes that modifyKeyDeserializer is never called because BasicDeserializerFactory returns early for enum types, preventing custom behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected component is BasicDeserializerFactory.createKeyDeserializer and the BeanDeserializerModifier.modifyKeyDeserializer hook."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Code walkthrough with specific class and method names is provided, along with the relevant code block showing the early return."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report explains the call chain, the problematic code block, and includes the module code attempting to override behavior."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is BasicDeserializerFactory in jackson-databind, specifically the key deserializer creation for enum types."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report is written in coherent English and the problem is explained step by step."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The problem is clear: modifyKeyDeserializer modifier is bypassed because createKeyDeserializer returns early for enum types before checking modifiers."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Information flows logically: context, call chain, problematic code, then the module code attempting the fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References to classes, methods, and behaviors are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology (deserializer, modifier, enum, key deserializer) is used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The triggering condition is using an enum type as a map key with a custom BeanDeserializerModifier registered."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No explicit numbered reproduction steps are provided; the issue is described narratively through code walkthrough."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No version information for Jackson or the environment is mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The specific failure is that modifyKeyDeserializer is never invoked, so lowercase enum keys cannot be deserialized."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report pinpoints the exact code path and early return that causes the issue, distinguishing it from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is that modifyKeyDeserializer should be called, allowing custom key deserialization for enum types."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is that the modifier is never called because createKeyDeserializer returns early for enum types."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy between expected (modifier called) and observed (modifier skipped) is clearly identifiable."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No explicit reproduction steps are provided; a developer would need to construct a test case from the narrative."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Dependencies like Guava and Immutables are mentioned but versions and full environment details are not documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report explicitly proposes that the early return in createKeyDeserializer bypasses the modifier check."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The proposed cause (early return before hasDeserializerModifiers check) is directly linked to the symptom (modifier never called)."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The code snippet from BasicDeserializerFactory showing the early return is provided as evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is logically consistent: enum type triggers early return, modifier check is after the return, so modifier is skipped."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific class (BasicDeserializerFactory), method (createKeyDeserializer), and code block are referenced."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Multiple specific classes and methods are mentioned: BasicDeserializerFactory, DeserializerCache, ImmutableMapDeserializer, BeanDeserializerModifier, etc."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is jackson-databind's deserialization factory, specifically key deserializer creation."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Code snippets from both the library and the user's module are included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Guava (ImmutableMap), Immutables library, and jackson-datatype-guava are referenced as external dependencies."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, Java version, or Jackson version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "References are specific and well-defined; no vague references detected."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The exact input JSON and the full configuration are not shown, only the module fragment."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior (modifyKeyDeserializer should be invoked for enum key types) is clearly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "No Jackson version, Java version, or other environment details are provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior (early return before modifier check) is precisely described, indicating what needs to change in createKeyDeserializer."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "BasicDeserializerFactory.createKeyDeserializer is identified as the location requiring a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The fix target is clear: the modifier check should be applied even when an enum key deserializer is returned."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The condition (enum type causing early return) and the affected code block are documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would need to investigate the full modifier application logic and test the fix, as no complete reproduction case or version info is given."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The root cause is explicitly stated: early return in createKeyDeserializer for enum types bypasses the hasDeserializerModifiers check."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The specific code construct (if isEnumType() return _createEnumKeyDeserializer) in BasicDeserializerFactory.createKeyDeserializer is referenced."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The causal chain is articulated: early return \u2192 modifier check never reached \u2192 modifyKeyDeserializer never called \u2192 custom behavior impossible."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "From the narrative, one can infer: register a BeanDeserializerModifier with modifyKeyDeserializer, use an enum as a Guava ImmutableMap key, and attempt to deserialize lowercase enum key strings."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "BasicDeserializerFactory.createKeyDeserializer in jackson-databind is clearly identified as the affected code location."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The symptom (modifier not called) is distinguished from the defect location (early return in createKeyDeserializer)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Both jackson-databind (BasicDeserializerFactory) and jackson-datatype-guava (ImmutableMapDeserializer) are identified as impacted areas."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.4,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.75
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": false,
+        "confidence_diff": 0.44999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.85
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.3,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.29999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.7
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.5,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.25,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.6699999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.7,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.95
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.39999999999999997,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.45,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.27999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.42,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.45000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.8723404255319149,
+  "cohens_kappa": 0.619946091644205,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.4)"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.3)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.62)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.45)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.35)"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.4)"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.3)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.72)"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.62)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.45)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.35)"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 1.2751965049066458,
+      "Clarity": 1.2751965049066458,
+      "Specificity": -0.20134681656420741,
+      "Reproducibility": -0.20134681656420741,
+      "ReasoningQuality": 1.2751965049066458,
+      "TechnicalContext": 0.5369248441712192,
+      "Ambiguity": -0.20134681656420741,
+      "RepairReadiness": -1.6778901380350608,
+      "RootCauseEvidence": -0.20134681656420741,
+      "HiddenReproducibility": -1.6778901380350608,
+      "ImpactScope": -0.20134681656420741
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

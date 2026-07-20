@@ -1,0 +1,1490 @@
+{
+  "bug": {
+    "bug_id": "Compress-9",
+    "project": "Compress",
+    "summary": "TarArchiveOutputStream.getBytesWritten() returns invalid value",
+    "description": "It appears the TarArchiveOutputStream.getBytesWritten()returns zero or invalid value when queried.\n\nIn the code sample below, it returns zero, even after an sizeable file was processed.\n\nI've printed it twice, once before closing the output stream, and once after, just for the reference.\n\nIt is also demonstrable on multiple processed files.\n\nWithin the TarArchiveOutputStream.getBytesWritten() implementation, it appears the call for count(numToWrite) is made after the numToWrite is depleted in the process of actual byte writing. When call for count(numToWrite); is moved up, the returned values for TarArchiveOutputStream.getBytesWritten() are getting equal to the sum of the sizes of processed files. This is much closer to expected value (\"Returns the current number of bytes written to this stream.\") but still not correct, for that number should include the tar header sizes as well.\n\nAt any rate, please find the proposed patch below, merely moving count(numToWrite); up a few lines. This makes TarArchiveOutputStream.getBytesWritten() closer to true value.\n\nTest code:\n\n@Test\n\npublic\nvoid tartest() \nthrows\nException {\n\nFileOutputStream myOutputStream = \nnew\nFileOutputStream(\n\"C:/temp/tartest.tar\"\n);\n\nArchiveOutputStream sTarOut = \nnew\nArchiveStreamFactory().createArchiveOutputStream(ArchiveStreamFactory.TAR, myOutputStream);\n\nFile sSource = \nnew\nFile(\n\"C:/share/od_l.txt\"\n);\nTarArchiveEntry sEntry = \nnew\nTarArchiveEntry(sSource);\nsTarOut.putArchiveEntry(sEntry);\n\nFileInputStream sInput = \nnew\nFileInputStream(sSource);\n\nbyte\n[] cpRead = \nnew\n\nbyte\n[8192];\n\nint\niRead = 0;\n\nwhile\n((iRead = sInput.read(cpRead)) > 0) {\nsTarOut.write(cpRead, 0, iRead);\n}\n\nsLog.info(\n\"Processed: \"\n+sTarOut.getBytesWritten()+\n\" bytes. File Len: \"\n+sSource.length());\n\nsInput.close();\nsTarOut.closeArchiveEntry();\nsTarOut.close();\n\nsLog.info(\n\"Processed: \"\n+sTarOut.getBytesWritten()+\n\" bytes. File Len: \"\n+sSource.length());\n\nreturn\n;\n\n}\n\nTest Output:\n\nOct 21, 2011 9:09:28 AM com.cronsult.jndmpd.test.Backup tartest\nINFO: Processed: 0 bytes. File Len: 186974208\nOct 21, 2011 9:09:28 AM com.cronsult.jndmpd.test.Backup tartest\nINFO: Processed: 0 bytes. File Len: 186974208\n\nProposed Patch:\n\nIndex: src/main/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java\n===================================================================\n--- src/main/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java (revision 1187150)\n+++ src/main/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java (working copy)\n@@ -276,6 +276,8 @@\n\n// eliminate some of the buffer copying.\n\n//\n\n}\n+ \n+ count(numToWrite);\n\nif\n(assemLen > 0) {\n\nif\n((assemLen + numToWrite) >= recordBuf.length) {\n@@ -325,7 +327,7 @@\nwOffset += num;\n}\n\n- count(numToWrite);\n+ \n}\n\n/**"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reports observable faulty behavior: getBytesWritten() returns 0 after writing a large tar entry."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific API and class are named: TarArchiveOutputStream.getBytesWritten()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes concrete test output showing 'Processed: 0 bytes' twice."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides a runnable test case and observed output, enough to investigate immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Points directly to org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Failure scenario is described clearly with a tar write example and observed zero byte count."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A failing test could assert getBytesWritten() is nonzero after writing a file."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Sequence is explicit: create tar stream, write file, query bytes before and after close."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Named classes and methods are specific enough to locate code without prior context."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology is consistent: bytes written, count(numToWrite), tar header sizes."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete input is given: a specific file and writing its bytes into a tar archive."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report includes ordered reproduction code steps in a test method."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No version, OS, or library release information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reports exact observed output: 'Processed: 0 bytes. File Len: 186974208'."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The issue is distinguished by getBytesWritten() staying zero and the proposed count() placement."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is stated: bytes written should reflect processed data and tar headers."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is explicit: getBytesWritten() returns 0 before and after close."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy between expected nonzero bytes and observed zero is clear."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The provided test code is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Environment details are incomplete; only a Windows-style path is shown."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Proposes a specific cause: count(numToWrite) is called after numToWrite is depleted."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Links the misplaced count() call to the zero/incorrect byte count symptom."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Supports the explanation with the proposed patch and observed change in returned values."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally consistent and matches the reported behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References concrete artifacts: count(numToWrite), getBytesWritten(), TarArchiveOutputStream.java."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names TarArchiveOutputStream, getBytesWritten(), putArchiveEntry(), write(), closeArchiveEntry()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The tar archiver subsystem is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes relevant test output and code snippet."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "References Apache Commons Compress via ArchiveStreamFactory and TarArchiveOutputStream, though no version is given."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No OS/runtime/framework version details are provided beyond file paths."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are broad, such as 'tar header sizes' and 'multiple processed files'."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and steps are sufficiently described to reproduce."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Expected behavior is stated, though not perfectly precise."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No clear contradictions are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Describes the faulty behavior and the intended direction of the fix."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Identifies TarArchiveOutputStream.java and the count(numToWrite) location."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "States the acceptance criterion: getBytesWritten() should reflect bytes written, including headers."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Mentions an edge case: tar header sizes should be included."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A plausible fix is directly suggested by moving count(numToWrite)."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Explicitly proposes the root cause: count(numToWrite) is called too late."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References the specific code construct count(numToWrite) in TarArchiveOutputStream."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Explains the causal chain from misplaced count() to zero/incorrect bytes written."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The test code fully determines a concrete reproduction scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The tar archiving subsystem and TarArchiveOutputStream are clearly affected."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom location (getBytesWritten()) from likely defect location (write/count logic)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "Only one main component is discussed; multiple impacted areas are not clearly identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Mentions several technical concepts: TarArchiveOutputStream, getBytesWritten, count(numToWrite), tar headers."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "A2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "C3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "C5": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "S5": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "R2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "Q4": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "T2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      },
+      "I4": {
+        "value": false,
+        "confidence": 0.0,
+        "reason": "Missing from model response"
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": false,
+        "confidence_diff": 0.98,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.0
+      },
+      "A2": {
+        "agreement": false,
+        "confidence_diff": 0.97,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.0
+      },
+      "A3": {
+        "agreement": false,
+        "confidence_diff": 0.93,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.0
+      },
+      "A4": {
+        "agreement": false,
+        "confidence_diff": 0.9,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.0
+      },
+      "A5": {
+        "agreement": false,
+        "confidence_diff": 0.95,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.0
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": false,
+        "confidence_diff": 0.92,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.0
+      },
+      "C2": {
+        "agreement": false,
+        "confidence_diff": 0.9,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.0
+      },
+      "C3": {
+        "agreement": false,
+        "confidence_diff": 0.88,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.0
+      },
+      "C4": {
+        "agreement": false,
+        "confidence_diff": 0.94,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.0
+      },
+      "C5": {
+        "agreement": false,
+        "confidence_diff": 0.86,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.0
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": false,
+        "confidence_diff": 0.93,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.0
+      },
+      "S2": {
+        "agreement": false,
+        "confidence_diff": 0.95,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.0
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.98,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.0
+      },
+      "S4": {
+        "agreement": false,
+        "confidence_diff": 0.9,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.0
+      },
+      "S5": {
+        "agreement": false,
+        "confidence_diff": 0.84,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.0
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.88,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.0
+      },
+      "R2": {
+        "agreement": false,
+        "confidence_diff": 0.96,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.0
+      },
+      "R3": {
+        "agreement": false,
+        "confidence_diff": 0.9,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.0
+      },
+      "R4": {
+        "agreement": false,
+        "confidence_diff": 0.92,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.0
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.97,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.0
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.95,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.0
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.9,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.0
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.82,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.0
+      },
+      "Q4": {
+        "agreement": false,
+        "confidence_diff": 0.9,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.0
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.93,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.0
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": false,
+        "confidence_diff": 0.97,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.0
+      },
+      "T2": {
+        "agreement": false,
+        "confidence_diff": 0.95,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.0
+      },
+      "T3": {
+        "agreement": false,
+        "confidence_diff": 0.9,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.0
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.78,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.0
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.96,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.0
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.72,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.0
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.95,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.0
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.96,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.0
+      },
+      "M4": {
+        "agreement": false,
+        "confidence_diff": 0.98,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.0
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.97,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.0
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": false,
+        "confidence_diff": 0.88,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.0
+      },
+      "P2": {
+        "agreement": false,
+        "confidence_diff": 0.96,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.0
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.86,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.0
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.8,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.0
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.84,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.0
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.94,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.0
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.92,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.0
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.88,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.0
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": false,
+        "confidence_diff": 0.9,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.0
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": false,
+        "confidence_diff": 0.93,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.0
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.9,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.0
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.74,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.0
+      },
+      "I4": {
+        "agreement": false,
+        "confidence_diff": 0.86,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.0
+      }
+    }
+  },
+  "percent_agreement": 0.14583333333333334,
+  "cohens_kappa": -3.2494332428053366e-17,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.0)"
+      },
+      "A2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.97 > 0.0)"
+      },
+      "A3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.93 > 0.0)"
+      },
+      "A4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "A5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.0)"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.92 > 0.0)"
+      },
+      "C2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "C3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.0)"
+      },
+      "C4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.94 > 0.0)"
+      },
+      "C5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.0)"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.93 > 0.0)"
+      },
+      "S2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.0)"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "S5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.84 > 0.0)"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.0)"
+      },
+      "R2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.0)"
+      },
+      "R3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "R4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.92 > 0.0)"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.0)"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "Q3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.82 > 0.0)"
+      },
+      "Q4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "Q5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.93 > 0.0)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.97 > 0.0)"
+      },
+      "T2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.0)"
+      },
+      "T3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "T4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.78 > 0.0)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.72 > 0.0)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.0)"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.0)"
+      },
+      "P2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.0)"
+      },
+      "P3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.0)"
+      },
+      "P4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.8 > 0.0)"
+      },
+      "P5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.84 > 0.0)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.94 > 0.0)"
+      },
+      "RC2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.92 > 0.0)"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.0)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.93 > 0.0)"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.0)"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.0)"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Selected judge1 (higher confidence: 0.97 > 0.0)"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Selected judge1 (higher confidence: 0.93 > 0.0)"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.0)"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Selected judge1 (higher confidence: 0.92 > 0.0)"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.0)"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Selected judge1 (higher confidence: 0.94 > 0.0)"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.0)"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Selected judge1 (higher confidence: 0.93 > 0.0)"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.0)"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Selected judge1 (higher confidence: 0.84 > 0.0)"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.0)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.0)"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Selected judge1 (higher confidence: 0.92 > 0.0)"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.0)"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge1 (higher confidence: 0.82 > 0.0)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Selected judge1 (higher confidence: 0.93 > 0.0)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Selected judge1 (higher confidence: 0.97 > 0.0)"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.0)"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Selected judge1 (higher confidence: 0.78 > 0.0)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Selected judge1 (higher confidence: 0.72 > 0.0)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.0)"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.0)"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.0)"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.0)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge1 (higher confidence: 0.8 > 0.0)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Selected judge1 (higher confidence: 0.84 > 0.0)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Selected judge1 (higher confidence: 0.94 > 0.0)"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Selected judge1 (higher confidence: 0.92 > 0.0)"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.0)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Selected judge1 (higher confidence: 0.93 > 0.0)"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.0)"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.0)"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 0.9912407071619301,
+      "Clarity": 0.9912407071619301,
+      "Specificity": 0.15249857033260453,
+      "Reproducibility": 0.15249857033260453,
+      "ReasoningQuality": 0.9912407071619301,
+      "TechnicalContext": 0.15249857033260453,
+      "Ambiguity": -0.6862435664967211,
+      "RepairReadiness": 0.9912407071619301,
+      "RootCauseEvidence": -0.6862435664967211,
+      "HiddenReproducibility": -2.3637278401553723,
+      "ImpactScope": -0.6862435664967211
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,1451 @@
+{
+  "bug": {
+    "bug_id": "Cli-12",
+    "project": "Cli",
+    "summary": "PosixParser interupts \"-target opt\" as \"-t arget opt\"",
+    "description": "This was posted on the Commons-Developer list and confirmed as a bug.\n\n> Is this a bug? Or am I using this incorrectly?\n\n> I have an option with short and long values. Given code that is \n\n> essentially what is below, with a PosixParser I see results as \n\n> follows:\n\n> \n\n> A command line with just \"-t\" prints out the results of the catch \n\n> block\n\n> (OK)\n\n> A command line with just \"-target\" prints out the results of the catch\n\n> block (OK)\n\n> A command line with just \"-t foobar.com\" prints out \"processing selected\n\n> target: foobar.com\" (OK)\n\n> A command line with just \"-target foobar.com\" prints out \"processing\n\n> selected target: arget\" (ERROR?)\n\n> \n\n> ======================================================================\n\n> ==\n\n> =======================\n\n> private static final String OPTION_TARGET = \"t\";\n\n> private static final String OPTION_TARGET_LONG = \"target\";\n\n> // ...\n\n> Option generateTarget = new Option(OPTION_TARGET, \n\n> OPTION_TARGET_LONG, \n\n> true, \n\n> \"Generate files for the specified\n\n> target machine\");\n\n> // ...\n\n> try \n\n{\n> parsedLine = parser.parse(cmdLineOpts, args);\n> }\n\ncatch (ParseException pe) \n\n{\n> System.out.println(\"Invalid command: \" + pe.getMessage() +\n> \"\\n\");\n> HelpFormatter hf = new HelpFormatter();\n> hf.printHelp(USAGE, cmdLineOpts);\n> System.exit(-1);\n> }\n\n> \n\n> if (parsedLine.hasOption(OPTION_TARGET)) \n\n{\n> System.out.println(\"processing selected target: \" +\n> parsedLine.getOptionValue(OPTION_TARGET)); \n> }\n\nIt is a bug but it is due to well defined behaviour (so that makes me feel a\n\nlittle better about myself \n. To support \nspecial\n\n(well I call them special anyway) like -Dsystem.property=value we need to be\n\nable to examine the first character of an option. If the first character is\n\nitself defined as an Option then the remainder of the token is used as the\n\nvalue, e.g. 'D' is the token, it is an option so 'system.property=value' is the\n\nargument value for that option. This is the behaviour that we are seeing for\n\nyour example. \n\n't' is the token, it is an options so 'arget' is the argument value. \n\nI suppose a solution to this could be to have a way to specify properties for\n\nparsers. In this case 'posix.special.option == true' for turning \n\non \nspecial\noptions. I'll have a look into this and let you know.\n\nJust to keep track of this and to get you used to how we operate, can you log a\n\nbug in bugzilla for this.\n\nThanks,\n\n-John K"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: '-target foobar.com' is parsed as 'arget' instead of 'foobar.com'."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the affected API/path as PosixParser.parse with an Option having short name 't' and long name 'target'."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes concrete code snippet and exact misparsed output, though no stack trace."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Provides enough information to reproduce by parsing '-target foobar.com' with PosixParser and the shown option definition."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Points to PosixParser in Commons CLI as the component to inspect."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A developer can understand the failure scenario from the example commands and outputs."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A failing test could assert that '-target foobar.com' yields value 'foobar.com' for option 't'."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The sequence of inputs and resulting outputs is listed unambiguously."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References PosixParser, Option, parse, hasOption, and getOptionValue clearly enough to locate code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Terminology is consistent: short option, long option, parser, argument value, and special options."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific triggering input is given: '-target foobar.com'."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Reproduction steps are implied by the listed command-line cases, though not numbered."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reports the exact failure mode: 'processing selected target: arget' instead of the full value."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The interaction between PosixParser and a short option that is also the first letter of a long option is specific."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear from the examples: '-target foobar.com' should process 'foobar.com'."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is explicitly stated as processing 'arget'."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy between expected 'foobar.com' and observed 'arget' is explicit."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The report gives enough to attempt reproduction, but not a full runnable program."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No environment or dependency details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The reply proposes a cause: PosixParser treats the first character as a special option and uses the remainder as the value."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It directly links the cause to the symptom by explaining that 't' becomes the token and 'arget' becomes the value."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The explanation is supported by the concrete example of '-Dsystem.property=value' and the observed parsing behavior."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is internally consistent and matches the reported output."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific artifacts such as PosixParser, option 'D', token 't', and 'arget' as the value."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names PosixParser, Option, parse, hasOption, and getOptionValue."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The Commons CLI parser subsystem is identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes code snippet and observed output relevant to the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No external dependency versions or integrations are named."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report relies on an implied parser behavior explanation that a developer may need to know."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs are concrete enough to attempt reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is stated by the example outputs."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The correct behavior is clear: '-target' should not be split into 't' plus 'arget' when used as a long option."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "PosixParser is the specific component implicated."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: parsing '-target foobar.com' should yield 'foobar.com'."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The special-option behavior for '-D...' is explicitly described as the relevant edge case."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A plausible fix can be inferred from the report: adjust PosixParser's special-option handling."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A specific root cause is explicitly proposed: PosixParser's well-defined special-option behavior."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References the first-character tokenization logic and the special '-Dsystem.property=value' handling."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The causal chain is stated: 't' is recognized as an option, so 'arget' becomes its argument value."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The scenario '-target foobar.com' plus the shown option definition fully determines reproduction steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected concept is the Commons CLI PosixParser option parsing subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The symptom appears in parsed output, while the defect likely resides in parser token handling."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Only one main affected path is described; multiple impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Mentions PosixParser, Option, parse, hasOption, getOptionValue, and HelpFormatter."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: '-target foobar.com' incorrectly parses as 'arget' instead of 'foobar.com', distinguishable from expected behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specifically identifies PosixParser class and Option class with concrete field names (OPTION_TARGET, OPTION_TARGET_LONG)."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Includes code snippet showing Option construction and parse() call; shows actual vs. expected output demonstrating the fault."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer can immediately reproduce by creating an Option with short 't' and long 'target', then parsing '-target foobar.com'."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Directly identifies PosixParser as the faulty component; explanation references the first-character examination logic in the parser."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: long option '-target' with argument is misparsed; a developer unfamiliar with the codebase can understand the issue."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sufficient detail to write a test: create Option('t', 'target', true, ...), parse('-target foobar.com'), assert value equals 'foobar.com' not 'arget'."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Sequence is unambiguous: user provides '-target foobar.com', parser extracts 't' as option, treats 'arget' as value. Single interpretation."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "PosixParser, Option class, and methods (parse, hasOption, getOptionValue) are all named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is accurate: 'short' and 'long' options, 'token', 'argument value' are used correctly and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete inputs provided: '-target foobar.com' is the exact triggering input; can be directly used in a test case."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Ordered reproduction steps are clear: create Option with short 't' and long 'target', call parser.parse() with '-target foobar.com', check getOptionValue()."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for commons-cli or Java; environment details are absent."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific failure output reported verbatim: 'processing selected target: arget' vs. expected 'processing selected target: foobar.com'."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes this bug from general parsing issues: specific to long options starting with a character that is also a short option."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is explicit: '-target foobar.com' should result in getOptionValue() returning 'foobar.com'."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: getOptionValue() returns 'arget' instead of 'foobar.com'."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected 'foobar.com', observed 'arget'; clear failure mode."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reproduction steps are complete: define Option, call parse() with specific input, check output."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No environment details (Java version, OS, commons-cli version) provided; dependencies not specified."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report explicitly proposes root cause: PosixParser examines first character of option; if it matches a defined short option, remainder becomes the value."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Causal mechanism is directly linked: 't' is a defined short option, so '-target' is parsed as '-t' with 'arget' as the value."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Evidence provided: explanation references the first-character examination logic and the '-Dsystem.property=value' special option behavior."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explanation is internally coherent: the special option behavior is well-defined and consistently explains all four test cases."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References specific technical artifacts: 'first character of an option', 'Option' class, method parse(), and the special option pattern."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes named: PosixParser, Option; specific methods: parse(), hasOption(), getOptionValue()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem is clearly PosixParser; developer can locate the parser implementation."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Code snippet provided showing Option construction and parse() usage; output comparison shows the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependencies or library versions mentioned; commons-cli version not specified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, Java version, or runtime environment details provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No vague references; PosixParser, Option, and methods are all clearly named."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs are fully specified: '-target foobar.com' is concrete; Option parameters are explicit."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clear: getOptionValue() should return 'foobar.com', not 'arget'."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version information is missing; commons-cli version and Java version would affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions; all four test cases and the explanation are internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Correct behavior is clear: long options should not be split on first character match; fix would involve checking for long option match before short option character extraction."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "PosixParser is the specific component requiring a fix; the first-character examination logic is the target."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is concrete: '-target foobar.com' should yield getOptionValue('t') == 'foobar.com'."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report mentions the special option behavior ('-Dsystem.property=value') as a constraint; fix must preserve this while handling long options correctly."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could implement a fix: prioritize long option matching over short option character extraction, or add a flag to disable special option behavior."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explicit root cause proposed: PosixParser examines the first character of an option token; if it matches a defined short option, the remainder is treated as the value."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root cause references specific operation: first-character examination in PosixParser; specific code construct: the special option behavior for '-D' style options."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal chain is clear: '-target' \u2192 first char 't' is a defined option \u2192 'arget' becomes the value. Developer can verify by tracing parser logic."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete scenario is fully specified: Option with short 't' and long 'target', input '-target foobar.com'; complete and unambiguous reproduction steps can be directly derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific subsystem identified: PosixParser; specific code concept: first-character option token examination logic."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Symptom manifests in getOptionValue() output; underlying defect resides in PosixParser's token parsing logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Multiple impacted areas: long option parsing, short option parsing, special option behavior ('-D' style); all interact in the parser."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Four or more distinct technical concepts identified: PosixParser, Option class, parse() method, getOptionValue() method, short options, long options, special options."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.85
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.9583333333333334,
+  "cohens_kappa": 0.8500000000000001,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

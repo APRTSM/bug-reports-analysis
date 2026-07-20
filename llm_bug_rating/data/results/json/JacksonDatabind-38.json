@@ -1,0 +1,1427 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-38",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "(note: spun from \nhttps://github.com/FasterXML/jackson/issues/48\n)\n\nDue to changes in type resolution, most direct construction methods in \nJavaType\nsub-classes can not be fully supported. Failure modes are typically with complex cases (and expected to be rare), with one exception: use of \nSimpleType.construct(Class)\n, because:\n\nThis is mostly used for complex types, and not just \"well-known\" interfaces like \nList\n, \nMap\n; so actual access to at least immediate fields is necessary (and similarly lack of super-type info is problematic), and\n\nIts usage is likely to be wide-spread, despite existence of preferable methods (\nTypeFactory\n)\n\nSince refactoring of type resolution was not anticipated early enough in advance, deprecation of methods we want to move users away from could not be done in 2.6, as it should have been (in perfect case)\n\nExact reasoning behind problems is quite complicated: but the fundamental reason is that \nTypeFactory\nhas all the logic to do the generic resolution; \nJavaType\nhas (and should have) very little if any. Since no reference to the factory is passed via constructors/factory methods, they can not properly delegate resolution tasks. This is why direct calls should only be made with all necessary, pre-resolved information; passing \nJavaType\ns for elements, not \nClass\n.\n\nInability to resolve things means that super-types can not be properly resolved, for example. Handling of fields, methods will also be inexact wrt generic types.\n\nThe first immediate problem is something that should be addressable: introspection by POJO deserializer builder does not find any fields or methods. It should be possible to at least find them, even if type resolution for generic types will not work well. This should be acceptable for the common (and reported) case of constructing element types for \nCollection\ns and \nMap\ns: generic parameterization will not be accessible anyway.\n\nThere are other potential issues to address as best we can, but first things first."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Describes faulty behavior: POJO deserializer builder does not find fields or methods for some JavaType constructions."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected functionality is identified as JavaType subclasses, SimpleType.construct(Class), TypeFactory, and POJO deserializer builder introspection."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Provides debugging context about type resolution, super-type resolution, and generic handling, though no logs or stack traces."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Gives enough context to investigate the type-resolution and introspection failure in deserializer building."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Points to the likely subsystem: type resolution in TypeFactory/JavaType and POJO deserializer introspection."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The problem is clearly identified as incomplete type resolution causing missing field/method introspection."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report follows a logical explanation from general cause to immediate problem, though it is somewhat dense."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References to TypeFactory, JavaType, SimpleType.construct(Class), and POJO deserializer builder are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Technical terms are used consistently, mainly around type resolution and generic handling."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "Triggers are described in terms of direct construction methods and complex generic cases, especially SimpleType.construct(Class)."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "No concrete numbered reproduction steps are provided."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.12,
+        "reason": "No environment, OS, browser, or version details are included."
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.22,
+        "reason": "No explicit error message, exception, or stack trace is reported."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "The issue is distinguished by missing field/method introspection due to generic type-resolution limitations."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "Expected behavior is stated: introspection should at least find fields and methods."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is stated: POJO deserializer builder does not find any fields or methods."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The discrepancy is explicit: fields/methods should be found, but are not."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "The report does not provide sufficient step-by-step reproduction instructions."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.14,
+        "reason": "No required environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A potential cause is explicitly proposed: JavaType lacks access to TypeFactory logic for generic resolution."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The explanation is linked to symptoms such as inability to resolve super-types and missing field/method introspection."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The report gives conceptual evidence, explaining why direct construction methods cannot delegate resolution properly."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation is internally consistent and follows from the stated design constraints."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References technical artifacts and constructs such as TypeFactory, JavaType, constructors, and factory methods."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Mentions JavaType subclasses, SimpleType.construct(Class), TypeFactory, and POJO deserializer builder."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The affected subsystem is identifiable as type resolution and deserializer introspection."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.1,
+        "reason": "No logs, stack traces, screenshots, or code snippets are included."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.16,
+        "reason": "No external dependencies or integrations are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.08,
+        "reason": "No environment details or version information are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Some references are broad, such as 'most direct construction methods' and 'complex cases'."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Inputs and triggering conditions are not fully specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "Expected behavior is stated clearly enough."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Environment and version information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.12,
+        "reason": "The report is consistent and does not contain contradictions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The faulty behavior is described precisely enough to target missing field/method introspection."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "Likely fix location is identifiable in JavaType/type resolution and POJO deserializer builder introspection."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report states the target behavior: fields and methods should at least be discoverable."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.66,
+        "reason": "It documents an important constraint: generic type resolution may remain inexact for collection and map element types."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.22,
+        "reason": "A developer would likely need further investigation to implement the fix correctly."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A root cause is explicitly proposed: JavaType cannot delegate resolution because no TypeFactory reference is passed."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation references specific constructs: constructors, factory methods, and TypeFactory delegation."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The report connects the missing delegation to inability to resolve super-types and inaccurate field/method handling."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "A reproduction can be inferred: construct a JavaType via direct subclass construction and run POJO deserializer introspection."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is identifiable as type resolution and POJO deserializer introspection."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "The symptom appears in deserializer builder introspection, while the underlying defect is in JavaType/TypeFactory resolution."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "The report does not identify multiple impacted areas beyond related type-resolution behavior."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The report describes observable faulty behavior: POJO deserializer builder does not find any fields or methods when using SimpleType.construct(Class)."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected functionality is identified: JavaType sub-classes direct construction methods, specifically SimpleType.construct(Class), and POJO deserializer introspection."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No logs, stack traces, or error messages are provided; the report is descriptive/analytical rather than evidence-based."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The report provides enough context about the root cause (TypeFactory vs JavaType resolution) and the immediate problem to begin investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is clearly identified: JavaType, SimpleType, TypeFactory, and POJO deserializer builder in Jackson."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report is written in coherent English, though it is dense and technical."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The core problem is identifiable: direct construction via SimpleType.construct(Class) leads to incomplete type resolution, causing POJO deserializer to miss fields/methods."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The report flows from background context to root cause to immediate problem to proposed fix direction, in a logical order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References to JavaType, SimpleType, TypeFactory, and POJO deserializer builder are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Technical terms like type resolution, introspection, generic parameterization, and super-types are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The triggering condition is described: using SimpleType.construct(Class) for complex types, especially as element types for Collections and Maps."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No concrete step-by-step reproduction steps are provided; the report is analytical rather than procedural."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No version information or environment details are included in the report."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A specific failure is described: POJO deserializer builder does not find any fields or methods."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report distinguishes this issue from a generic failure by explaining the specific mechanism (TypeFactory not accessible from JavaType constructors) and the specific method SimpleType.construct(Class)."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Expected behavior is implied: fields and methods should be found during introspection, and type resolution should work properly."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Observed behavior is stated: introspection by POJO deserializer builder does not find any fields or methods."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The discrepancy is clear: fields/methods should be found but are not, due to incomplete type resolution."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No explicit reproduction steps are provided, making it difficult to attempt reproduction without additional investigation."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No environmental conditions, dependencies, or version requirements are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report explicitly proposes a root cause: TypeFactory holds all resolution logic but is not accessible from JavaType constructors/factory methods."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is directly linked to the symptom: because TypeFactory is not passed, resolution fails, causing fields/methods to not be found."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No empirical evidence (logs, tests, code snippets) is provided to support the explanation; it is reasoning-based only."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally coherent: TypeFactory has resolution logic, JavaType lacks it, direct construction bypasses TypeFactory, hence resolution fails."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The explanation references specific technical artifacts: TypeFactory, JavaType, SimpleType.construct(Class), and POJO deserializer builder."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes and methods are mentioned: JavaType, SimpleType.construct(Class), TypeFactory, POJO deserializer builder."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is clearly identifiable: Jackson's type resolution and deserialization subsystem."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No logs, stack traces, screenshots, or code snippets are included."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No external dependencies or libraries beyond Jackson itself are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, framework version, or environment details are provided; only a vague reference to version 2.6."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Some references are vague, e.g., 'other potential issues to address as best we can' and 'complex cases' without specifics."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The exact inputs or parameters that trigger the failure are not fully described; no concrete example is given."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Expected behavior is reasonably clear: fields and methods should be found during introspection, and type resolution should work."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version information is missing; only a passing mention of 2.6 is made without specifying the exact affected version."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The faulty behavior (POJO deserializer not finding fields/methods) is described precisely enough to understand what needs to change."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The component requiring a fix is identifiable: POJO deserializer builder's introspection logic and SimpleType.construct(Class)."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The expected correct behavior is stated: introspection should at least find fields and methods, even if generic type resolution is imperfect."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Constraints are noted: generic parameterization won't be accessible, and the fix should be acceptable for Collection/Map element types."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "A developer would need further investigation; no code snippets, reproduction steps, or detailed fix guidance are provided."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Root cause is explicitly proposed: TypeFactory has all resolution logic but is not accessible from JavaType constructors, so direct construction cannot properly resolve types."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The root cause references specific constructs: TypeFactory, JavaType constructors/factory methods, and SimpleType.construct(Class)."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The causal chain is articulated: no TypeFactory reference in constructors \u2192 cannot delegate resolution \u2192 super-types unresolved \u2192 fields/methods not found by POJO deserializer."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "From the narrative, one can infer: call SimpleType.construct(Class) with a complex type used as a Collection/Map element, then attempt deserialization and observe that fields/methods are not found."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is clearly identifiable: Jackson's type resolution (JavaType/TypeFactory) and POJO deserialization (deserializer builder introspection)."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The report distinguishes the symptom (fields/methods not found during introspection) from the underlying defect (TypeFactory not accessible in JavaType constructors)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Multiple impacted areas are identified: type resolution, super-type handling, field/method introspection, and generic parameterization for Collections and Maps."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": false,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.75
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.8
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.75
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.8
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.6200000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.8
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.63,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.12,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": false,
+        "confidence_diff": 0.5800000000000001,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.22,
+        "judge2_confidence": 0.8
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.75
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.8
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.61,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.14,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.7
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.75,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.1,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.5399999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.16,
+        "judge2_confidence": 0.7
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.77,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.08,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.7
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.75
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.52,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.7
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.68,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.12,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.8
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.66,
+        "judge2_confidence": 0.75
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.5800000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.22,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.75
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.55,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.9148936170212766,
+  "cohens_kappa": 0.7761904761904762,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.22)"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.2)"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.22)"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.2)"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 2,
+      "Ambiguity": 3,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 3,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 1.414213562373095,
+      "Clarity": 1.414213562373095,
+      "Specificity": 0.0,
+      "Reproducibility": 0.0,
+      "ReasoningQuality": 1.414213562373095,
+      "TechnicalContext": -0.7071067811865475,
+      "Ambiguity": -0.7071067811865475,
+      "RepairReadiness": -1.414213562373095,
+      "RootCauseEvidence": 0.0,
+      "HiddenReproducibility": -1.414213562373095,
+      "ImpactScope": 0.0
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

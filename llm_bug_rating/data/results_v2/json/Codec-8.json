@@ -1,0 +1,1454 @@
+{
+  "bug": {
+    "bug_id": "Codec-8",
+    "project": "Codec",
+    "summary": "ArrayIndexOutOfBoundsException when doing multiple reads() on encoding Base64InputStream",
+    "description": "When encoding a sizable stream byte by byte (so, just calling Base64InputStream.read()), after 10920 successful read()s, this happens: \n\njava.lang.ArrayIndexOutOfBoundsException: 2\n\nat org.apache.commons.codec.binary.Base64.encode(Base64.java:502)\n\nat org.apache.commons.codec.binary.Base64InputStream.read(Base64InputStream.java:157)\n\nat org.apache.commons.codec.binary.Base64InputStream.read(Base64InputStream.java:109)\n\nBased on this, the necessary conditions seem to be that buffer = null and modulus = 2. Then, if a read() is done, a single-byte buffer is used, whose length is doubled by resizeBuffer(), but that still doesn't make it big enough to hold the 4 bytes written to it because modulus was just incremented to 0. \n\nHere's some sample code:\n\nimport org.apache.commons.codec.binary.Base64InputStream;\n\npublic class TestReads {\n\npublic static void main(String[] args) {\n\nBase64InputStream b64stream = new Base64InputStream(System.in, true, 0, null);\n\nint n = 0;\n\ntry \n\n{\nwhile (b64stream.read() != -1) n++;\n}\n\ncatch (Exception x) \n\n{\nSystem.out.println(n);\nx.printStackTrace();\n}\n\n}\n\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports observable ArrayIndexOutOfBoundsException after 10920 read() calls, with behavior distinct from normal reads."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies Base64InputStream.read() and Base64.encode() as the failing code path."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a stack trace with exact exception and line numbers in Base64.java and Base64InputStream.java."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides a concrete reproduction snippet using Base64InputStream.read() in a loop."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points to org.apache.commons.codec.binary.Base64InputStream and Base64 as the likely starting components."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer can understand the failure scenario: repeated byte-by-byte reads on an encoding Base64InputStream."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The sample code is sufficient to derive a failing test case."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The trigger is stated as repeated read() calls on a sizable stream, with the failure occurring after 10920 successful reads."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Referenced entities are named precisely: Base64InputStream, Base64, read(), encode()."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Terminology is consistent and technically plausible, including buffer, modulus, resizeBuffer(), and ArrayIndexOutOfBoundsException."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specifies the input pattern: encoding a sizable stream byte by byte via read()."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides ordered reproduction code that loops on b64stream.read()."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment, OS, or library version information is given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports the exact exception and stack trace location."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The combination of read()-driven encoding, buffer=null, and modulus=2 uniquely characterizes the issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Expected behavior is implied but not explicitly stated."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicit: ArrayIndexOutOfBoundsException: 2 after 10920 reads."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "The report implies the bug but does not explicitly state the expected-vs-observed discrepancy as a correctness criterion."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The sample code is enough to attempt reproduction without clarification."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No environment or dependency setup details are provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Proposes a specific cause: buffer=null with modulus=2 leading to insufficient buffer size."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explains a causal chain from resizeBuffer() and modulus increment to writing 4 bytes into too-small buffer."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with the stack trace and line references."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The explanation is internally consistent and matches the reported exception."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References concrete artifacts such as buffer, modulus, resizeBuffer(), Base64.encode(), and line numbers."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names Base64InputStream.read() and Base64.encode()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected module is identifiable as org.apache.commons.codec.binary."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a relevant stack trace and code snippet."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No external dependencies or versions are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are inferred from the stack trace and internal state rather than fully specified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The triggering condition and sample code are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior is implied by the context of encoding, not contradictory or unclear."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "The report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Describes the faulty behavior and suggests the buffer sizing issue that needs correction."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies Base64InputStream.read() and Base64.encode() as the likely fix locations."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.76,
+        "reason": "A concrete acceptance criterion is not explicitly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Mentions the edge condition buffer=null and modulus=2."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A plausible fix can be inferred from the described buffer resizing and modulus handling."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explicitly proposes the cause as buffer=null and modulus=2."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References specific constructs: resizeBuffer(), modulus, and the single-byte buffer."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explains how the buffer size mismatch leads to the ArrayIndexOutOfBoundsException."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The sample code and described trigger allow direct derivation of reproduction steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Affected subsystem is identifiable as Apache Commons Codec binary Base64 stream handling."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Distinguishes symptom location in Base64InputStream.read() from likely defect in Base64.encode()/buffer handling."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only a small set of related components is mentioned, not multiple impacted areas."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names multiple technical concepts: Base64InputStream, Base64, read(), encode(), buffer, modulus."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior (ArrayIndexOutOfBoundsException) with specific trigger (multiple read() calls) and failure point after 10920 reads."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes identified: Base64InputStream, Base64; specific methods: read(), encode(); specific file locations with line numbers provided."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Stack trace provided with exact exception type, class names, method names, and line numbers (Base64.java:502, Base64InputStream.java:157, Base64InputStream.java:109)."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Concrete sample code provided that reproduces the issue; developer can run it directly with System.in input to trigger the bug."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific modules identified: org.apache.commons.codec.binary package; specific classes: Base64, Base64InputStream; specific methods: read(), encode()."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clear: byte-by-byte reading via read() on Base64InputStream fails after 10920 successful reads with ArrayIndexOutOfBoundsException."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sufficient detail to write a test: create Base64InputStream, call read() repeatedly until failure; expected behavior is no exception."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Sequence is unambiguous: multiple read() calls \u2192 after 10920 calls \u2192 exception occurs; condition chain (buffer=null, modulus=2) is explicitly stated."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "All entities precisely identified: Base64InputStream class, read() method, encode() method, resizeBuffer() method, buffer and modulus fields."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terminology used accurately: ArrayIndexOutOfBoundsException, buffer, modulus, resizeBuffer(); no misleading language."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specific input condition: byte-by-byte reads via read() with no arguments; specific trigger: after 10920 successful reads; specific state: buffer=null, modulus=2."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Concrete reproduction steps provided in sample code: instantiate Base64InputStream with System.in, call read() in loop until exception."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for commons-codec library; no Java version, OS, or environment details specified."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific exception type and message provided verbatim: 'java.lang.ArrayIndexOutOfBoundsException: 2'; exact line numbers in stack trace."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific trigger count (10920 reads) and state conditions (buffer=null, modulus=2) uniquely identify this issue from other potential ArrayIndexOutOfBoundsExceptions."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is implicit: read() should succeed without throwing ArrayIndexOutOfBoundsException; loop should complete normally or return -1."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior explicitly stated: ArrayIndexOutOfBoundsException with message '2' at specific line after 10920 reads."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Discrepancy is clear: expected no exception, observed ArrayIndexOutOfBoundsException; expected successful reads, observed failure after 10920 reads."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Reproduction steps are mostly complete (sample code provided), but input source (System.in) requires external data; exact input size/content not specified."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No Java version, commons-codec version, or OS specified; no details on System.in input size or content needed to trigger the bug."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific potential cause proposed: buffer=null and modulus=2 condition causes resizeBuffer() to create insufficient space for 4 bytes written after modulus increment."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal mechanism articulated: modulus=2 \u2192 read() called \u2192 single-byte buffer used \u2192 resizeBuffer() doubles it \u2192 still too small \u2192 4 bytes written \u2192 ArrayIndexOutOfBoundsException."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Evidence provided: stack trace shows encode() at line 502 is the failure point; report references specific field states (buffer=null, modulus=2) and method (resizeBuffer())."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explanation is internally coherent: buffer state, modulus value, resizeBuffer behavior, and exception location all logically connect without contradiction."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific artifacts: Base64.java:502, Base64InputStream.java:157/109, methods encode() and resizeBuffer(), fields buffer and modulus."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific classes named: Base64, Base64InputStream; specific methods: read(), encode(), resizeBuffer(); specific fields: buffer, modulus."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem clearly identified: org.apache.commons.codec.binary package; files Base64.java and Base64InputStream.java with line numbers."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Stack trace provided with exact exception, class names, method names, and line numbers; sample code provided to reproduce."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Library identified as Apache Commons Codec but no version number specified; no other external dependencies mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No Java version, OS, or runtime environment details provided; no hardware or framework version information."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "All references are specific: class names, method names, line numbers, and field names are precisely identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Input condition is clear (byte-by-byte reads); trigger is specific (after 10920 reads); sample code demonstrates the scenario."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear: read() should not throw ArrayIndexOutOfBoundsException; loop should complete normally."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version information missing: no commons-codec version, Java version, or OS specified; these could affect reproducibility."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictions detected; all statements are consistent: exception occurs after 10920 reads due to buffer/modulus state."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Faulty behavior is clear (exception on read()); correct behavior is implicit (no exception); root cause (buffer sizing) is identified, suggesting fix direction."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific location identified: Base64.encode() at line 502; Base64InputStream.read() at lines 157 and 109; resizeBuffer() method involved."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior: read() completes successfully without ArrayIndexOutOfBoundsException; acceptance criterion is implicit (no exception thrown)."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Edge case documented: buffer=null and modulus=2 condition; constraint: resizeBuffer() must allocate sufficient space for 4 bytes after modulus increment."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could implement fix: adjust resizeBuffer() logic or buffer allocation in encode() to handle modulus=2 case; however, exact buffer size calculation not fully detailed."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific root cause explicitly proposed: buffer=null and modulus=2 condition causes resizeBuffer() to allocate insufficient space."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root cause references specific code constructs: buffer field, modulus field, resizeBuffer() method, encode() method; specific state values (null, 2)."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Causal chain articulated: modulus=2 \u2192 read() \u2192 single-byte buffer \u2192 resizeBuffer() doubles it \u2192 insufficient for 4 bytes \u2192 ArrayIndexOutOfBoundsException at encode() line 502."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Concrete scenario provided: byte-by-byte reads via read() on Base64InputStream; specific trigger count (10920 reads); sample code enables direct derivation of reproduction steps, though input size/content not fully specified."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific subsystem identified: Base64InputStream and Base64 classes in org.apache.commons.codec.binary; specific methods: read(), encode(), resizeBuffer()."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Symptom manifests in read() method (Base64InputStream.java:157); underlying defect likely in encode() method (Base64.java:502) or resizeBuffer() logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Multiple impacted areas identified: buffer management, modulus state tracking, resizeBuffer() allocation logic, encode() method's buffer access."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Four or more distinct technical concepts identified: Base64InputStream, Base64, read() method, encode() method, resizeBuffer() method, buffer field, modulus field, ArrayIndexOutOfBoundsException."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.96
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.88
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.93
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.92
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.96
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.82
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.82
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      }
+    }
+  },
+  "percent_agreement": 0.8958333333333334,
+  "cohens_kappa": 0.673913043478261,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.93 > 0.8)"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.76)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Selected judge2 (higher confidence: 0.93 > 0.8)"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.76)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

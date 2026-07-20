@@ -1,0 +1,1456 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-62",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "I'd like to be able to deserialize an \nUnmodifiableSet\nwith default typing enabled. To do this I have created an \nUnmodifiableSetMixin\nas shown below:\n\nNOTE\n: You can find a minimal project with all the source code to reproduce this issue at \nhttps://github.com/rwinch/jackson-unmodifiableset-mixin\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\nannotation\n.\nJsonCreator\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\nannotation\n.\nJsonTypeInfo\n;\n\nimport\n\njava\n.\nutil\n.\nSet\n;\n\n@\nJsonTypeInfo\n(\nuse\n= \nJsonTypeInfo\n.\nId\n.\nCLASS\n, \ninclude\n= \nJsonTypeInfo\n.\nAs\n.\nPROPERTY\n)\n\npublic\n\nabstract\n\nclass\n\nUnmodifiableSetMixin\n{\n\n@\nJsonCreator\n\npublic\n\nUnmodifiableSetMixin\n(\nSet\n<?> \ns\n) {}\n}\n\nI then try to use this to deserialize an empty set.\n\npublic\n\nclass\n\nUnmodifiableSetMixinTest\n{\n\nstatic\n\nfinal\n\nString\n\nEXPECTED_JSON\n= \n\"[\n\\\"\njava.util.Collections$UnmodifiableSet\n\\\"\n,[]]\"\n;\n\nObjectMapper\n\nmapper\n;\n\n@\nBefore\n\npublic\n\nvoid\n\nsetup\n() {\n\nmapper\n= \nnew\n\nObjectMapper\n();\n\nmapper\n.\nenableDefaultTyping\n(\nObjectMapper\n.\nDefaultTyping\n.\nNON_FINAL\n, \nJsonTypeInfo\n.\nAs\n.\nPROPERTY\n);\n\nmapper\n.\naddMixIn\n(\nCollections\n.\nunmodifiableSet\n(\nCollections\n.<\nString\n>\nemptySet\n()).\ngetClass\n(), \nUnmodifiableSetMixin\n.\nclass\n);\n} \n\n@\nTest\n\n@\nSuppressWarnings\n(\n\"unchecked\"\n)\n\npublic\n\nvoid\n\nread\n() \nthrows\n\nException\n{\n\nSet\n<\nString\n> \nfoo\n= \nmapper\n.\nreadValue\n(\nEXPECTED_JSON\n, \nSet\n.\nclass\n);\n\nassertThat\n(\nfoo\n).\nisEmpty\n();\n}\n}\n\nThe test passes with Jackson 2.6, but fails using Jackson 2.7+ (including Jackson 2.8.3) with the following stack trace:\n\njava.lang.IllegalStateException: No default constructor for [collection type; class java.util.Collections$UnmodifiableSet, contains [simple type, class java.lang.Object]]\nat com.fasterxml.jackson.databind.deser.std.StdValueInstantiator.createUsingDefault(StdValueInstantiator.java:240)\nat com.fasterxml.jackson.databind.deser.std.CollectionDeserializer.deserialize(CollectionDeserializer.java:249)\nat com.fasterxml.jackson.databind.deser.std.CollectionDeserializer.deserialize(CollectionDeserializer.java:26)\nat com.fasterxml.jackson.databind.jsontype.impl.AsArrayTypeDeserializer._deserialize(AsArrayTypeDeserializer.java:110)\nat com.fasterxml.jackson.databind.jsontype.impl.AsArrayTypeDeserializer.deserializeTypedFromArray(AsArrayTypeDeserializer.java:50)\nat com.fasterxml.jackson.databind.deser.std.CollectionDeserializer.deserializeWithType(CollectionDeserializer.java:310)\nat com.fasterxml.jackson.databind.deser.impl.TypeWrappedDeserializer.deserialize(TypeWrappedDeserializer.java:42)\nat com.fasterxml.jackson.databind.ObjectMapper._readMapAndClose(ObjectMapper.java:3788)\nat com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:2779)\nat sample.UnmodifiableSetMixinTest.read(UnmodifiableSetMixinTest.java:36)\nat sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\nat sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\nat sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\nat java.lang.reflect.Method.invoke(Method.java:498)\nat org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50)\nat org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)\nat org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47)\nat org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)\nat org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)\nat org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:325)\nat org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:78)\nat org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:57)\nat org.junit.runners.ParentRunner$3.run(ParentRunner.java:290)\nat org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71)\nat org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288)\nat org.junit.runners.ParentRunner.access$000(ParentRunner.java:58)\nat org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268)\nat org.junit.runners.ParentRunner.run(ParentRunner.java:363)\nat org.eclipse.jdt.internal.junit4.runner.JUnit4TestReference.run(JUnit4TestReference.java:86)\nat org.eclipse.jdt.internal.junit.runner.TestExecution.run(TestExecution.java:38)\nat org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.runTests(RemoteTestRunner.java:459)\nat org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.runTests(RemoteTestRunner.java:678)\nat org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.run(RemoteTestRunner.java:382)\nat org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.main(RemoteTestRunner.java:192)\n\nThis seems like a passivity issue. Is there a workaround for this problem?"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observable failure is described: deserializing an empty UnmodifiableSet with default typing fails in Jackson 2.7+."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The code path is specific: ObjectMapper.enableDefaultTyping, UnmodifiableSetMixin, and deserialization of java.util.Collections$UnmodifiableSet."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "A full stack trace is included, ending in StdValueInstantiator.createUsingDefault and CollectionDeserializer.deserialize."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report includes JSON input, mapper setup, mixin code, and the failing test, enough to reproduce directly."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "It points to Jackson databind collection deserialization, especially CollectionDeserializer and StdValueInstantiator."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer can understand the failure scenario: a mixin for UnmodifiableSet works in 2.6 but fails in 2.7+."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report provides a concrete failing test case that could be turned into a regression test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The sequence is clear: configure mapper, add mixin, deserialize EXPECTED_JSON, then hit IllegalStateException."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Referenced entities are specific: ObjectMapper, Collections.unmodifiableSet, UnmodifiableSetMixin, and Jackson deserializer classes."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Terminology is used consistently around default typing, mixins, collection deserialization, and default constructor failure."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The triggering input is concrete: the JSON string [\"java.util.Collections$UnmodifiableSet\",[]]."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Ordered reproduction steps are effectively given in the test setup and read() method."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.0,
+        "reason": "No OS, JVM, or full framework environment details are provided beyond Jackson version differences."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The exact exception and stack trace are reported verbatim, including IllegalStateException and the failing methods."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The issue is distinguished by the specific combination of UnmodifiableSet, mixin, and default typing regression in 2.7+."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit and concrete: the deserialized set should be empty and the test should pass."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicit: IllegalStateException about no default constructor."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The discrepancy is clear: Jackson 2.6 passes, while 2.7+ fails on the same test."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report includes the mapper configuration, mixin, JSON input, and test method needed to reproduce."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Specific environment/dependency setup details are limited; only Jackson version and JUnit stack context are shown."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report asks if it is a passivity issue but does not explicitly propose a concrete root cause."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No causal explanation is given linking a specific code change to the failure."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Evidence is provided for the failure, but not for a proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report is internally consistent: the same setup reproduces the same constructor-related failure."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "It references technical artifacts, but not as part of an explicit explanation of cause."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods are named, including ObjectMapper, CollectionDeserializer, and StdValueInstantiator."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is identifiable as Jackson databind collection deserialization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "A detailed stack trace is included and directly relevant."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No external dependency names or versions beyond Jackson itself are relevantly specified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "No OS, browser, or runtime environment details are provided beyond Java stack frames."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The phrase 'passivity issue' is vague and the report does not state a precise root cause."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and conditions are sufficiently described to attempt reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is reasonably inferable: successful empty-set deserialization."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Version/environment details that could affect reproduction are incomplete."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The report is not contradictory; it consistently describes the same failure across versions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The correct behavior is clear enough to infer a fix: allow deserialization of UnmodifiableSet with default typing."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely fix area is identifiable from the stack trace: CollectionDeserializer/StdValueInstantiator handling of UnmodifiableSet."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Acceptance criterion is concrete: the provided test should pass and produce an empty set."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Edge cases and constraints are not discussed beyond the empty-set scenario."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A plausible fix could be implemented from the report and stack trace without much additional clarification."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific code construct or logic error is identified as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The causal chain is not articulated; only the symptom and stack trace are shown."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A concrete scenario is fully described: deserialize an empty UnmodifiableSet with default typing and the given mixin."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected concept is identifiable as Jackson collection deserialization for unmodifiable sets."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom occurs during deserialization, while the likely defect is in instantiation logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The report does not identify multiple impacted areas beyond the single deserialization path."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "It names several technical concepts: ObjectMapper, default typing, UnmodifiableSetMixin, CollectionDeserializer, and StdValueInstantiator."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable failure: deserialization of UnmodifiableSet with default typing fails in Jackson 2.7+ but passes in 2.6, with explicit stack trace showing the exact error."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes identified: java.util.Collections$UnmodifiableSet, StdValueInstantiator, CollectionDeserializer, AsArrayTypeDeserializer."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Complete stack trace provided showing failure at StdValueInstantiator.createUsingDefault(240) with explicit error message about missing default constructor."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Minimal reproducible project provided with test case, mixin definition, and exact JSON input; developer can immediately run the test."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Stack trace pinpoints exact methods and classes: StdValueInstantiator, CollectionDeserializer, AsArrayTypeDeserializer in Jackson databind module."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Scenario is clear: attempting to deserialize UnmodifiableSet with default typing and mixin; unfamiliar developer can understand the setup."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Test case is provided with exact setup code, mixin definition, and expected JSON; developer could write a failing test immediately."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Sequence is clear: enable default typing, add mixin, call readValue on JSON; however, the exact triggering condition (why 2.7+ differs) is not explained."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "All entities named: UnmodifiableSetMixin, Collections$UnmodifiableSet, ObjectMapper methods; developer can locate these in codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Terminology used accurately: default typing, mixin, deserialization, stack trace references correct Jackson classes and methods."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific input provided: JSON string '[\"java.util.Collections$UnmodifiableSet\",[]]' and empty set scenario; directly usable in test."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Reproduction steps are concrete: create ObjectMapper, enable default typing, add mixin, call readValue with specific JSON."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Version information is specific: passes in Jackson 2.6, fails in 2.7+ and 2.8.3; clearly distinguishes version-related behavior change."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Exact error message provided verbatim: 'No default constructor for [collection type; class java.util.Collections$UnmodifiableSet...]'"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Details distinguish this from generic deserialization issues: combination of UnmodifiableSet, default typing, mixin, and version regression is specific."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior stated: deserialization should succeed and produce an empty Set, as it did in Jackson 2.6."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior explicitly stated: IllegalStateException with specific message about missing default constructor."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Discrepancy is unambiguous: expected success vs. observed IllegalStateException; clear regression between versions."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Reproduction steps are complete: setup code, mixin, test method, and JSON input provided; sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson version specified (2.6 vs 2.7+, 2.8.3); Java reflection and JUnit implied; minimal external dependencies mentioned."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Report does not explicitly propose a root cause; it describes the symptom and asks 'Is there a workaround?' without explaining why the behavior changed."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No causal mechanism proposed; report does not explain why default typing or mixin handling changed between versions."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No evidence provided for a proposed cause; stack trace shows where failure occurs, not why the instantiation strategy changed."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report is internally coherent: version regression is consistent with stack trace showing instantiation failure."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Stack trace references specific methods: StdValueInstantiator.createUsingDefault, CollectionDeserializer.deserialize, AsArrayTypeDeserializer."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific classes named: UnmodifiableSetMixin, Collections$UnmodifiableSet, ObjectMapper, StdValueInstantiator, CollectionDeserializer, AsArrayTypeDeserializer."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem identifiable: Jackson databind deserialization, specifically collection and type handling modules."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Complete stack trace provided with line numbers; mixin code snippet and test code included; directly relevant to failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Jackson library referenced by name and version (2.6, 2.7+, 2.8.3); JUnit and Java Collections API implied."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "OS, JVM version, and other runtime details not specified; only Jackson version provided; sufficient for Jackson-specific bug but incomplete for full environment."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific: UnmodifiableSet, default typing, mixin; no vague descriptions requiring resolution."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Inputs are fully specified: JSON string, empty set, mixin configuration, ObjectMapper setup."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior is clear: deserialization should succeed and produce an empty Set, matching Jackson 2.6 behavior."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "JVM version, OS, and other environment details missing; Jackson version is specified but full runtime context incomplete."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictions: report consistently describes version regression and provides coherent test case."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Correct behavior is clear (deserialize successfully), but the code change needed is not obvious without understanding why instantiation strategy changed."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Stack trace identifies specific methods: StdValueInstantiator.createUsingDefault is the immediate failure point; AsArrayTypeDeserializer and CollectionDeserializer are in the call chain."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is concrete: readValue should return an empty Set without throwing IllegalStateException."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Constraints identified: UnmodifiableSet has no default constructor, requires @JsonCreator with Set parameter; default typing must be enabled."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Developer could identify the failure location but would need to investigate why instantiation strategy changed between versions; root cause not explained in report."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No root cause explicitly proposed; report describes symptom and asks for workaround without explaining underlying defect."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No specific code construct or logic error identified as root cause; only the failure point (StdValueInstantiator.createUsingDefault) is shown."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No causal chain articulated; report does not explain why Jackson 2.7+ changed instantiation behavior for collections with mixins."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Concrete scenario fully specified: empty UnmodifiableSet, default typing enabled, mixin applied; complete and unambiguous reproduction steps can be directly derived from test code."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specific subsystems identified: collection deserialization, type instantiation, default typing mechanism in Jackson databind."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom manifests in CollectionDeserializer; underlying defect likely in StdValueInstantiator or type resolution logic for collections with mixins."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple areas affected: collection deserialization, type instantiation, mixin handling, default typing; cross-cutting concern is instantiation strategy selection."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Four or more distinct technical concepts: UnmodifiableSet, @JsonCreator, default typing, mixins, StdValueInstantiator, CollectionDeserializer, AsArrayTypeDeserializer."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.87
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.89
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.91
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.92,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.0,
+        "judge2_confidence": 0.92
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.96
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.89
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.91
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.96
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.22000000000000008,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.92
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.7
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.82
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.88
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.87
+      }
+    }
+  },
+  "percent_agreement": 0.8541666666666666,
+  "cohens_kappa": 0.641025641025641,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.91 > 0.84)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.7)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.82)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.82 > 0.72)"
+      },
+      "P5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.8 > 0.7)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Selected judge2 (higher confidence: 0.91 > 0.84)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.7)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.82)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge2 (higher confidence: 0.82 > 0.72)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge1 (higher confidence: 0.8 > 0.7)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 2,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.792774633872535,
+      "Clarity": 0.792774633872535,
+      "Specificity": 0.792774633872535,
+      "Reproducibility": 0.792774633872535,
+      "ReasoningQuality": -0.9513295606470419,
+      "TechnicalContext": 0.21140656903267604,
+      "Ambiguity": 0.21140656903267604,
+      "RepairReadiness": 0.792774633872535,
+      "RootCauseEvidence": -2.11406569032676,
+      "HiddenReproducibility": -1.532697625486901,
+      "ImpactScope": 0.21140656903267604
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,1459 @@
+{
+  "bug": {
+    "bug_id": "Closure-30",
+    "project": "Closure",
+    "summary": "Combining temporary strings are over-optimized in advanced build",
+    "description": "<b>What steps will reproduce the problem?</b>\n1. This bug only manifests itself in large code bases. How large, and what the specifics are, I haven't yet worked out, since the output differs. But the principle code is:\r\n\r\nsgxColorRGBA.prototype.asHex = function() {\r\n\tvar hexString = &quot;&quot;;\r\n\t\r\n\tstr = (sgxFloor(this.r*255)).toString(16);\r\n\tif (str.length &lt; 2) { str = &quot;0&quot;+str; }\r\n\thexString += str;\r\n\r\n\tstr = (sgxFloor(this.g*255)).toString(16);\r\n\tif (str.length &lt; 2) { str = &quot;0&quot;+str; }\r\n\thexString += str;\r\n\r\n\tstr = (sgxFloor(this.b*255)).toString(16);\r\n\tif (str.length &lt; 2) { str = &quot;0&quot;+str; }\r\n\thexString += str;\r\n\r\n\tstr = (sgxFloor(this.a*255)).toString(16);\r\n\tif (str.length &lt; 2) { str = &quot;0&quot;+str; }\r\n\thexString += str;\r\n\r\n\treturn hexString;\r\n}\r\n\r\nNote that 'str' is not declared as var.\r\n\r\n<b>What is the expected output? What do you see instead?</b>\nI see this:\r\nsgxColorRGBA.prototype.pb = function() {\r\n  str = A(255 * this.A).toString(16);\r\n  2 &gt; str.length &amp;&amp; (str = &quot;0&quot; + str);\r\n  str = A(255 * this.w).toString(16);\r\n  2 &gt; str.length &amp;&amp; (str = &quot;0&quot; + str);\r\n  str = A(255 * this.s).toString(16);\r\n  2 &gt; str.length &amp;&amp; (str = &quot;0&quot; + str);\r\n  str = A(255 * this.r).toString(16);\r\n  2 &gt; str.length &amp;&amp; (str = &quot;0&quot; + str);\r\n  return&quot;&quot; + str + str + str + str\r\n};\r\n\r\nObviously, repeatedly adding 'str' is broken in the final line, compared to the original. So whatever is aggregating the result is seeing a temporary 'str' reference and combining it, I guess. If 'str' is declared as var, the problem goes away.\r\n\r\nI'd expect a warning, at least.\r\n\r\n<b>What version of the product are you using? On what operating system?</b>\n\r\nLive at http://closure-compiler.appspot.com\r\n\r\n<b>Please provide any additional information below.</b>\n\r\nAs a stand-alone method, both 'var str' and 'str' works. It's only when the project hits a certain (undetermined) size that it fails."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Describes observable faulty output: the compiled function returns \"\" + str + str + str + str instead of distinct hex parts."
+      },
+      "A2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No specific compiler class, method, or code path is identified; only a general advanced build optimization is implicated."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes concrete transformed code showing the incorrect output and the original source snippet."
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "Reproduction is incomplete because the report says the bug only appears in large code bases and the size/specifics are unknown."
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "The report does not pinpoint a module or component beyond a vague reference to the compiler's advanced build."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer can understand the failure scenario from the source and compiled output shown."
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "A failing test cannot be written precisely because the triggering project size/conditions are not defined."
+      },
+      "C3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "The report leaves multiple interpretations of the trigger, especially the unspecified large-codebase condition."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.83,
+        "reason": "Referenced entities like 'advanced build' and the aggregation behavior are not identified to a specific code location."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology is mostly consistent: temporary strings, optimization, and undeclared variable 'str' are used coherently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The triggering code pattern is concrete: repeated concatenation in asHex with undeclared str."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.79,
+        "reason": "Steps are not fully ordered or complete; the report says the bug appears only in large code bases without exact reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Only 'Live at http://closure-compiler.appspot.com' is given; no version or environment details are provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Shows the exact incorrect compiled output, including the final return statement."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The issue is distinguished by the over-optimization of temporary strings in advanced build and the undeclared str behavior."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Expected behavior is implied but not stated as a concrete correctness criterion beyond 'this is broken'."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Observed behavior is explicitly shown in the transformed function and described as broken."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy between original concatenation and repeated final str is clear from the report."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "Reproduction steps are incomplete because the necessary large-codebase condition is not specified."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No specific environment or dependency details are documented beyond the web app URL."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report explicitly proposes that a temporary 'str' reference is being over-optimized."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "It links the proposed cause to the symptom: repeated concatenation is collapsed into return \"\" + str + str + str + str."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The transformed code serves as evidence supporting the proposed optimization error."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The explanation is internally consistent and matches the shown source and output."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References concrete artifacts such as the undeclared 'str' variable and the compiled return line."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Names the method sgxColorRGBA.prototype.asHex and shows the compiled sgxColorRGBA.prototype.pb."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The affected area is identifiable as the Closure Compiler advanced optimization/build path."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes relevant code snippets from both source and compiled output."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No external libraries or services are named as relevant dependencies."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report uses vague references like 'large code bases' and 'advanced build' without precise location."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Inputs and triggering conditions are insufficiently described for direct reproduction."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Expected behavior is not stated as a precise acceptance criterion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Environment/version information that could affect reproduction is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report is not contradictory; it is mainly underspecified."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "The correct behavior is implied but not specified precisely enough to determine the exact fix from the report alone."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No specific code location or component is identified beyond the general compiler optimization."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.79,
+        "reason": "Expected correct behavior is not stated concretely enough to serve as an acceptance criterion."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Relevant constraints like the exact size threshold or triggering conditions are not documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "A plausible fix cannot be implemented confidently without further investigation into the optimizer."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report explicitly proposes that a temporary 'str' reference is being over-optimized."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The proposed cause references the temporary string variable 'str' and its repeated concatenation."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The causal chain is stated: optimization sees a temporary str reference and combines it incorrectly, producing the bad return expression."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "A concrete, fully determinable reproduction scenario is not provided because the large-codebase trigger is unspecified."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.73,
+        "reason": "The affected concept is identifiable as the advanced optimization/build path in the compiler."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The symptom appears in generated output, while the likely defect is in the optimizer."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Only one impacted area is clearly discussed; multiple distinct impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "The report mentions several technical concepts: asHex, str, advanced build, and the generated pb function."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: incorrect output in minified code where `str + str + str + str` replaces individual concatenations, clearly distinguishable from expected behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Identifies specific method `sgxColorRGBA.prototype.asHex` and the minified version `sgxColorRGBA.prototype.pb`, pinpointing the affected code path."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Includes actual minified code output showing the bug: `return\"\" + str + str + str + str` versus expected behavior with four distinct concatenations."
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Report notes bug only manifests in large codebases with undetermined size threshold; reproduction requires specific codebase size/structure not fully specified."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies the specific method and class affected; developer could locate `sgxColorRGBA.prototype.asHex` in source code."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: string concatenation optimization incorrectly reuses variable reference instead of accumulating distinct values."
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Cannot write a failing test without knowing the codebase size threshold that triggers the bug; reproduction conditions are underspecified."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Sequence is unambiguous: minifier processes string concatenations and incorrectly optimizes them; before/after code clearly shows the transformation."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Method name and class are precisely identified; developer could locate the source code without prior knowledge of this bug."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Technical terminology is accurate: 'minification', 'string concatenation', 'variable reference', 'optimization' are used correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Provides concrete code snippet with specific operations (toString(16), length checks, concatenation) that could be used in a test."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "Reproduction steps are vague: 'large code bases' with undetermined size; no concrete steps to trigger the bug reliably."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Specifies 'Live at http://closure-compiler.appspot.com' indicating Google Closure Compiler; version not explicitly stated but tool is identifiable."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Exact minified output is provided verbatim: `return\"\" + str + str + str + str` showing the specific failure mode."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Distinguishes this from similar bugs by noting the issue only occurs with undeclared variables in large codebases and disappears with `var` declaration."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior is explicit: four separate string concatenations accumulating into hexString, shown in original source code."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is explicit: minified output shows `str + str + str + str` instead of four distinct accumulated values."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Discrepancy is unambiguous: expected accumulation of four different hex values versus observed reuse of single `str` variable four times."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Reproduction steps are incomplete: 'large code bases' is vague; no concrete size, structure, or configuration provided to reliably reproduce."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Environmental conditions are underspecified: codebase size threshold is unknown; only tool (Closure Compiler) is identified without version."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Proposes specific cause: 'Whatever is aggregating the result is seeing a temporary str reference and combining it'\u2014identifies optimization logic as culprit."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Links cause to symptom: undeclared variable `str` is reused; minifier incorrectly optimizes by recognizing the same reference and consolidating concatenations."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Provides evidence: shows minified code output and notes that declaring `var str` eliminates the bug, supporting the variable-scoping hypothesis."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Explanation is coherent: undeclared variable + large codebase + minifier optimization = incorrect reuse of single reference is logically consistent."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References specific artifacts: method name `asHex`, variable name `str`, minified output line `return\"\" + str + str + str + str`."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Names specific method `sgxColorRGBA.prototype.asHex` and minified version `sgxColorRGBA.prototype.pb`; references variable `str`."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Identifies affected subsystem as Closure Compiler's minification/optimization logic; method location is clear."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes actual source code snippet and minified output code; both are directly relevant to the failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References Google Closure Compiler by name; version not specified but tool is clearly identified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Only specifies 'Live at http://closure-compiler.appspot.com'; OS, browser, and Closure Compiler version are not provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report contains vague reference: 'large code bases' with undetermined size and specifics; developer cannot determine exact threshold."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Conditions are insufficiently described: codebase size, structure, and configuration needed to trigger bug are not specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.1,
+        "reason": "Expected behavior is clear from source code: accumulate four hex digit pairs into a single string."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Closure Compiler version is missing; codebase size threshold is unknown; these materially affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.1,
+        "reason": "No contradictory statements; report is internally consistent about the bug manifestation and workaround."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Correct behavior is clear: accumulate four distinct hex values; fix would involve preventing minifier from reusing variable reference in string concatenation."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Faulty component is Closure Compiler's optimization logic, but specific method/class within compiler is not identified."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior is concrete: minified output should preserve four separate concatenations, not collapse to `str + str + str + str`."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Constraints are underspecified: codebase size threshold, specific conditions triggering optimization, and edge cases are not documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "Developer would need to investigate Closure Compiler's optimization logic; codebase size threshold and trigger conditions are unknown."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Explicitly proposes root cause: minifier's optimization logic incorrectly recognizes and reuses the same variable reference across multiple concatenations."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References specific code construct: undeclared variable `str` and string concatenation operations; notes that declaring `var str` eliminates the bug."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Causal chain is articulated: undeclared `str` \u2192 minifier sees reusable reference \u2192 optimization combines concatenations \u2192 incorrect output with repeated `str`."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "Report describes a scenario but does not provide complete, unambiguous reproduction steps; codebase size threshold is undetermined and not fully derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies specific subsystem: Closure Compiler's string concatenation optimization logic in advanced build mode."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Distinguishes symptom (incorrect minified output) from defect (optimization logic incorrectly reusing variable reference)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "Report focuses on single method; does not identify multiple impacted areas or cross-cutting concerns."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Names: `sgxColorRGBA` class, `asHex` method, `str` variable, string concatenation, minification, variable scoping\u2014five distinct technical concepts."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.7
+      },
+      "A5": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.65
+      },
+      "C3": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "C4": {
+        "agreement": false,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.8
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.29000000000000004,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.79,
+        "judge2_confidence": 0.5
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.31999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.55
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.33000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.6
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.30999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.65
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.1499999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.8
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.68,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.1
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.8,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.1
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.26,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.6
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.79,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.32999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.55
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.33999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.5
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.85
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.8
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.75
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.45,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.45
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.73,
+        "judge2_confidence": 0.85
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.5
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.7916666666666666,
+  "cohens_kappa": 0.5580110497237568,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "C4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.75)"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.78 > 0.1)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.79)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.79,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.75)"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Selected judge1 (higher confidence: 0.78 > 0.1)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.79)"
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 4,
+      "Clarity": 4,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 4,
+      "RepairReadiness": 2,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 0,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 3,
+      "ambiguity_count": 4,
+      "hidden_s2r_present": false,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 0.884537962671703,
+      "Clarity": 0.884537962671703,
+      "Specificity": 0.1360827634879542,
+      "Reproducibility": 0.1360827634879542,
+      "ReasoningQuality": 1.6329931618554518,
+      "TechnicalContext": 0.1360827634879542,
+      "Ambiguity": -1.3608276348795434,
+      "RepairReadiness": -0.6123724356957946,
+      "RootCauseEvidence": 0.1360827634879542,
+      "HiddenReproducibility": -2.109282834063292,
+      "ImpactScope": 0.1360827634879542
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,1452 @@
+{
+  "bug": {
+    "bug_id": "Compress-18",
+    "project": "Compress",
+    "summary": "Long directory names can not be stored in a tar archive because of error when writing PAX headers",
+    "description": "Trying to add a directory to the TAR Archive that has a name longer than 100 bytes generates an exception with a stack trace similar to the following:\n\njava.io.IOException: request to write '114' bytes exceeds size in header of '0' bytes for entry './PaxHeaders.X/layers/openstreetmap__osm.disy.net/.tiles/1.0.0/openstreetmap__osm.disy.net/default/'\n\nat org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.write(TarArchiveOutputStream.java:385)\n\nat java.io.OutputStream.write(Unknown Source)\n\nat org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.writePaxHeaders(TarArchiveOutputStream.java:485)\n\nat org.apache.commons.compress.archivers.tar.TarArchiveOutputStream.putArchiveEntry(TarArchiveOutputStream.java:312)\n\nat net.disy.lib.io.tar.TarUtilities.addFile(TarUtilities.java:116)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:158)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:162)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:162)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:162)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:162)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:162)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:162)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:162)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:162)\n\nat net.disy.lib.io.tar.TarUtilities.addDirectory(TarUtilities.java:162)\n\nat net.disy.lib.io.tar.TarUtilities.tar(TarUtilities.java:77)\n\nat net.disy.lib.io.tar.TarUtilities.tar(TarUtilities.java:42)\n\nat net.disy.gisterm.tilecacheset.export.TileCacheSetExporter.tarTreeStructure(TileCacheSetExporter.java:262)\n\nat net.disy.gisterm.tilecacheset.export.TileCacheSetExporter.export(TileCacheSetExporter.java:111)\n\nat net.disy.gisterm.tilecacheset.desktop.controller.ExportController$1.run(ExportController.java:81)\n\n... 2 more\n\nInformal source code investigation points to the problem being that for directory entries the code assumes that the length is 0 in putArchiveEntry (see TarArchiveOutputStream:321 ) but when writing the data, it actually writes some data (the filename) and the length written (filename size) is larger than the length expected (0)."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes a concrete failure: adding a directory name longer than 100 bytes throws IOException instead of succeeding."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies the code path through TarUtilities.addFile/addDirectory and TarArchiveOutputStream.writePaxHeaders/putArchiveEntry."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a full stack trace and exact IOException message from TarArchiveOutputStream.write."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report gives a clear trigger condition and stack trace, enough to start reproducing and debugging."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points to TarArchiveOutputStream and TarUtilities as the likely starting components."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer can understand the failure scenario: long directory names fail during tar creation."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The bug is specific enough to derive a failing test for a directory path over 100 bytes."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The trigger and failure are stated unambiguously: long directory entry causes exception while writing PAX headers."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Named entities like TarArchiveOutputStream, TarUtilities, and TileCacheSetExporter are precise and locatable."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology matches the stack trace and tar/PAX header behavior described in the report."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific input condition is given: a directory name longer than 100 bytes."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report implies a reproduction path via adding a long-named directory to a TAR archive, though not step-by-step."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The exact IOException message and stack trace are included."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The PAX header size mismatch for directory entries is a distinctive failure mode."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit: long directory names should be storable in the tar archive."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicit: an IOException is thrown when writing PAX headers."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The mismatch between expected successful archive creation and observed exception is clear."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Reproduction steps are not fully enumerated; only the triggering condition is described."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No environment, OS, or version dependencies are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report explicitly proposes a cause: directory entries are treated as length 0 in putArchiveEntry but data is written later."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It links the proposed cause to the exception: written filename bytes exceed the zero-length header."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The stack trace and code line references support the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The explanation is internally consistent with the reported IOException and stack trace."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References specific artifacts such as TarArchiveOutputStream:321, writePaxHeaders, and TarUtilities.addDirectory."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods are named in the stack trace and analysis."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected module is identifiable as tar handling in net.disy.lib.io.tar."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "A relevant stack trace is included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Apache Commons Compress is referenced via org.apache.commons.compress.archivers.tar.TarArchiveOutputStream."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No OS, browser, framework, or runtime version details are provided beyond Java stack trace context."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific, not vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The triggering condition is sufficiently described to attempt reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is reasonably inferable: tar creation should succeed for long directory names."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The bug and intended correction are described: handle directory PAX headers without assuming zero-length data."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Likely fix location is identifiable in TarArchiveOutputStream and TarUtilities.addDirectory/addFile."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Acceptance criterion is clear: directories with names over 100 bytes should be archived without exception."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Edge cases and constraints are only partially described."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A plausible fix can be inferred from the report alone."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report explicitly states a suspected root cause in the source code investigation."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "It names the specific construct: putArchiveEntry assuming directory length 0 and writePaxHeaders writing filename data."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The causal chain from zero-length header to oversized write and IOException is clearly described."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A concrete scenario is given from which reproduction steps can be derived: archive a directory path longer than 100 bytes."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The tar archive writing subsystem is clearly affected."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom appears in TarArchiveOutputStream, while the likely defect is in TarUtilities handling of directory entries."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Multiple areas are implicated: TarUtilities, TarArchiveOutputStream, and the export flow."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report names several technical concepts/components: TarArchiveOutputStream, TarUtilities, PAX headers, and TileCacheSetExporter."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: IOException when adding directories with names >100 bytes to TAR archive, with clear distinction from expected behavior (successful archival)."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes identified: TarArchiveOutputStream, TarUtilities; specific methods: putArchiveEntry(), writePaxHeaders(); specific line numbers provided (385, 485, 312, etc.)."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Complete stack trace provided with exact exception message, file names, line numbers, and method call chain from TarArchiveOutputStream through user code."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer can immediately attempt reproduction: create directory with name >100 bytes, add to TAR archive using TarUtilities.addDirectory(). Stack trace pinpoints exact failure location."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific modules identified: org.apache.commons.compress.archivers.tar.TarArchiveOutputStream (lines 385, 485, 312); root cause investigation points to line 321."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: attempting to add a directory with a name longer than 100 bytes triggers an IOException in PAX header writing logic."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "A developer could write a test: create directory with name >100 bytes, attempt to add to TAR archive, expect IOException. Some details about PAX header specifics could be clearer."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Sequence is unambiguous: long directory name \u2192 putArchiveEntry() called \u2192 writePaxHeaders() invoked \u2192 write() fails with size mismatch. Single interpretation possible."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "All referenced entities are precisely identified: TarArchiveOutputStream class, putArchiveEntry and writePaxHeaders methods, specific line numbers provided."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Technical terminology used accurately: PAX headers, directory entries, byte size limits, IOException. No misleading terminology detected."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific input condition: directory name longer than 100 bytes. Example path provided in error message: './PaxHeaders.X/layers/openstreetmap__osm.disy.net/.tiles/1.0.0/openstreetmap__osm.disy.net/default/' (114 bytes)."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Reproduction steps are derivable: create directory with name >100 bytes, call TarUtilities.addDirectory(). Stack trace shows exact call sequence. Minor ambiguity on exact directory structure needed."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for Apache Commons Compress library, Java version, or OS. This could affect reproducibility across versions."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific error message provided verbatim: 'request to write '114' bytes exceeds size in header of '0' bytes for entry...'. Exception type and exact failure mode clearly identified."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report uniquely identifies this issue: specific combination of long directory names, PAX headers, and size mismatch (114 vs 0 bytes) distinguishes from other TAR bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit but clear: directories with names >100 bytes should be successfully added to TAR archive without IOException."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Observed behavior explicitly stated: IOException with specific message about size mismatch (114 bytes requested vs 0 bytes in header)."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Discrepancy is unambiguous: expected successful archival vs observed IOException during PAX header writing for long directory names."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Reproduction steps are mostly complete: create directory >100 bytes, add to TAR. However, exact directory structure and nesting depth could be more explicit."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Missing: Apache Commons Compress version, Java version, OS, TAR format variant being used. These could affect reproducibility."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report explicitly proposes root cause: 'code assumes that the length is 0 in putArchiveEntry but when writing the data, it actually writes some data (the filename)'."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposed explanation is directly linked to symptoms: length mismatch (0 expected vs 114 actual) in PAX header writing explains the IOException."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Concrete evidence provided: stack trace showing writePaxHeaders() call, error message showing exact byte counts, reference to TarArchiveOutputStream:321."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Explanation is internally coherent: long directory name \u2192 PAX headers needed \u2192 size calculation error \u2192 write fails. No contradictions detected."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Explanation references specific artifacts: TarArchiveOutputStream line 321, writePaxHeaders() method, putArchiveEntry() method, exact byte counts (114, 0)."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific classes and methods named: TarArchiveOutputStream, TarUtilities, putArchiveEntry(), writePaxHeaders(), write(). No vague references."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Affected subsystem clearly identified: org.apache.commons.compress.archivers.tar package, specifically TarArchiveOutputStream class."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Stack trace is directly relevant and detailed, showing exact call sequence and line numbers. Error message shows concrete byte counts."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Apache Commons Compress library is referenced but no version number provided. This is a relevant external dependency."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environment details missing: Java version, OS, TAR format variant (GNU vs POSIX), Commons Compress version. These could affect behavior."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No vague references; all classes, methods, and line numbers are specific and resolvable."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Input condition is clear (directory name >100 bytes), though exact directory structure and nesting depth could be more explicit."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear: directories should be successfully added to TAR archive regardless of name length."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Version information is missing: Apache Commons Compress version, Java version, OS. These could materially affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No contradictory statements detected. Report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Faulty behavior is described precisely: size mismatch in PAX header writing. Correct behavior would be proper size calculation for long directory names."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific component identified: TarArchiveOutputStream, specifically putArchiveEntry() method (line 312) and writePaxHeaders() method (line 485)."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Expected correct behavior is concrete: directories with names >100 bytes should be successfully archived without IOException."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Some constraints mentioned: 100-byte name limit triggers PAX headers, PAX header size calculation is the issue. However, edge cases with nested directories could be more explicit."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Developer could likely implement a fix: correct the size calculation in putArchiveEntry() for directory entries with long names. However, some investigation into PAX header format would be needed."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Specific root cause explicitly proposed: 'code assumes that the length is 0 in putArchiveEntry but when writing the data, it actually writes some data'."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Root cause references specific code construct: TarArchiveOutputStream line 321, putArchiveEntry() method, length field assumption for directory entries."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Causal chain is articulated: incorrect length assumption (0) \u2192 writePaxHeaders() writes actual filename data (114 bytes) \u2192 size mismatch exception. Developer could verify by examining code."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "Concrete scenario is described: directory with name >100 bytes added to TAR archive. Complete reproduction steps can be derived: create such directory, call TarUtilities.addDirectory(). Some ambiguity remains about exact directory structure needed."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Specific subsystem identified: TarArchiveOutputStream class, specifically PAX header handling logic."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report distinguishes symptom (IOException during write) from likely defect location (size calculation in putArchiveEntry for directory entries)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple impacted areas identifiable: putArchiveEntry() method, writePaxHeaders() method, directory entry handling. However, broader impact on other entry types unclear."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report names multiple relevant concepts: TarArchiveOutputStream, putArchiveEntry(), writePaxHeaders(), PAX headers, directory entries, size calculation, IOException."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.93
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.88
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.91
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.89
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.87
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.93
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.92
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.91
+      },
+      "R4": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.82
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.89
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.91
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.93
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.82
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.87
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.78
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.91
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.89
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.87
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.83
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.91
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.9375,
+  "cohens_kappa": 0.7857142857142857,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.82 > 0.72)"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge2 (higher confidence: 0.82 > 0.72)"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.8864052604279183,
+      "Clarity": 0.8864052604279183,
+      "Specificity": 0.0,
+      "Reproducibility": 0.0,
+      "ReasoningQuality": 0.8864052604279183,
+      "TechnicalContext": 0.0,
+      "Ambiguity": 0.0,
+      "RepairReadiness": 0.8864052604279183,
+      "RootCauseEvidence": -0.8864052604279183,
+      "HiddenReproducibility": -2.6592157812837547,
+      "ImpactScope": 0.0
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

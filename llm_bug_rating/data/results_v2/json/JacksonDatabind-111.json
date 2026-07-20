@@ -1,0 +1,1456 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-111",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "Dependency\n\njackson = '2.9.7'\ncompile \"com.fasterxml.jackson.core:jackson-databind:$jackson\"\n\nShort explanation\n\nIn Kotlin, I got an issue when I deserialize the value in the context of a reference type that include another reference type. I provide here a reproduction scenario in Java based on AtomicReference (I don't think there is a real use-case that use an AR of AR of Integer, but with a kind of DSL, it may happen to have a similar inclusion...)\n\nSo, when we deserialize an 22, we get an AR of AR of 22 as expected. But when we deserialize the null value, we get an AR of null (instead of AR of AR of null).\n\nI think there is 2 issues:\n\n(1) the getNull method of AtomicReference always returns \"new AtomicReference()\". I think it should be smarter and use contextual information such fullType or simply call _valueDeserializer.getNull() -- but _valueDeserializer was null during my tests because of (2).\n\n(2) the bean propertyCreator has distinct deserializer and nullProvider. In the case of ReferenceTypeDeserializer, a new contextual deserializer is created, which is able to deserialize its content. Then the deserializer of the bean propertyCreator is updated, but not its nullProvider\n\nTo reproduce\n\nclass MyBean {\nprivate AtomicReference<AtomicReference<Integer>> refRef;\npublic AtomicReference<AtomicReference<Integer>> getRefRef() {\nreturn refRef;\n}\npublic void setRefRef(AtomicReference<AtomicReference<Integer>> refRef) {\nthis.refRef = refRef;\n}\n}\n\n@Test\nvoid myTest() throws IOException {\nObjectMapper objectMapper = new ObjectMapper();\nObjectReader objectReader = objectMapper.readerFor(MyBean.class);\n\nMyBean intRef = objectReader.readValue(\" {\\\"refRef\\\": 2 } \");\nAssertions.assertNotNull(intRef.refRef); // succeeds\nAssertions.assertNotNull(intRef.refRef.get()); // succeeds\nAssertions.assertEquals(intRef.refRef.get().get(), new Integer(2)); // succeeds\n\nMyBean nullRef = objectReader.readValue(\" {\\\"refRef\\\": null } \");\nAssertions.assertNotNull(intRef.refRef); // succeeds\nAssertions.assertNotNull(intRef.refRef.get()); // fails\nAssertions.assertNull(intRef.refRef.get().get()); // fails\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable behavior: AtomicReference<AtomicReference<Integer>> deserializes 2 correctly but null becomes AtomicReference<null> instead of nested reference."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Identifies the code path as Jackson databind deserialization, specifically AtomicReference and ReferenceTypeDeserializer / bean propertyCreator."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Includes concrete reproduction code and failing assertions, though no stack trace or log output."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides dependency version, class definition, and a JUnit test that can be run directly to reproduce."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Points to Jackson databind ReferenceTypeDeserializer and AtomicReference null handling as the likely starting point."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A developer can understand the failure scenario from the example without needing codebase-specific knowledge."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The test case and expected nested-reference behavior are concrete enough to turn into a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "The sequence is explicit: deserialize 2 and null into MyBean.refRef and compare nested get() results."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Named entities include MyBean, AtomicReference, ObjectMapper, ObjectReader, and ReferenceTypeDeserializer."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology is mostly consistent with Jackson deserialization and null provider behavior."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific inputs are given: JSON values 2 and null for refRef."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Ordered reproduction steps are embedded in the JUnit test code."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Includes jackson-databind version 2.9.7, which is relevant to reproduction."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reports the failure mode precisely: null deserializes to AtomicReference<null> instead of AtomicReference<AtomicReference<null>>."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The nested AtomicReference null-handling issue is specific enough to distinguish it from general deserialization bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is stated: null should produce AR of AR of null, not AR of null."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is stated explicitly and demonstrated by failing assertions."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The discrepancy between expected nested reference and actual single reference is clear."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The provided test code is sufficient to attempt reproduction without extra clarification."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Version information is given for Jackson, though no broader environment details are needed here."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Proposes specific causes: AtomicReference.getNull() returning new AtomicReference() and propertyCreator nullProvider not updated."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Links the proposed causes to the observed nested-null deserialization failure."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Supports the explanation with reproduction code and behavioral evidence, but no internal trace or code excerpt."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally consistent and matches the described symptoms."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References concrete artifacts such as getNull, _valueDeserializer, and propertyCreator."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Names ObjectMapper, ObjectReader, MyBean, AtomicReference, and ReferenceTypeDeserializer."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The affected module is Jackson databind, specifically reference-type deserialization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Includes a concrete test snippet and failing assertions relevant to the bug."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "No external dependency beyond Jackson is relevantly named with version details."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.3,
+        "reason": "No OS, JVM, browser, or other runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The report uses some imprecise wording around 'context of a reference type' and 'kind of DSL'."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "Inputs and conditions are sufficiently described by the test case."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.12,
+        "reason": "Expected behavior is stated clearly for the null case."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "Only Jackson version is given; broader environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.1,
+        "reason": "No direct contradictions are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report states the correct behavior and suggests the likely fix area."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Identifies likely fix locations: AtomicReference.getNull and bean propertyCreator nullProvider handling."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Acceptance criterion is concrete: nested AtomicReference should remain nested for null input."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Mentions the edge case of nested reference types and null handling explicitly."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A plausible fix can be implemented from the described null-provider and contextual deserializer issue."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explicitly proposes two root causes in the report."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References specific constructs: getNull(), _valueDeserializer, propertyCreator, nullProvider."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Explains how the nullProvider mismatch leads to AtomicReference<null> instead of nested null reference."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The test scenario is concrete enough that full reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Affected concept is Jackson reference-type deserialization, specifically AtomicReference handling."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Distinguishes symptom at MyBean.refRef from likely defect in ReferenceTypeDeserializer/nullProvider logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "Mentions multiple relevant areas: AtomicReference, ReferenceTypeDeserializer, bean propertyCreator, nullProvider."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Names more than three technical concepts: ObjectMapper, ObjectReader, AtomicReference, ReferenceTypeDeserializer, nullProvider."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: deserializing null into AtomicReference<AtomicReference<Integer>> produces AtomicReference<null> instead of AtomicReference<AtomicReference<null>>."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes identified: AtomicReference, ReferenceTypeDeserializer, and bean propertyCreator. Methods mentioned: getNull(), _valueDeserializer."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes concrete test case with specific assertions showing exact failure points and expected vs. actual behavior."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer can immediately reproduce using provided test case with Jackson 2.9.7 and the MyBean class definition."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies ReferenceTypeDeserializer and bean propertyCreator as key components; however, exact file paths not provided."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clearly described: nested AtomicReference deserialization with null values produces incorrect nesting level."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Sufficient detail to write a failing test case; complete test code is provided in the report."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Sequence is unambiguous: deserialize null \u2192 getNull() called \u2192 returns new AtomicReference() \u2192 incorrect nesting results."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "ReferenceTypeDeserializer and propertyCreator are named but exact package/file locations not specified; developer would need to search codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Technical terminology (deserialization, contextual deserializer, nullProvider) used accurately and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific inputs provided: JSON strings '{\"refRef\": 2}' and '{\"refRef\": null}' with expected vs. actual outputs."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Complete reproduction steps provided: create ObjectMapper, create ObjectReader for MyBean, call readValue() with specific JSON."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Jackson version explicitly specified: 2.9.7. Language context provided: Kotlin issue reproduced in Java."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific failure modes identified: assertion failures at intRefRef.get() and intRefRef.get().get() when deserializing null."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Nested reference type scenario is distinctive; the combination of AtomicReference<AtomicReference<Integer>> with null handling is specific enough to distinguish from similar bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior explicitly stated: null should deserialize to AtomicReference<AtomicReference<null>>, not AtomicReference<null>."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Observed behavior explicitly stated with assertion failures showing intRefRef.get() is null when it should be non-null."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Discrepancy is unambiguous: expected nested structure vs. observed single-level structure."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Reproduction steps are complete: MyBean class definition, test method, and JSON inputs are fully specified."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson 2.9.7 dependency specified; Java/Kotlin environment implied; no additional setup required."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report explicitly proposes two specific causes: (1) getNull() always returns new AtomicReference(), (2) propertyCreator's nullProvider not updated when deserializer is updated."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Proposed explanations are linked to symptoms: getNull() behavior explains incorrect nesting; nullProvider mismatch explains why contextual deserializer is not used for null handling."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report references specific methods (getNull(), _valueDeserializer.getNull()) and components (ReferenceTypeDeserializer, propertyCreator) but lacks code snippets showing the actual implementation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Explanations are internally coherent: both issues relate to null handling in nested reference types and do not contradict each other."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Proposes specific methods (getNull, _valueDeserializer) but does not reference exact line numbers, log output, or stack traces."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specific classes named: AtomicReference, ReferenceTypeDeserializer, ObjectMapper, ObjectReader. Methods mentioned: getNull(), _valueDeserializer.getNull()."
+      },
+      "T2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "ReferenceTypeDeserializer and propertyCreator are identified but exact file paths or package names not provided."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Complete test code provided showing exact failure scenario; JSON inputs and assertion failures are concrete artifacts."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Jackson library explicitly named with version 2.9.7; com.fasterxml.jackson.core:jackson-databind dependency specified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Language context (Kotlin/Java) provided but OS, JVM version, and other runtime details not specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "ReferenceTypeDeserializer and propertyCreator are vague references; developer would need to search codebase to locate exact classes."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Inputs are fully specified: JSON strings and MyBean class definition are concrete and unambiguous."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior is clear: null should deserialize to AtomicReference<AtomicReference<null>>, not AtomicReference<null>."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Jackson version specified but JVM version, OS, and other environment details missing; however, likely not material to reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory statements; report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Faulty behavior is clear; correct behavior is to respect nested reference type structure during null deserialization."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "ReferenceTypeDeserializer.getNull() and propertyCreator's nullProvider are identified but exact code locations not provided."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is concrete: AtomicReference<AtomicReference<null>> instead of AtomicReference<null>."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Edge case documented: nested reference types with null values; contextual deserializer behavior is relevant constraint."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Report identifies problem areas but lacks sufficient code context to implement fix without locating and examining ReferenceTypeDeserializer source."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Two specific root causes explicitly proposed: (1) getNull() implementation, (2) nullProvider not synchronized with deserializer."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Root causes reference specific methods (getNull(), _valueDeserializer.getNull()) and components (propertyCreator, nullProvider)."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Causal chain articulated: getNull() returns wrong type \u2192 nullProvider not updated \u2192 incorrect null handling in nested context."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete scenario fully specified: MyBean class, test method with specific JSON inputs, and expected assertions allow complete and unambiguous derivation of reproduction steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "ReferenceTypeDeserializer and propertyCreator identified as affected components; however, exact subsystem boundaries not fully specified."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Report distinguishes symptom (incorrect nesting in deserialized output) from likely defect location (getNull() and nullProvider synchronization)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Only two main areas identified (getNull() and nullProvider); report does not explore broader cross-cutting concerns."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Identifies: AtomicReference, ReferenceTypeDeserializer, propertyCreator, nullProvider, _valueDeserializer, ObjectMapper, ObjectReader."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.93
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.88
+      },
+      "C4": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.87
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.95
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.94
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.88
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.85
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.87
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.65
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "T2": {
+        "agreement": false,
+        "confidence_diff": 0.19000000000000006,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.7
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.6,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.95
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.3,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.3,
+        "judge2_confidence": 0.6
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.74,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.92
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.81,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.12,
+        "judge2_confidence": 0.93
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.8,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.1,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.82
+      },
+      "P2": {
+        "agreement": false,
+        "confidence_diff": 0.21000000000000008,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.7
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.65
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.82
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.65
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.8541666666666666,
+  "cohens_kappa": 0.4580645161290323,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.75)"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.65)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.89 > 0.7)"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.35)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.91 > 0.7)"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.84 > 0.65)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.74 > 0.65)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.75)"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.65)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Selected judge1 (higher confidence: 0.89 > 0.7)"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.35)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Selected judge1 (higher confidence: 0.91 > 0.7)"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Selected judge1 (higher confidence: 0.84 > 0.65)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "Selected judge1 (higher confidence: 0.74 > 0.65)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.7332355751067665,
+      "Clarity": 0.7332355751067665,
+      "Specificity": 0.7332355751067665,
+      "Reproducibility": 0.7332355751067665,
+      "ReasoningQuality": 0.7332355751067665,
+      "TechnicalContext": -0.07332355751067658,
+      "Ambiguity": -0.8798826901281197,
+      "RepairReadiness": 0.7332355751067665,
+      "RootCauseEvidence": -0.8798826901281197,
+      "HiddenReproducibility": -2.493000955363006,
+      "ImpactScope": -0.07332355751067658
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

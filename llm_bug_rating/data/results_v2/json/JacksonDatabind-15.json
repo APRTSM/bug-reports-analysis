@@ -1,0 +1,1453 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-15",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "Hi,\n\nI have an error \"com.fasterxml.jackson.databind.JsonMappingException: No serializer found for class java.lang.String and no properties discovered to create BeanSerializer\" in case of using custom XmlAdapter with such declaration:\n\npublic\n\nstatic\n\nclass\n\nIntegerListXmlAdapter\n\nextends\n\nXmlAdapter\n<\nObject\n, \nList\n<\nInteger\n>> {\n...\n\n@\nOverride\n\npublic\n\nObject\n\nmarshal\n(\nList\n<\nInteger\n> \nlist\n) \nthrows\n\nException\n{\n\nreturn\n\nJoiner\n.\non\n(\n\",\"\n).\njoin\n(\nlist\n);\n}\n}\n\nIf change declaration of this class to \"extends XmlAdapter<String, List>\" it works good.\n\nFull example:\n\npublic\n\nclass\n\nIntegerListXmlAdapterTest\n{\n\n@\nTest\n\npublic\n\nvoid\n\ntestBasic\n() \nthrows\n\nJsonProcessingException\n{\n\nObjectMapper\n\nmapper\n= (\nnew\n\nObjectMapper\n()).\nsetAnnotationIntrospector\n(\nnew\n\nJaxbAnnotationIntrospector\n());\n\nSomeIntListHolder\n\nlistHolder\n= \nnew\n\nSomeIntListHolder\n();\n\nlistHolder\n.\nsetListOne\n(\nasList\n(\n1\n, \n2\n, \n3\n));\n\nSystem\n.\nout\n.\nprintln\n(\nmapper\n.\nwriteValueAsString\n(\nlistHolder\n));\n}\n\npublic\n\nstatic\n\nclass\n\nIntegerListXmlAdapter\n\nextends\n\nXmlAdapter\n<\nObject\n, \nList\n<\nInteger\n>> {\n\n@\nOverride\n\npublic\n\nList\n<\nInteger\n> \nunmarshal\n(\nObject\n\nvalue\n) \nthrows\n\nException\n{\nreturn\n\nnull\n;}\n\n@\nOverride\n\npublic\n\nObject\n\nmarshal\n(\nList\n<\nInteger\n> \nlist\n) \nthrows\n\nException\n{\n\nreturn\n\nJoiner\n.\non\n(\n\",\"\n).\njoin\n(\nlist\n);\n}\n}\n\npublic\n\nstatic\n\nclass\n\nIntegerListToStringXmlAdapter\n\nextends\n\nXmlAdapter\n<\nString\n, \nList\n<\nInteger\n>> {\n\npublic\n\nList\n<\nInteger\n> \nunmarshal\n(\nString\n\nvalue\n) \nthrows\n\nException\n{\nreturn\n\nnull\n;}\n\npublic\n\nString\n\nmarshal\n(\nList\n<\nInteger\n> \nlist\n) \nthrows\n\nException\n{\n\nreturn\n\nJoiner\n.\non\n(\n\",\"\n).\njoin\n(\nlist\n);\n}\n}\n\n@\nXmlRootElement\n\n@\nXmlAccessorType\n(\nXmlAccessType\n.\nNONE\n)\n\npublic\n\nstatic\n\nclass\n\nSomeIntListHolder\n{\n\n@\nXmlAttribute\n\n@\nXmlJavaTypeAdapter\n(\nIntegerListXmlAdapter\n.\nclass\n)\n\nprivate\n\nList\n<\nInteger\n> \nlistOne\n;\n\npublic\n\nList\n<\nInteger\n> \ngetListOne\n() {\n\nreturn\n\nlistOne\n;\n}\n\npublic\n\nvoid\n\nsetListOne\n(\nList\n<\nInteger\n> \nlistOne\n) {\n\nthis\n.\nlistOne\n= \nlistOne\n;\n}\n}\n}\n\nIn this state with last Jackson version we will get an error\n\ncom.fasterxml.jackson.databind.JsonMappingException: No serializer found for class java.lang.String and no properties discovered to create BeanSerializer (to avoid exception, disable SerializationFeature.FAIL_ON_EMPTY_BEANS) ) (through reference chain: SomeIntListHolder[\"listOne\"])\nat com.fasterxml.jackson.databind.ser.impl.UnknownSerializer.failForEmpty(UnknownSerializer.java:59)\nat com.fasterxml.jackson.databind.ser.impl.UnknownSerializer.serialize(UnknownSerializer.java:26)\nat com.fasterxml.jackson.databind.ser.std.StdDelegatingSerializer.serialize(StdDelegatingSerializer.java:157)\nat com.fasterxml.jackson.databind.ser.BeanPropertyWriter.serializeAsField(BeanPropertyWriter.java:575)\nat com.fasterxml.jackson.databind.ser.std.BeanSerializerBase.serializeFields(BeanSerializerBase.java:663)\nat com.fasterxml.jackson.databind.ser.BeanSerializer.serialize(BeanSerializer.java:156)\nat com.fasterxml.jackson.databind.ser.DefaultSerializerProvider.serializeValue(DefaultSerializerProvider.java:129)\nat com.fasterxml.jackson.databind.ObjectMapper._configAndWriteValue(ObjectMapper.java:3385)\nat com.fasterxml.jackson.databind.ObjectMapper.writeValueAsString(ObjectMapper.java:2779)\n\nBut if we change XmlJavaTypeAdapter to IntegerListToStringXmlAdapter error will be fixed and code will work fine.\n\nThis error exists only in Jackson 2, we have this code with Object generic on Jackson 1 and get an issue only during migration to new major version.\n\nThis concrete error can be fixed by hack in com.fasterxml.jackson.databind.ser.std.StdDelegatingSerializer:\n\n@\nOverride\n\npublic\n\nvoid\n\nserialize\n(\nObject\n\nvalue\n, \nJsonGenerator\n\ngen\n, \nSerializerProvider\n\nprovider\n) \nthrows\n\nIOException\n\n{\n\nObject\n\ndelegateValue\n= \nconvertValue\n(\nvalue\n);\n\n// should we accept nulls?\n\nif\n(\ndelegateValue\n== \nnull\n) {\n\nprovider\n.\ndefaultSerializeNull\n(\ngen\n);\n\nreturn\n;\n}\n\n//original code:\n\n//_delegateSerializer.serialize(delegateValue, gen, provider);\n\nJsonSerializer\n<\nObject\n> \ndelegateSerializer\n;\n\nif\n(\n_delegateSerializer\n\ninstanceof\n\nUnknownSerializer\n) {\n\ndelegateSerializer\n= \nprovider\n.\nfindValueSerializer\n(\ndelegateValue\n.\ngetClass\n());\n} \nelse\n{\n\ndelegateSerializer\n= \n_delegateSerializer\n;\n}\n\ndelegateSerializer\n.\nserialize\n(\ndelegateValue\n, \ngen\n, \nprovider\n);\n}\n\nYou can find test class here: \nhttps://github.com/Spikhalskiy/jackson_xmladapter__bug/blob/master/src/test/java/IntegerListXmlAdapterTest.java\n\nand hacked serializer code here: \nhttps://github.com/Spikhalskiy/jackson_xmladapter__bug/blob/master/src/main/java/com/fasterxml/jackson/databind/ser/std/StdDelegatingSerializer.java\n\nNow test passing in this repo because of fake StdDelegatingSerializer in classpath - try to delete it to get an issue."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Describes a concrete failure: JsonMappingException when serializing SomeIntListHolder.listOne with XmlAdapter<Object, List<Integer>>."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Identifies the code path via StdDelegatingSerializer, JaxbAnnotationIntrospector, and XmlAdapter."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes a full stack trace and the exact exception message from UnknownSerializer/StdDelegatingSerializer."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Provides a runnable test class and states how to reproduce by removing the hacked serializer."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Points to com.fasterxml.jackson.databind.ser.std.StdDelegatingSerializer as the likely starting point."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A developer can understand the failure scenario from the test and exception without guessing."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The test setup and expected working case with XmlAdapter<String, List<Integer>> are concrete enough for a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is clear: serialize holder with Object-typed adapter, get exception; change adapter generic to String, it works."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Named entities like SomeIntListHolder, IntegerListXmlAdapter, and StdDelegatingSerializer are specific and locatable."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology is consistent with Jackson serialization and JAXB adapter behavior."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific input is given: a List<Integer> field annotated with @XmlJavaTypeAdapter(IntegerListXmlAdapter.class)."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report includes ordered reproduction code and a note to delete the fake serializer to reproduce."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Mentions Jackson 2 versus Jackson 1, but no exact version numbers or environment details."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reports the exact exception text and stack trace."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The Object-typed XmlAdapter case and the workaround with String-typed adapter uniquely identify the issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: serialization should work, as it does with XmlAdapter<String, List<Integer>>."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicitly the JsonMappingException with the provided stack trace."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy is clear: Object-typed adapter fails, String-typed adapter succeeds."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The included test class and instructions are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.76,
+        "reason": "No detailed environment setup or dependency versions are documented beyond Jackson 2."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Proposes a specific cause: StdDelegatingSerializer using _delegateSerializer when it is UnknownSerializer."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Links the proposed cause to the failure: delegateValue is a String but gets serialized via UnknownSerializer."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Supports the explanation with stack trace and the hacked serializer code."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "The explanation is internally consistent with the reported workaround and stack trace."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References concrete artifacts like StdDelegatingSerializer.serialize and UnknownSerializer."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names specific classes and methods: ObjectMapper, JaxbAnnotationIntrospector, StdDelegatingSerializer, IntegerListXmlAdapter."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The affected module is identifiable as Jackson databind serialization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes a relevant stack trace and code snippets."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References Jackson 1 versus Jackson 2 migration, but no external library versions beyond that."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "No OS, browser, runtime, or framework version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are broad, such as 'last Jackson version' and 'new major version'."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Inputs and reproduction code are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "Expected behavior is clear: serialization should succeed."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Version and environment details that could affect reproduction are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.1,
+        "reason": "No contradictory statements are present; the workaround is consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report states the faulty behavior and suggests a concrete fix in StdDelegatingSerializer."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Identifies the fix location directly: com.fasterxml.jackson.databind.ser.std.StdDelegatingSerializer."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: Object-typed XmlAdapter should serialize like the String-typed one."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Edge cases and constraints are not broadly documented beyond the specific adapter type."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A plausible fix can be implemented from the report using the proposed serializer fallback."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explicitly proposes the root cause in StdDelegatingSerializer.serialize."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References the specific operation: _delegateSerializer.serialize(delegateValue, gen, provider)."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explains the causal chain from UnknownSerializer to the JsonMappingException."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report contains a concrete test case from which exact reproduction steps can be derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The impacted subsystem is Jackson databind serialization."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Distinguishes symptom location in serialization from likely defect in StdDelegatingSerializer."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "Only one main impacted path is described; multiple areas are not clearly identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions several technical concepts: XmlAdapter, JaxbAnnotationIntrospector, StdDelegatingSerializer, UnknownSerializer, ObjectMapper."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable JsonMappingException with clear distinction: works with String generic type but fails with Object generic type in XmlAdapter."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specifically identifies StdDelegatingSerializer class and the marshal method in IntegerListXmlAdapter as the problem area."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes complete stack trace showing UnknownSerializer.failForEmpty and StdDelegatingSerializer.serialize as failure points."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides minimal reproducible test case with exact code and clear steps: create mapper, set adapter, call writeValueAsString."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Pinpoints com.fasterxml.jackson.databind.ser.std.StdDelegatingSerializer as the component requiring investigation."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Clearly explains the failure scenario: Object-typed XmlAdapter causes serialization failure while String-typed adapter works."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides complete test class code that a developer could use to write a failing test without clarification."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Sequence is clear: XmlAdapter with Object generic \u2192 marshal returns String \u2192 StdDelegatingSerializer cannot serialize String \u2192 exception."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "All components precisely identified: IntegerListXmlAdapter, SomeIntListHolder, StdDelegatingSerializer with exact class paths."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology used accurately: XmlAdapter, generic types, serializer, delegating serializer, and JsonMappingException are all correct."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific input provided: List<Integer> with values [1,2,3] passed to adapter that returns comma-joined String."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Ordered steps provided: create ObjectMapper with JaxbAnnotationIntrospector, create holder, set list, call writeValueAsString."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "States 'last Jackson version' and mentions Jackson 2 vs Jackson 1, but does not specify exact version number."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Exact error message provided verbatim: 'No serializer found for class java.lang.String and no properties discovered to create BeanSerializer'."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Distinguishes this bug from similar issues by showing Object vs String generic type difference and providing working vs failing adapter implementations."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior explicitly stated: serialization should succeed and produce JSON output, as it does with String-typed adapter."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Observed behavior explicitly stated: JsonMappingException thrown with specific error message about missing serializer for String."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Discrepancy is unambiguous: Object-typed adapter fails while String-typed adapter succeeds; stack trace shows exact failure point."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reproduction steps are complete and sufficient: test code is self-contained and can be run directly."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Jackson version not specified precisely (only 'last Jackson version' and 'Jackson 2' mentioned); Java version and environment not documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report explicitly proposes root cause: StdDelegatingSerializer uses UnknownSerializer for Object type instead of finding the actual serializer for the returned String."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Proposed explanation directly linked to symptoms: Object generic type \u2192 UnknownSerializer instantiated \u2192 cannot serialize String \u2192 exception."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides concrete evidence: stack trace showing UnknownSerializer.failForEmpty, code snippet showing proposed fix in StdDelegatingSerializer."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Explanation is internally coherent: Object type causes type erasure issue, String type works because it matches the serialized output type."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References specific methods: UnknownSerializer.failForEmpty, StdDelegatingSerializer.serialize, convertValue, findValueSerializer."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific classes named: IntegerListXmlAdapter, StdDelegatingSerializer, UnknownSerializer, JaxbAnnotationIntrospector, ObjectMapper."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Affected subsystem identifiable: com.fasterxml.jackson.databind.ser.std package and JAXB annotation introspection."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Stack trace included and directly relevant; code snippets for both failing and working adapters provided."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson library referenced by name; JAXB mentioned but no specific version; Guava Joiner used but not critical to bug."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "OS, Java version, and exact Jackson version not specified; only mentions 'Jackson 2' and 'last Jackson version'."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all components and methods are specifically named."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Inputs and conditions are fully specified: List<Integer> with values, XmlAdapter declaration, annotation configuration."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Expected behavior is clear: serialization should succeed and produce JSON output without exception."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson version not specified precisely; Java version and runtime environment missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements; report is internally consistent about the problem and proposed solution."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Faulty behavior precisely described: Object generic type causes UnknownSerializer to be used; correct behavior is to find serializer for actual returned type."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific location identified: StdDelegatingSerializer.serialize method, specifically the delegation logic."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior stated concretely: serialization should succeed without exception, matching behavior of String-typed adapter."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Edge case documented: Object generic type in XmlAdapter; constraint that returned value type may differ from generic type parameter."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer could implement fix using provided code snippet: check if delegateSerializer is UnknownSerializer and find actual serializer for delegateValue.getClass()."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explicitly proposes root cause: StdDelegatingSerializer instantiates UnknownSerializer for Object type instead of determining serializer at runtime."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References specific code constructs: UnknownSerializer class, _delegateSerializer field, convertValue method, findValueSerializer method."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Causal chain articulated: Object generic type \u2192 UnknownSerializer created \u2192 marshal returns String \u2192 UnknownSerializer.serialize fails \u2192 exception thrown."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete scenario fully specified: create ObjectMapper with JaxbAnnotationIntrospector, annotate field with XmlJavaTypeAdapter(IntegerListXmlAdapter.class), serialize object with List<Integer> field."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific subsystem identified: com.fasterxml.jackson.databind.ser.std.StdDelegatingSerializer and JAXB annotation introspection integration."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom (JsonMappingException in serialization) from root cause (UnknownSerializer instantiation for Object type)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies JAXB XmlAdapter integration and Jackson serializer resolution as cross-cutting concerns."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Names multiple relevant concepts: StdDelegatingSerializer, UnknownSerializer, XmlAdapter, JaxbAnnotationIntrospector, SerializerProvider, convertValue."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.93
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.91
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.89
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.93
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.91
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.93
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.88
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.93
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.91
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.73,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.93
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.7899999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.94
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.8300000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.1,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.29999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.91
+      }
+    }
+  },
+  "percent_agreement": 0.9166666666666666,
+  "cohens_kappa": 0.6666666666666664,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.7)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.55)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.7)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.55)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.7808688094430304,
+      "Clarity": 0.7808688094430304,
+      "Specificity": 0.7808688094430304,
+      "Reproducibility": -0.07808688094430297,
+      "ReasoningQuality": 0.7808688094430304,
+      "TechnicalContext": -0.07808688094430297,
+      "Ambiguity": -0.07808688094430297,
+      "RepairReadiness": 0.7808688094430304,
+      "RootCauseEvidence": -0.9370425713316364,
+      "HiddenReproducibility": -2.654953952106303,
+      "ImpactScope": -0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

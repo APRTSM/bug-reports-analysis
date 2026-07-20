@@ -1,0 +1,1430 @@
+{
+  "bug": {
+    "bug_id": "Gson-13",
+    "project": "Gson",
+    "summary": "No title",
+    "description": "Hi,\n\nI have been cross testing various json parsers looking for those that expose the lexical of json numbers and not only their bound java.lang.Number. Because of the lazy parsing done by gson with \nLazilyParsedNumber\n, that keeps the lexical, all my roundtrip tests pass apart one: the lexical \n-0\nthat is treated as it were \n0\n\nI read some threads about negative zero:\n\nhttps://www.ietf.org/mail-archive/web/json/current/msg03668.html\n\nhttps://www.ietf.org/mail-archive/web/json/current/msg01520.html\n\nhttps://www.ietf.org/mail-archive/web/json/current/msg01523.html\n\nhttps://www.ietf.org/mail-archive/web/json/current/msg01525.html\n\nI created this issue thinking that \n-0\nis a float, the same as \n-0.0\n, since a signed zero makes sense only in floating point numbers and also because in Java only Double/Float preserve sign of zero. This would have the implication that \n-0\ncould not be validated by jsonschema \ntype\n\ninteger\n, and that a jsonschema implementation would have the need to know if a \n-0\nis present in json data, but probably this is not the case.\n\nAfter I started to (re)consider that \n-0\ncould be an integer, only that seems that in no programming language there is an integer that preserves sign for zero.\n\nIn any case, differentiating between \n0\nand \n-0\nat lexical level would allow a client of gson to be able to refuse the value \n-0\n.\n\nGson could easily support differentiating between \n0\nand \n-0\n: in code \n-0\nis \ntreated as an integer (PEEKED_LONG) in JsonReader\nso its value is stored in a Java \nlong\nthat cannot represent negative zero. I noted that \n-0.0\nroundtrips correctly because is treated as a PEEKED_NUMBER that is kept as a Java String. So the case of \n-0\ncould be trapped and treated as \n-0.0\n, as a PEEKED_NUMBER, in this way the \ntoString()\nmethod of \nLazilyParsedNumber\nwill return \n-0\nand gson will be able to roundtrip any valid number value found in source, only clients using \nNumber.toString()\nwill notice any difference.\n\nMy proposal is to change \nthis code\nfrom\n\nif (last == NUMBER_CHAR_DIGIT && fitsInLong && (value != Long.MIN_VALUE || negative)) {\n\nto\n\nif (last == NUMBER_CHAR_DIGIT && fitsInLong && (value!=0 || false==negative) && (value != Long.MIN_VALUE || negative)) {\n\nThanks,\n\nMichele"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: lexical \"-0\" is treated as \"0\" in Gson roundtrips."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the affected functionality as Gson JSON number parsing/roundtripping, specifically JsonReader and LazilyParsedNumber."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes a code reference and proposed condition change, plus links to related negative-zero discussions."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides enough context about the parsing path and observed mismatch to start investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Points to a likely subsystem: JsonReader number parsing and LazilyParsedNumber handling."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report is understandable overall, though somewhat verbose and informal."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The problem is clearly identified as loss of distinction between \"-0\" and \"0\"."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The narrative is mostly logical, moving from observed issue to analysis and proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References to Gson, JsonReader, LazilyParsedNumber, and PEEKED_LONG/PEEKED_NUMBER are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Technical terms are used consistently, though the discussion mixes lexical, integer, and floating-point concepts."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific triggering input is described: the JSON number \"-0\"."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "No explicit step-by-step reproduction procedure is given."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No environment, version, or platform information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The failure is stated concretely: \"-0\" is treated as \"0\" and does not roundtrip distinctly."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The issue is distinguished by the specific lexical edge case \"-0\" rather than a generic parsing failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.3,
+        "reason": "Expected behavior is implied, but not stated as a direct expected/actual comparison."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: \"-0\" is treated as if it were \"0\"."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The discrepancy is clear: lexical \"-0\" should be preserved, but Gson normalizes it to \"0\"."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "The report suggests a scenario but does not provide sufficient explicit reproduction steps."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "No required environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A potential cause is explicitly proposed: JsonReader treats \"-0\" as PEEKED_LONG, losing the sign."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is linked to the symptom that \"-0\" roundtrips as \"0\"."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The report cites the parsing path and the relevant conditional as supporting evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally consistent: storing as long loses lexical sign, while string-based parsing preserves it."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References technical artifacts such as JsonReader, PEEKED_LONG, PEEKED_NUMBER, and LazilyParsedNumber.toString()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions specific classes and methods: JsonReader, LazilyParsedNumber, toString()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected module is identifiable as Gson's JSON number parsing/reader subsystem."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Includes a code snippet and references to parser states, though no logs or stack traces."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "References JSON schema and Java number behavior as relevant external context."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "No OS, browser, framework version, or hardware details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are broad, such as \"various json parsers\" and general discussion of negative zero."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Inputs and conditions are not fully specified beyond the lexical value \"-0\"."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.62,
+        "reason": "Expected behavior is discussed indirectly rather than stated plainly."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "The report is not contradictory in its main claim, though it discusses alternative interpretations."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior is precise enough: preserve lexical \"-0\" instead of normalizing it."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The likely code location is identifiable from the cited JsonReader condition."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The target behavior is stated: roundtrip any valid number value, including \"-0\"."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "The edge case of signed zero and integer vs floating-point handling is discussed."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.42,
+        "reason": "A developer would likely still need to investigate surrounding parser behavior and tests."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A root cause is explicitly proposed: \"-0\" is treated as PEEKED_LONG and stored as a long."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report references a specific code construct: the if-condition in JsonReader."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "It explains that storing \"-0\" as long loses the sign, causing the observed roundtrip failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A reproduction can be inferred: parse JSON containing \"-0\" with Gson and inspect roundtrip output."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The affected concept is identifiable as JSON number parsing and lexical preservation in Gson."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The report distinguishes symptom location (roundtrip output) from underlying defect (JsonReader number classification)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.22,
+        "reason": "Only one main area is discussed; no multiple impacted subsystems are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report clearly describes that -0 is treated as 0, losing the sign information during parsing."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected component is identified as JsonReader and LazilyParsedNumber in Gson."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report references specific code (PEEKED_LONG, PEEKED_NUMBER), the exact condition to change, and provides a concrete code fix proposal."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report explains the root cause, affected code path, and provides a proposed fix, giving sufficient context to investigate."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The subsystem is clearly identified as JsonReader's number parsing logic in Gson."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report is written in coherent English with minor grammatical issues but is overall understandable."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The problem is clear: -0 is parsed as 0 (integer), losing the negative sign in the lexical representation."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report progresses logically from problem description to root cause analysis to proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References to LazilyParsedNumber, PEEKED_LONG, PEEKED_NUMBER, and JsonReader are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terms like PEEKED_LONG, PEEKED_NUMBER, LazilyParsedNumber are used consistently throughout."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The specific input -0 is identified as the triggering condition."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No explicit numbered reproduction steps are provided, though the scenario is described narratively."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific Gson version or environment information is mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The specific failure is that -0 roundtrips as 0, losing the negative sign."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report specifically distinguishes -0 vs 0 behavior and contrasts it with -0.0 which works correctly."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected behavior is stated: -0 should roundtrip as -0, preserving the lexical representation."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is stated: -0 is treated as 0 (stored as long, losing the sign)."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The discrepancy is clear: -0 input produces 0 output instead of preserving -0."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No explicit step-by-step reproduction instructions are provided; a developer would need to infer the test setup."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific environment, version, or dependency requirements are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report explicitly proposes that -0 is being stored as PEEKED_LONG (Java long) which cannot represent negative zero."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The explanation directly links the PEEKED_LONG storage to the loss of the negative sign in the output."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The contrast with -0.0 (which works via PEEKED_NUMBER as a String) provides supporting evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The reasoning is internally consistent: long cannot represent -0, so treating -0 as PEEKED_NUMBER (String) would preserve it."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific code constructs: PEEKED_LONG, PEEKED_NUMBER, the exact conditional expression, and LazilyParsedNumber.toString()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "JsonReader, LazilyParsedNumber, PEEKED_LONG, PEEKED_NUMBER, and the specific conditional code are all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected subsystem is clearly the JSON number parsing in JsonReader."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No logs, stack traces, or code snippets beyond the proposed fix condition are included."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external dependencies beyond Gson itself are referenced as relevant to the fix."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, Java version, or Gson version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "References are specific: -0, JsonReader, PEEKED_LONG, LazilyParsedNumber are all well-defined."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The input (-0) and conditions are clearly described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior (preserve -0 lexically) is stated clearly."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "No Gson version or Java version is specified, which could be relevant."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report is internally consistent; the author's reconsideration of -0 as integer vs float is presented as deliberation, not contradiction."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The faulty behavior (treating -0 as PEEKED_LONG losing sign) is precisely described."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The specific code location (the conditional in JsonReader) is identified and the exact line is referenced."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The expected fix is to treat -0 as PEEKED_NUMBER (String) so LazilyParsedNumber.toString() returns -0."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report notes that only clients using Number.toString() will notice a difference, documenting a relevant constraint."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report provides the exact code change needed, making it possible to implement a fix directly."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Root cause is explicitly stated: -0 is classified as PEEKED_LONG and stored in a Java long which cannot represent negative zero."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References the specific conditional expression in JsonReader and the PEEKED_LONG code path."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The causal chain is articulated: PEEKED_LONG \u2192 stored as long \u2192 long cannot hold -0 \u2192 sign lost \u2192 roundtrip fails."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "From the narrative, one can infer: parse a JSON string containing -0 with Gson, then serialize back and observe 0 instead of -0."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected module is clearly JsonReader's number parsing, specifically the PEEKED_LONG branch."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The symptom (wrong roundtrip output) is distinguished from the defect location (PEEKED_LONG classification in JsonReader)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one area is identified (JsonReader number parsing); no cross-cutting concerns are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.4,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.35,
+        "judge2_confidence": 0.75
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.6300000000000001,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.3,
+        "judge2_confidence": 0.93
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.29999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.7
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.6200000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.1100000000000001,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.93
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.98
+      },
+      "T3": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.7,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.26,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.88
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.6799999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.88
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.95
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.46,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.42,
+        "judge2_confidence": 0.88
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.98
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.5800000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.22,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.851063829787234,
+  "cohens_kappa": 0.5732814526588846,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.93 > 0.3)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.62)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.42)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Selected judge2 (higher confidence: 0.93 > 0.3)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.62)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.42)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.2206002068101025,
+      "Clarity": 1.2206002068101025,
+      "Specificity": -0.05812381937190959,
+      "Reproducibility": -0.05812381937190959,
+      "ReasoningQuality": 1.2206002068101025,
+      "TechnicalContext": -0.05812381937190959,
+      "Ambiguity": 0.5812381937190965,
+      "RepairReadiness": -1.9762098586449277,
+      "RootCauseEvidence": -0.05812381937190959,
+      "HiddenReproducibility": -1.3368478455539217,
+      "ImpactScope": -0.6974858324629156
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

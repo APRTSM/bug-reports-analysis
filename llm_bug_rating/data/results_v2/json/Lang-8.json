@@ -1,0 +1,1452 @@
+{
+  "bug": {
+    "bug_id": "Lang-8",
+    "project": "Lang",
+    "summary": "FastDateFormat's \"z\" pattern does not respect timezone of Calendar instances passed to format()",
+    "description": "The work on \nLANG-462\nhas introduced a time zone formatting bug in FastDateFormat in commons-lang3.\n\nThe problem can be seen by this snippet:\n\n// Always prints timezone name of machine's \ndefault\ntimezone, ignoring TZ\n\n// set on calendar, even though the printed time itself respects calendar's TZ.\n\nCalendar myCal = Calendar.getInstance(TimeZone.getTimeZone(\n\"US/Central\"\n));\n\nSystem\n.out.println(FastDateFormat.getInstance(\n\"h:mma z\"\n).format(myCal));\n\nIf you happen to be in US/Central, this will print the right thing, but just try it with US/Eastern, US/Pacific, etc. It will print the time in the correct timezone, but the timezone name at the end (the \"z\" pattern) will always be the system default timezone. This is a regression against commons-lang 2.x.\n\nBasically, when the \"forced time zone\" code was removed, the TimeZoneNameRule class stopped respecting the Calendar instance's timezone, and instead now always uses the mTimeZone of the FastDateFormat instance itself (which is only supposed to be used when formatting timezone-less objects such as Date or long).\n\nThe removal of the forced time zone stuff is surely the right thing to do (it was a mess). I think the fix is to change the TimeZoneNameRule inner class to not take a TimeZone instance, but rather to use the TimeZone on the Calendar instance passed into appendTo(), just like TimeZoneNumberRule does. Presumably then for efficiency, one would use the getTimeZoneDisplay() package-static method to quickly retrieve the required timezone's display name."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: 'z' prints the system default timezone while the time itself uses the Calendar timezone."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the affected code path: FastDateFormat formatting, specifically TimeZoneNameRule and appendTo()."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "No stack trace, error message, or logs are included; only a code snippet and behavioral description."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides a concrete snippet using Calendar.getInstance(TimeZone.getTimeZone(\"US/Central\")) and FastDateFormat.getInstance(\"h:mma z\").format(myCal)."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Pinpoints the component to TimeZoneNameRule inside FastDateFormat in commons-lang3."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A developer can understand the failure scenario: timezone name ignores the Calendar timezone."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The snippet and expected/observed behavior are specific enough to derive a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The condition is unambiguous: Calendar timezone differs from system default, and 'z' uses the wrong one."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References FastDateFormat, TimeZoneNameRule, TimeZoneNumberRule, and getTimeZoneDisplay() precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Terminology is consistent: Calendar timezone, system default timezone, forced time zone, and pattern 'z'."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific input is given: Calendar with US/Central and format pattern 'h:mma z'."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "A concrete reproduction snippet is provided, though not numbered steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No version, OS, or runtime details are provided beyond commons-lang3/commons-lang 2.x reference."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reports the failure mode clearly: timezone name always matches the machine default timezone."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The regression is tied to LANG-462 and the specific TimeZoneNameRule behavior."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is explicit: timezone name should respect the Calendar's timezone."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is explicit: 'z' always prints the system default timezone."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The discrepancy between expected and observed output is directly stated."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The code snippet is sufficient to attempt reproduction without further clarification."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.18,
+        "reason": "No environment setup details are documented beyond differing timezone settings."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Proposes a specific cause: TimeZoneNameRule now uses FastDateFormat's mTimeZone instead of the Calendar timezone."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The explanation directly links the wrong timezone source to the wrong 'z' output."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Evidence is the provided snippet and the comparison to TimeZoneNumberRule/getTimeZoneDisplay(), not logs."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is coherent and matches the described symptom and regression."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References concrete artifacts: TimeZoneNameRule, appendTo(), mTimeZone, getTimeZoneDisplay()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Names specific classes and methods: FastDateFormat, TimeZoneNameRule, TimeZoneNumberRule, appendTo()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The affected module is identifiable as commons-lang3 FastDateFormat formatting code."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Includes a relevant code snippet demonstrating the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "No external dependency or library version details are given beyond commons-lang references."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.12,
+        "reason": "No OS, browser, framework, or runtime version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are broad, such as 'forced time zone code' and 'system default timezone', without code location details."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "Inputs and triggering condition are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.15,
+        "reason": "Expected behavior is clearly stated: use the Calendar timezone for 'z'."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Missing environment/version details could affect reproduction, especially timezone-dependent behavior."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.1,
+        "reason": "The report is internally consistent and does not contradict itself."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "States the correct behavior and suggests the needed change in TimeZoneNameRule."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Identifies the fix location directly: TimeZoneNameRule inner class in FastDateFormat."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Acceptance criterion is concrete: 'z' should reflect the Calendar timezone."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Mentions the relevant condition that Calendar timezone differs from system default."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A plausible fix is described using Calendar timezone and getTimeZoneDisplay()."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explicitly proposes the root cause: TimeZoneNameRule stopped respecting the Calendar timezone."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References specific constructs: mTimeZone, Calendar timezone, appendTo(), getTimeZoneDisplay()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Explains the causal chain from using mTimeZone to always printing the system default timezone."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The snippet and described condition fully determine a reproducible scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected concept is identifiable as FastDateFormat timezone formatting."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Distinguishes symptom location in format() from likely defect in TimeZoneNameRule."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.22,
+        "reason": "Only one main impacted area is described; no multiple distinct impacted areas are identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Mentions multiple technical concepts: FastDateFormat, TimeZoneNameRule, TimeZoneNumberRule, Calendar, getTimeZoneDisplay()."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: timezone name in 'z' pattern ignores Calendar's timezone and uses system default instead, while time itself is correct."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specifically identifies FastDateFormat class, TimeZoneNameRule inner class, and the 'z' pattern as the affected code path."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes concrete code snippet demonstrating the bug with FastDateFormat.getInstance() and format(myCal) calls."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Developer can immediately reproduce using the provided code snippet with different timezones to verify the bug."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Pinpoints FastDateFormat class and TimeZoneNameRule inner class as the specific components requiring investigation."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clearly explained: 'z' pattern prints system default timezone name instead of Calendar's timezone, despite time being formatted correctly."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer could write a test case comparing timezone names from different Calendar instances formatted with the same FastDateFormat."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Sequence is unambiguous: Calendar with specific timezone is created, format() is called, and timezone name in output does not match Calendar's timezone."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "All entities are precisely identified: FastDateFormat, TimeZoneNameRule, Calendar, TimeZone, and the 'z' pattern are all locatable in the codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terminology is used accurately: 'timezone', 'pattern', 'Calendar instance', 'TimeZone' are all used correctly and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific inputs are provided: Calendar.getInstance(TimeZone.getTimeZone('US/Central')), format string 'h:mma z', and alternative timezones (US/Eastern, US/Pacific)."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Concrete reproduction steps are provided: create Calendar with specific timezone, call FastDateFormat.getInstance('h:mma z').format(myCal), observe timezone name mismatch."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No specific version information provided; report references LANG-462 and commons-lang3 but does not specify exact version numbers or dates."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specific failure mode is described: timezone name printed is system default, not Calendar's timezone, while time portion is correct."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report uniquely identifies this as a regression in commons-lang3 related to LANG-462 work, distinguishing it from other timezone bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior is explicit: timezone name in 'z' pattern should match the Calendar instance's timezone, not the system default."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Observed behavior is explicitly stated: 'z' pattern always prints system default timezone name, ignoring Calendar's timezone."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Discrepancy is unambiguous: expected (Calendar's timezone name) vs. observed (system default timezone name) are clearly distinguished."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Reproduction steps are complete: create Calendar with non-default timezone, format with FastDateFormat using 'z' pattern, verify timezone name mismatch."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific environment details provided; report does not specify OS, Java version, or commons-lang3 build information needed for exact reproduction."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Report explicitly proposes root cause: TimeZoneNameRule stopped respecting Calendar's timezone after removal of 'forced time zone' code and now uses FastDateFormat's mTimeZone instead."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Proposed explanation is directly linked to symptoms: TimeZoneNameRule using mTimeZone (system default) instead of Calendar's timezone explains why 'z' pattern ignores Calendar's timezone."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report references LANG-462 work and TimeZoneNameRule class as concrete evidence supporting the explanation of the regression."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explanation is internally coherent: TimeZoneNameRule using mTimeZone explains both why timezone name is wrong and why time itself is correct (handled elsewhere)."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Report references specific technical artifacts: TimeZoneNameRule class, mTimeZone field, TimeZoneNumberRule class, and getTimeZoneDisplay() method."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific classes named: FastDateFormat, TimeZoneNameRule, TimeZoneNumberRule, Calendar, TimeZone; specific methods: format(), getInstance(), getTimeZoneDisplay()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Affected subsystem is identifiable: FastDateFormat class and its TimeZoneNameRule inner class are precisely located."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Code snippet is included demonstrating the bug; however, no stack traces or detailed logs are provided."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependencies or library versions are referenced; report focuses on internal commons-lang3 code."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environment details are missing: no OS, Java version, or commons-lang3 version specified; only mentions 'commons-lang3' generically."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all entities (FastDateFormat, TimeZoneNameRule, Calendar, 'z' pattern) are clearly identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Inputs and conditions are well-specified: Calendar with TimeZone.getTimeZone('US/Central'), format string 'h:mma z', and expected vs. actual outputs."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Expected behavior is clear: 'z' pattern should use Calendar's timezone, not system default; this is explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version information is missing; no specific commons-lang3 version, Java version, or OS details provided, which could affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictions; report is internally consistent: time is correct (uses Calendar's timezone), but timezone name is wrong (uses system default)."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Faulty behavior is precisely described; correct behavior is clear: TimeZoneNameRule should use Calendar's timezone, not mTimeZone."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific component is identifiable: TimeZoneNameRule inner class is the location requiring a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected correct behavior is concrete: 'z' pattern should print the timezone name of the Calendar instance passed to format()."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report mentions relevant constraints: TimeZoneNameRule should behave like TimeZoneNumberRule (using Calendar's timezone), and suggests using getTimeZoneDisplay() for efficiency."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer could implement a fix: modify TimeZoneNameRule to extract timezone from Calendar parameter in appendTo() instead of using mTimeZone, similar to TimeZoneNumberRule."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific root cause is explicitly proposed: removal of 'forced time zone' code caused TimeZoneNameRule to use mTimeZone instead of Calendar's timezone."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Root cause references specific code constructs: TimeZoneNameRule class, mTimeZone field, and the removal of 'forced time zone' logic from LANG-462."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal chain is articulated: LANG-462 removed forced timezone code \u2192 TimeZoneNameRule now uses mTimeZone \u2192 'z' pattern ignores Calendar's timezone."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report describes a specific, concrete scenario: create Calendar with US/Central timezone, format with 'h:mma z' pattern, observe timezone name mismatch. Steps are fully determinable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific subsystem identified: FastDateFormat class and TimeZoneNameRule inner class are the affected components."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report distinguishes symptom (wrong timezone name in output) from root cause (TimeZoneNameRule using mTimeZone instead of Calendar's timezone)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report identifies multiple impacted areas: TimeZoneNameRule, TimeZoneNumberRule (for comparison), and the 'z' pattern formatting logic."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report names multiple distinct technical concepts: FastDateFormat, TimeZoneNameRule, TimeZoneNumberRule, Calendar, TimeZone, mTimeZone field, getTimeZoneDisplay() method, 'z' pattern."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A3": {
+        "agreement": false,
+        "confidence_diff": 0.72,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.92
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.6499999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.94
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.92
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.6200000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.18,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.93
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.7,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.68,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.12,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.73,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.2,
+        "judge2_confidence": 0.93
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.7899999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.15,
+        "judge2_confidence": 0.94
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.8300000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.1,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.93
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.66,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.22,
+        "judge2_confidence": 0.88
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.9375,
+  "cohens_kappa": 0.7857142857142857,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.18)"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.22)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.18)"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.22)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

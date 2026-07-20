@@ -1,0 +1,1450 @@
+{
+  "bug": {
+    "bug_id": "Closure-65",
+    "project": "Closure",
+    "summary": "String escaping mishandles null byte",
+    "description": "<b>What steps will reproduce the problem?</b>\n1. Run:\r\nvar x = &quot;\\u00003&quot;; if (x.length &lt; 2) { alert(&quot;fail&quot;); } else { alert(&quot;win&quot;); }\r\n2. Compile and run\r\n\r\n<b>What is the expected output? What do you see instead?</b>\n&quot;win&quot; is expected. &quot;fail&quot; is observed\r\n\r\n<b>What version of the product are you using? On what operating system?</b>\nr1167 on OS x 10.6\r\n\r\n<b>Please provide any additional information below.</b>\nThe problem is here: http://code.google.com/p/closure-compiler/source/browse/trunk/src/com/google/javascript/jscomp/CodeGenerator.java#1015\r\n\r\nHere's a patch that fixes it:\r\n$ svn diff\r\nIndex: src/com/google/javascript/jscomp/CodeGenerator.java\r\n===================================================================\r\n--- src/com/google/javascript/jscomp/CodeGenerator.java\t(revision 1167)\r\n+++ src/com/google/javascript/jscomp/CodeGenerator.java\t(working copy)\r\n@@ -1012,7 +1012,7 @@\r\n     for (int i = 0; i &lt; s.length(); i++) {\r\n       char c = s.charAt(i);\r\n       switch (c) {\r\n-        case '\\0': sb.append(&quot;\\\\0&quot;); break;\r\n+        case '\\0': sb.append(&quot;\\\\000&quot;); break;\r\n         case '\\n': sb.append(&quot;\\\\n&quot;); break;\r\n         case '\\r': sb.append(&quot;\\\\r&quot;); break;\r\n         case '\\t': sb.append(&quot;\\\\t&quot;); break;\r\n\r\nYou could also lookahead and output &quot;\\\\000&quot; only if the following char is 0-7 (octal valid) and otherwise output &quot;\\\\0&quot;. Is 2 bytes worth the complexity?"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observable faulty behavior is described: a string containing \\u00003 compiles to \"fail\" instead of expected \"win\"."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected code path is identified as CodeGenerator.java in Closure Compiler."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report includes a code snippet and patch showing the null-byte escaping logic in CodeGenerator.java."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It gives a concrete input, compile/run step, expected output, and observed output, enough to investigate immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "It pinpoints src/com/google/javascript/jscomp/CodeGenerator.java as the place to start."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A developer can understand the failure scenario: null-byte string escaping changes program behavior."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report is specific enough to write a failing test using the provided JavaScript snippet."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The sequence is unambiguous: compile the given snippet and observe fail instead of win."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "CodeGenerator.java is named precisely, and the relevant method region is shown in the patch."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terms like escaping, null byte, octal, and CodeGenerator are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The triggering input is concrete: var x = \"\\u00003\";."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Ordered reproduction steps are provided: run the snippet, compile, and run."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Version and OS are given: r1167 on OS X 10.6."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The failure mode is explicit: expected \"win\", observed \"fail\"."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The null-byte escaping issue and proposed \\0 vs \\000 fix distinguish this bug from generic string issues."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected behavior is stated as \"win\"."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is stated as \"fail\"."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The discrepancy between expected and observed output is directly stated."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report provides enough steps to reproduce by compiling and running the given snippet."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "It includes product version and OS, which are the relevant environment details here."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A specific cause is proposed: CodeGenerator.java emits \\0 instead of \\000."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The report links the escaping choice to the observed misparse of the following digit."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The patch and code reference provide concrete evidence for the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is coherent and matches the symptom and patch."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "It references exact code location and concrete escape sequences."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "CodeGenerator.java is named explicitly."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The subsystem is identifiable as Closure Compiler's code generation component."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A relevant code snippet and diff are included."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No external dependency or library version is mentioned beyond the product itself."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment details include r1167 and OS X 10.6."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "References are specific, not vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and conditions are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Expected behavior is clearly stated as \"win\"."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Version and OS are provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The correct behavior is clear: escape null bytes so following digits are not consumed."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "CodeGenerator.java is directly identified as the fix location."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Acceptance criterion is concrete: the snippet should produce \"win\"."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The edge case of following octal digits is explicitly discussed."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A plausible fix is fully described in the report and patch."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report explicitly says the problem is in CodeGenerator.java."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "It names the specific construct: case '\\0' appending \"\\\\0\"."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The causal chain is stated: \\0 before 3 is parsed incorrectly, causing the failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report contains a concrete scenario from which exact reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is the string escaping logic in CodeGenerator."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "It distinguishes the symptom in generated output from the underlying defect in CodeGenerator.java."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one main component is clearly identified; multiple impacted areas are not described."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It mentions several technical concepts: string escaping, null byte, octal, CodeGenerator.java, and generated JavaScript."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: string with null byte has incorrect length after compilation, distinguishable from expected behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific class identified: CodeGenerator.java, specific method location line 1015, specific case statement for null byte handling."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes code snippet showing the problematic line, exact patch with before/after comparison, and specific file path."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer can immediately reproduce using provided JavaScript code snippet and investigate the identified code location."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Precisely identifies CodeGenerator.java class, line 1015, and the switch case for null byte escaping."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clear: null byte in string literal causes incorrect length calculation after compilation."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Developer could write a test case: compile string with null byte, check length property, verify it equals 2."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Sequence is unambiguous: null byte in source \u2192 incorrect escape sequence \u2192 wrong string length at runtime."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "CodeGenerator.java class and line 1015 are precisely identified; developer can locate the exact code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terminology used accurately: null byte, escape sequence, octal notation, string length."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific input provided: string literal with Unicode null byte (\\u0000) followed by '3'."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Steps are concrete but minimal: run code snippet, compile, and run. Could be more detailed about compilation command."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version r1167 and OS X 10.6 provided, though specific Closure Compiler build details could be more complete."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific failure mode reported: alert shows 'fail' instead of 'win', indicating x.length < 2 when it should be >= 2."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Null byte escaping issue is specific and distinguishable from other string escaping bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Expected behavior explicitly stated: string should have length >= 2, alert should display 'win'."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Observed behavior explicitly stated: alert displays 'fail', indicating x.length < 2."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is clear: expected 'win' but observed 'fail', directly traceable to length check."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Steps are sufficient but minimal; compilation command not specified, though likely straightforward."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Version and OS provided; Closure Compiler build process could be more explicitly documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Report explicitly proposes root cause: incorrect escape sequence for null byte (\\0 instead of \\000)."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Causal mechanism is clear: \\0 followed by digit is interpreted as octal escape, consuming the '3'."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides exact code location (line 1015), problematic code (case '\\0': sb.append(\"\\\\0\")), and proposed fix."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explanation is internally coherent: null byte escape issue directly explains length discrepancy."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References specific method (switch case at line 1015), exact escape sequences (\\0 vs \\000), and file path."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific class named: CodeGenerator.java; specific method context: string escaping switch statement."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "File path provided: src/com/google/javascript/jscomp/CodeGenerator.java; subsystem is code generation."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes code snippet, patch diff, and JavaScript test case directly relevant to the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependencies or libraries mentioned; this is internal Closure Compiler code."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "OS X 10.6 and r1167 provided; Java version and Closure Compiler build details could be more specific."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No vague references; all entities (CodeGenerator.java, line 1015, null byte case) are precisely identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Input is specific: string with null byte and digit; conditions are clear."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is explicit: string length should be 2, alert should show 'win'."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Version and OS provided; compilation environment could be slightly more detailed but is sufficient."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No contradictions; report is internally consistent throughout."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Correct behavior is clear: null byte should escape to \\000 to avoid octal interpretation; fix is determinable."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Exact location identified: CodeGenerator.java line 1015, case '\\0' statement."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Acceptance criterion is concrete: string with null byte should retain correct length after compilation."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report mentions edge case consideration: lookahead for octal digits; trade-off between correctness and complexity discussed."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Developer can implement fix directly: change \\0 to \\000 in the identified case statement."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Root cause explicitly proposed: null byte escape sequence \\0 is ambiguous when followed by octal digit."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References specific code construct: case '\\0': sb.append(\"\\\\0\") at line 1015 in CodeGenerator.java."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Causal chain is clear: \\0 followed by '3' \u2192 interpreted as octal \\03 \u2192 string length reduced \u2192 test fails."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Concrete scenario provided: compile JavaScript with null byte in string literal; complete reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific subsystem identified: CodeGenerator class, string escaping logic."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Symptom manifests at runtime (incorrect string length); defect resides in code generation (escape sequence)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report mentions octal escape interpretation as cross-cutting concern; could identify more affected areas."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Identifies: CodeGenerator class, string escaping, null byte handling, octal escape sequences, switch statement logic."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.91
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.89
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.93
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.82
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.94
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.96
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.96
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.91
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.94
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    }
+  },
+  "percent_agreement": 0.9791666666666666,
+  "cohens_kappa": 0.911111111111111,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 0,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 0,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.5996253511966894,
+      "Clarity": 0.5996253511966894,
+      "Specificity": 0.5996253511966894,
+      "Reproducibility": 0.5996253511966894,
+      "ReasoningQuality": 0.5996253511966894,
+      "TechnicalContext": -0.22485950669875823,
+      "Ambiguity": 0.5996253511966894,
+      "RepairReadiness": 0.5996253511966894,
+      "RootCauseEvidence": -1.0493443645942058,
+      "HiddenReproducibility": -2.698314080385101,
+      "ImpactScope": -0.22485950669875823
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

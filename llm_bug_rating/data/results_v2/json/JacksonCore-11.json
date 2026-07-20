@@ -1,0 +1,1451 @@
+{
+  "bug": {
+    "bug_id": "JacksonCore-11",
+    "project": "JacksonCore",
+    "summary": "No title",
+    "description": "java.lang.ArrayIndexOutOfBoundsException: 128\nat com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer.addName(ByteQuadsCanonicalizer.java:853)\nat com.fasterxml.jackson.core.json.UTF8StreamJsonParser.addName(UTF8StreamJsonParser.java:2340)\nat com.fasterxml.jackson.core.json.UTF8StreamJsonParser.findName(UTF8StreamJsonParser.java:2224)\nat com.fasterxml.jackson.core.json.UTF8StreamJsonParser.parseLongName(UTF8StreamJsonParser.java:1831)\nat com.fasterxml.jackson.core.json.UTF8StreamJsonParser.parseMediumName2(UTF8StreamJsonParser.java:1786)\nat com.fasterxml.jackson.core.json.UTF8StreamJsonParser.parseMediumName(UTF8StreamJsonParser.java:1743)\nat com.fasterxml.jackson.core.json.UTF8StreamJsonParser._parseName(UTF8StreamJsonParser.java:1678)\nat com.fasterxml.jackson.core.json.UTF8StreamJsonParser.nextFieldName(UTF8StreamJsonParser.java:1007)\nat com.fasterxml.jackson.databind.deser.std.MapDeserializer._readAndBindStringMap(MapDeserializer.java:471)\nat com.fasterxml.jackson.databind.deser.std.MapDeserializer.deserialize(MapDeserializer.java:341)\nat com.fasterxml.jackson.databind.deser.std.MapDeserializer.deserialize(MapDeserializer.java:26)\nat com.fasterxml.jackson.databind.ObjectMapper._readMapAndClose(ObjectMapper.java:3702)\nat com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:2824)\nat com.kryptnostic.services.v1.SmokeTests.spamAddIndexPair(SmokeTests.java:605)\nat sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\nat sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)\nat sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)\nat java.lang.reflect.Method.invoke(Method.java:497)\nat org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:47)\nat org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)\nat org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:44)\nat org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)\nat org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)\nat org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:271)\nat org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:70)\nat org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:50)\nat org.junit.runners.ParentRunner$3.run(ParentRunner.java:238)\nat org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:63)\nat org.junit.runners.ParentRunner.runChildren(ParentRunner.java:236)\nat org.junit.runners.ParentRunner.access$000(ParentRunner.java:53)\nat org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:229)\nat org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)\nat org.junit.internal.runners.statements.RunAfters.evaluate(RunAfters.java:27)\nat org.junit.runners.ParentRunner.run(ParentRunner.java:309)\nat org.eclipse.jdt.internal.junit4.runner.JUnit4TestReference.run(JUnit4TestReference.java:50)\nat org.eclipse.jdt.internal.junit.runner.TestExecution.run(TestExecution.java:38)\nat org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.runTests(RemoteTestRunner.java:459)\nat org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.runTests(RemoteTestRunner.java:675)\nat org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.run(RemoteTestRunner.java:382)\nat org.eclipse.jdt.internal.junit.runner.RemoteTestRunner.main(RemoteTestRunner.java:192)\n\nRepro:\n\n@Test\npublic void spamTest() {\nObjectMapper mapper = new ObjectMapper();\nMap<ObjectUserKey, ServerIndexPair> ssip = Maps.newConcurrentMap();\nfor ( int i = 0; i < 10000; ++i ) {\nbyte[] indexPairBytes = new byte[ 2080 ];\nnew Random().nextBytes( indexPairBytes );\nServerIndexPair sip = new ServerIndexPair( indexPairBytes );\n\nbyte[] s = mapper.writeValueAsBytes( ImmutableMap.of( UUID\n.randomUUID().toString(), sip ) );\nMap<String, ServerIndexPair> metadata = mapper.readValue( s,\nnew TypeReference<Map<String, ServerIndexPair>>() {} );\nfor ( Entry<String, ServerIndexPair> metadataEntry : metadata.entrySet() ) {\nServerIndexPair indexPair = metadataEntry.getValue();\nssip.put( new ObjectUserKey( metadataEntry.getKey(), user ),\nindexPair );\n}\nlogger.error( \"Iteration: {}\", i );\n}\n}\n\npublic class ServerIndexPair {\npublic static final String INDEX_PAIR_FIELD = \"indexPair\";\nprivate final byte[] indexPair;\n\n@JsonCreator\npublic ServerIndexPair( @JsonProperty( INDEX_PAIR_FIELD ) byte[] indexPair ) {\nPreconditions.checkState( indexPair.length == 2080, \"Index pair must be 2080 bytes long.\" );\nthis.indexPair = indexPair;\n}\n\n@JsonProperty( INDEX_PAIR_FIELD )\npublic byte[] getIndexPair() {\nreturn indexPair;\n}\n}\n\npublic class ObjectUserKey {\npublic static final String SEPARATOR = \":\";\nprivate final String objectId;\nprivate final UUID userKey;\n\n@JsonCreator\npublic ObjectUserKey(\n@JsonProperty( Names.ID_FIELD ) String objectId,\n@JsonProperty( Names.USER_FIELD ) UUID userKey ) {\nsuper();\nthis.objectId = objectId;\nthis.userKey = userKey;\n}\n\n@JsonProperty( Names.ID_FIELD )\npublic String getObjectId() {\nreturn objectId;\n}\n\n@JsonProperty( Names.USER_FIELD )\npublic UUID getUserKey() {\nreturn userKey;\n}\n\n@Override\npublic int hashCode() {\nfinal int prime = 31;\nint result = 1;\nresult = prime * result + ( ( objectId == null ) ? 0 : objectId.hashCode() );\nreturn result;\n}\n\n@Override\npublic boolean equals( Object obj ) {\nif ( this == obj ) {\nreturn true;\n}\nif ( obj == null ) {\nreturn false;\n}\nif ( !( obj instanceof ObjectUserKey ) ) {\nreturn false;\n}\nObjectUserKey other = (ObjectUserKey) obj;\nif ( objectId == null ) {\nif ( other.objectId != null ) {\nreturn false;\n}\n}\nif ( userKey == null ) {\nif ( other.userKey != null ) {\nreturn false;\n}\n}\nif ( !objectId.equals( other.objectId ) ) {\nreturn false;\n}\nif ( !userKey.equals( other.userKey ) ) {\nreturn false;\n}\nreturn true;\n}\n\n@Override\npublic String toString() {\nreturn userKey + SEPARATOR + objectId;\n}\n\npublic static ObjectUserKey fromString( String value ) {\nint index = value.lastIndexOf( ObjectUserKey.SEPARATOR );\nPreconditions.checkState( index > -1, \"Separator character \" + SEPARATOR\n+ \" should be present for ObjectUserKey\" );\nString userKeyString = value.substring( 0, index );\nString objectIdString = value.substring( index + 1 );\nUUID userKey = UUID.fromString( userKeyString );\nreturn new ObjectUserKey( objectIdString, userKey );\n}\n\npublic byte[] asBytes() {\nreturn this.toString().getBytes();\n}\n\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observable failure is described: ArrayIndexOutOfBoundsException during JSON deserialization."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific code path is identified in the stack trace: ObjectMapper.readValue -> MapDeserializer -> UTF8StreamJsonParser -> ByteQuadsCanonicalizer."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Full stack trace is included, directly implicating Jackson parser classes and the test method."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Repro code is provided with a loop, ObjectMapper usage, and model classes, enough to investigate immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Jackson core/databind parser and deserializer components are pinpointed as the starting location."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Failure scenario is clear even without codebase context: random map serialization/deserialization triggers an exception."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A failing test case can be written from the provided spamTest method and model classes."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is explicit: serialize a map with random UUID key and ServerIndexPair value, then deserialize it."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Referenced entities are named precisely: ObjectMapper, MapDeserializer, UTF8StreamJsonParser, ByteQuadsCanonicalizer, ServerIndexPair, ObjectUserKey."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Technical terms are used consistently and match the stack trace and repro code."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete trigger is given: 10,000 iterations with a 2080-byte random ServerIndexPair and random UUID map key."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Ordered reproduction steps are embedded in the spamTest method."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No OS, browser, or library version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Exact exception and stack trace are reported, including ArrayIndexOutOfBoundsException: 128."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The combination of random 2080-byte payloads and Jackson map deserialization is specific enough to distinguish this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Expected behavior is implied by the test but not explicitly stated as a correctness criterion."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicit: ArrayIndexOutOfBoundsException at ByteQuadsCanonicalizer.addName."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy is clear: serialization/deserialization should succeed, but it crashes during parsing."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The provided test method is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No environment or dependency versions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No explicit root-cause explanation is proposed in the report."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Because no cause is proposed, no causal mechanism is articulated."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The stack trace provides evidence for the failure location, though not a proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report is internally consistent and the repro matches the stack trace."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specific artifacts are named, including ByteQuadsCanonicalizer.addName and SmokeTests.spamAddIndexPair."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods are named in the stack trace and repro code."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is identifiable as Jackson core/databind JSON parsing and map deserialization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "A full stack trace is included and directly relevant."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "External dependencies are named only generically; no versions are given."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No OS, JVM version, or framework version is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are mostly specific, not vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Inputs and trigger conditions are concrete enough to reproduce."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Expected behavior is not explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Version/environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Faulty behavior is clear, but the report does not state the intended fix."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The likely fix area is identifiable in Jackson parser/canonicalizer code from the stack trace."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "No explicit acceptance criterion is stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The 2080-byte payload and repeated random map keys are explicit edge conditions."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "A plausible fix can be inferred, but the report lacks a stated root cause or exact change."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No specific root cause is explicitly proposed."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No code construct or logic error is named as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "The report does not articulate a causal chain from cause to failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The repro code fully determines a concrete scenario for reproduction."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Affected subsystem is identifiable as Jackson JSON parsing/deserialization."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Symptom occurs in ObjectMapper/MapDeserializer, while fault location is in UTF8StreamJsonParser/ByteQuadsCanonicalizer."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "Only one impacted path is clearly shown."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "More than three technical concepts are named: ObjectMapper, MapDeserializer, UTF8StreamJsonParser, ByteQuadsCanonicalizer, ServerIndexPair, ObjectUserKey."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Stack trace clearly shows ArrayIndexOutOfBoundsException at index 128 in ByteQuadsCanonicalizer.addName(), with reproducible test case provided."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Fault is pinpointed to com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer.addName() at line 853, with call chain through UTF8StreamJsonParser and MapDeserializer."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete stack trace provided with specific file names, class names, method names, and line numbers (e.g., ByteQuadsCanonicalizer.java:853)."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reproduction test case is provided with concrete steps: create random 2080-byte arrays, serialize/deserialize via ObjectMapper in a loop 10000 times."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Root fault location is precisely identified: com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer.addName() at line 853."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: serializing and deserializing Maps with UUID keys and ServerIndexPair values containing 2080-byte arrays triggers an ArrayIndexOutOfBoundsException."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Test case provided is nearly complete; a developer could write a failing test by following the spamTest() method structure."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: loop iteration \u2192 random bytes \u2192 serialize Map \u2192 deserialize Map \u2192 exception occurs during field name parsing."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "All referenced classes are fully qualified (com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer, UTF8StreamJsonParser, MapDeserializer, ServerIndexPair, ObjectUserKey)."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology is accurate: ArrayIndexOutOfBoundsException, serialization, deserialization, field name parsing are used correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific inputs provided: 2080-byte random arrays, UUID strings as keys, 10000 iterations; sufficient to construct a test case."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Ordered reproduction steps are explicit: create ObjectMapper, loop 10000 times with random 2080-byte ServerIndexPair, serialize/deserialize Map<String, ServerIndexPair>."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Jackson version is not specified; stack trace shows com.fasterxml.jackson but no version number is provided, which could affect reproducibility."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific exception is reported verbatim: java.lang.ArrayIndexOutOfBoundsException: 128 with exact line number 853 in ByteQuadsCanonicalizer."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The combination of 2080-byte arrays, UUID keys, 10000 iterations, and the specific exception at index 128 in ByteQuadsCanonicalizer distinguishes this from other Jackson bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Expected behavior is not explicitly stated; it is implied that serialization/deserialization should succeed without exception."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicitly stated: ArrayIndexOutOfBoundsException: 128 at ByteQuadsCanonicalizer.addName() line 853."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Discrepancy is clear: expected successful deserialization, observed ArrayIndexOutOfBoundsException during field name parsing."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Reproduction steps are complete and sufficient; the provided test case can be executed directly to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Jackson version, Java version, and OS are not specified; these could affect reproducibility."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Report does not explicitly propose a root cause; it only presents the symptom (ArrayIndexOutOfBoundsException at index 128)."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No causal mechanism is proposed linking the 2080-byte arrays or UUID keys to the array bounds violation at index 128."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No evidence is provided beyond the stack trace; no code inspection, logs, or data analysis explaining why index 128 is out of bounds."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report is internally coherent; the test case, exception, and stack trace are consistent with each other."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report references specific technical artifacts: ByteQuadsCanonicalizer.java:853, UTF8StreamJsonParser.java:2340, MapDeserializer.java:471."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes named: ByteQuadsCanonicalizer, UTF8StreamJsonParser, MapDeserializer, ServerIndexPair, ObjectUserKey, ObjectMapper."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem is identifiable: com.fasterxml.jackson.core.sym and com.fasterxml.jackson.core.json packages."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete stack trace is included with file names, line numbers, and method names directly relevant to the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Jackson library is referenced but no version number is provided; other dependencies (JUnit, Guava Maps) are not versioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Environment details are missing: Java version (only 'sun.reflect' suggests Java 8 or earlier), OS, Jackson version, and other runtime details."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "All class and method references are fully qualified and unambiguous."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs are sufficiently described: 2080-byte random arrays, UUID keys, 10000 iterations."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior is not explicitly stated; it is only implied that serialization/deserialization should succeed."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Jackson version, Java version, and OS are not specified, which could materially affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Correct behavior is implied but not explicitly stated; no analysis of what the fix should achieve is provided."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific component requiring fix is identifiable: ByteQuadsCanonicalizer.addName() at line 853."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Expected correct behavior is not explicitly stated as an acceptance criterion; it is only implied that no exception should occur."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No edge cases, constraints, or conditions affecting the fix are documented; the relationship between 2080-byte arrays and index 128 is unexplained."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "A developer would need to investigate why index 128 is out of bounds and how 2080-byte arrays trigger this; the report does not provide sufficient context for a plausible fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No root cause is explicitly proposed; only the symptom (ArrayIndexOutOfBoundsException at index 128) is reported."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No specific code construct, operation, or logic error is named as a potential root cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No causal chain is articulated; the report does not explain how the inputs lead to the array bounds violation."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Concrete scenario is provided: loop 10000 times, create random 2080-byte ServerIndexPair, serialize/deserialize Map<String, ServerIndexPair>; complete and unambiguous reproduction steps can be directly derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific subsystem identified: com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer and UTF8StreamJsonParser in Jackson core."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom manifests during deserialization (MapDeserializer), but underlying defect likely resides in ByteQuadsCanonicalizer.addName() field name caching logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Only one primary impacted area is identified (ByteQuadsCanonicalizer); no cross-cutting concerns or multiple affected areas are discussed."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Multiple technical concepts identified: ByteQuadsCanonicalizer, UTF8StreamJsonParser, MapDeserializer, field name caching, array bounds, serialization/deserialization."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.20999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.7
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.75
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.7
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.65
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.85
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.75
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.9583333333333334,
+  "cohens_kappa": 0.9112754158964881,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.82 > 0.7)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge1 (higher confidence: 0.82 > 0.7)"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 3,
+      "ReasoningQuality": 3,
+      "TechnicalContext": 3,
+      "Ambiguity": 2,
+      "RepairReadiness": 2,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 3,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 1.4488638132020377,
+      "Clarity": 1.4488638132020377,
+      "Specificity": 0.7559289460184544,
+      "Reproducibility": 0.06299407883487115,
+      "ReasoningQuality": 0.06299407883487115,
+      "TechnicalContext": 0.06299407883487115,
+      "Ambiguity": 0.06299407883487115,
+      "RepairReadiness": -0.6299407883487121,
+      "RootCauseEvidence": -2.0158105227158787,
+      "HiddenReproducibility": -1.3228756555322954,
+      "ImpactScope": 0.06299407883487115
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

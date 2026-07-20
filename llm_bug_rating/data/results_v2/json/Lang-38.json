@@ -1,0 +1,1453 @@
+{
+  "bug": {
+    "bug_id": "Lang-38",
+    "project": "Lang",
+    "summary": "DateFormatUtils.format does not correctly change Calendar TimeZone in certain situations",
+    "description": "If a Calendar object is constructed in certain ways a call to Calendar.setTimeZone does not correctly change the Calendars fields. Calling Calenar.getTime() seems to fix this problem. While this is probably a bug in the JDK, it would be nice if DateFormatUtils was smart enough to detect/resolve this problem.\n\nFor example, the following unit test fails:\n\npublic void testFormat_CalendarIsoMsZulu() {\nfinal String dateTime = \"2009-10-16T16:42:16.000Z\";\n\n// more commonly constructed with: cal = new GregorianCalendar(2009, 9, 16, 8, 42, 16)\n// for the unit test to work in any time zone, constructing with GMT-8 rather than default locale time zone\nGregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone(\"GMT-8\"));\ncal.clear();\ncal.set(2009, 9, 16, 8, 42, 16);\n\nFastDateFormat format = FastDateFormat.getInstance(\"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'\", TimeZone.getTimeZone(\"GMT\"));\nassertEquals(\"dateTime\", dateTime, format.format(cal));\n}\n\nHowever, this unit test passes:\n\npublic void testFormat_CalendarIsoMsZulu() {\nfinal String dateTime = \"2009-10-16T16:42:16.000Z\";\nGregorianCalendar cal = new GregorianCalendar(TimeZone.getTimeZone(\"GMT-8\"));\ncal.clear();\ncal.set(2009, 9, 16, 8, 42, 16);\ncal.getTime();\n\nFastDateFormat format = FastDateFormat.getInstance(\"yyyy-MM-dd'T'HH:mm:ss.SSS'Z'\", TimeZone.getTimeZone(\"GMT\"));\nassertEquals(\"dateTime\", dateTime, format.format(cal));\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report describes a concrete faulty behavior: DateFormatUtils/FastDateFormat formats a Calendar incorrectly unless getTime() is called."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "It identifies the affected API path as FastDateFormat.format(Calendar) / DateFormatUtils.format."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "It includes a failing unit test and exact expected/actual assertion context, which directly implicates the formatting path."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer can reproduce using the provided Calendar construction and format call without further clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report points to the formatting component, specifically FastDateFormat/DateFormatUtils, as the place to investigate."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The failure scenario is described clearly enough for someone unfamiliar with the codebase to understand the issue."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The failing assertion and expected ISO string are concrete enough to form a test case."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The sequence is explicit: construct Calendar, set fields, format it; adding getTime() changes the outcome."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Referenced entities like GregorianCalendar, FastDateFormat, and TimeZone are named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The terminology is consistent: the issue is described as a Calendar TimeZone/field synchronization problem."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The triggering inputs are concrete: a GregorianCalendar in GMT-8, cleared, set to 2009-10-16 08:42:16, then formatted in GMT."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report provides ordered reproduction steps via the two unit test variants."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "No library version, JDK version, or platform version is given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The exact expected output string is shown and the failing assertion is explicit."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The issue is distinguished by the dependence on calling Calendar.getTime() after setTimeZone/set fields."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is explicit: formatting should produce 2009-10-16T16:42:16.000Z."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Observed behavior is explicit: the test fails unless cal.getTime() is called first."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The discrepancy between the failing and passing test cases is unambiguous."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The reproduction steps are complete enough to run as a unit test."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environment details are incomplete; only a GMT-8 construction workaround is mentioned."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The report proposes a cause: a JDK bug where Calendar.setTimeZone does not correctly change fields in some constructions."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "It links the proposed cause to the symptom by noting getTime() fixes the Calendar state before formatting."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "It provides test evidence but no stack trace, logs, or code-level proof of the JDK behavior."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally consistent and matches the two test outcomes."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "It references concrete artifacts such as Calendar.setTimeZone, Calendar.getTime(), and FastDateFormat.format."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific APIs and classes are named: DateFormatUtils, FastDateFormat, GregorianCalendar, Calendar, TimeZone."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is identifiable as date formatting utilities."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report includes a concrete unit test snippet and exact assertion output."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The JDK is referenced as the likely source of the Calendar bug, though no version is given."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.77,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The report is vague about whether the bug is in the JDK or in DateFormatUtils handling."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The inputs and conditions are sufficiently described to reproduce the issue."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clearly stated by the asserted ISO timestamp."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Version/environment information that could affect reproduction is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report is not contradictory; the two tests differ only by getTime()."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The correct behavior is clear: formatting should reflect the intended GMT time without requiring getTime()."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The fix location is identifiable in the Calendar formatting path of DateFormatUtils/FastDateFormat."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The expected output string serves as a concrete acceptance criterion."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "The edge case is documented: certain Calendar constructions require getTime() to refresh fields."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A plausible fix can be inferred: normalize or refresh the Calendar before formatting."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "A specific cause is proposed: a JDK bug in Calendar.setTimeZone not updating fields correctly."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The root cause references concrete API calls: Calendar.setTimeZone and Calendar.getTime()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The causal chain is stated: stale Calendar fields cause incorrect formatting until getTime() refreshes them."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "A complete reproduction scenario is directly derivable from the provided unit test code."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected concept is the date formatting subsystem, specifically Calendar formatting."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The symptom appears in FastDateFormat.format, while the likely defect is in Calendar state handling."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "Only one main impacted path is described; multiple impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report mentions several technical concepts: DateFormatUtils, FastDateFormat, GregorianCalendar, Calendar, and TimeZone."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: DateFormatUtils.format produces incorrect output when Calendar is constructed and timezone-changed in specific ways, with a failing unit test demonstrating the discrepancy."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specifically identifies DateFormatUtils.format() and FastDateFormat.getInstance() as affected APIs; also names Calendar.setTimeZone() and Calendar.getTime() as relevant methods."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Includes two complete, runnable unit test code snippets that directly demonstrate the failure and the workaround, showing exact input and expected vs. actual behavior."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer could immediately run the provided unit tests to reproduce the bug without additional clarification; the test code is complete and self-contained."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies DateFormatUtils and FastDateFormat classes specifically; also implicates Calendar.setTimeZone() and Calendar.getTime() as relevant code paths to investigate."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The failure scenario is clear: a Calendar constructed with one timezone, then setTimeZone() called with a different timezone, produces incorrect formatted output unless getTime() is called first."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer could write a failing test case directly from the provided unit test code; the expected output ('2009-10-16T16:42:16.000Z') and construction steps are explicit."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The sequence is unambiguous: construct Calendar with GMT-8, call setTimeZone(GMT), format with GMT timezone; the failure occurs without the getTime() call in between."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "All referenced entities are precisely named: GregorianCalendar, TimeZone, FastDateFormat, Calendar.setTimeZone(), Calendar.getTime(); a developer could locate these in the codebase."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology is used accurately: 'timezone', 'Calendar fields', 'setTimeZone', 'getTime' are all correctly applied; no misleading terminology."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific inputs are provided: GregorianCalendar(GMT-8), set(2009, 9, 16, 8, 42, 16), format pattern 'yyyy-MM-dd'T'HH:mm:ss.SSS'Z'', TimeZone.getTimeZone('GMT')."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete, ordered reproduction steps are provided in the unit test: construct Calendar, clear(), set(), call format(); the steps are complete and executable."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information is provided for the JDK, DateFormatUtils library, or other dependencies; the report mentions 'probably a bug in the JDK' but does not specify which JDK version."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific expected output is provided ('2009-10-16T16:42:16.000Z'); the failure mode is implicit (incorrect formatted date/time output) but can be inferred from the test assertion."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The specific combination of Calendar construction method, timezone change, and the workaround (calling getTime()) uniquely identifies this issue and distinguishes it from general timezone formatting bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is explicitly stated: format(cal) should return '2009-10-16T16:42:16.000Z' when formatting a Calendar with GMT timezone."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is clear: the first unit test fails (incorrect output), while the second passes (correct output after getTime() call); the discrepancy is observable."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy is unambiguous: expected '2009-10-16T16:42:16.000Z', but the first test fails (implying incorrect output); the second test passes with getTime() added."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Reproduction steps are complete: construct GregorianCalendar(GMT-8), clear(), set(2009, 9, 16, 8, 42, 16), format with GMT timezone; no additional investigation needed."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific JDK version, OS, or runtime environment is documented; the report mentions 'any time zone' but does not specify the test environment details needed to reproduce."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report proposes a specific potential cause: Calendar.setTimeZone() does not correctly update Calendar fields in certain construction scenarios; calling getTime() resolves it."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The proposed explanation is linked to observed symptoms: setTimeZone() fails to update fields, causing incorrect formatting; getTime() fixes this, suggesting a lazy-evaluation or state-synchronization issue."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Concrete evidence is provided: two unit tests demonstrating the failure and the workaround; the code snippets directly support the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally coherent: if setTimeZone() has a state-synchronization bug that getTime() resolves, both test outcomes are consistent."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "References specific methods: Calendar.setTimeZone(), Calendar.getTime(), DateFormatUtils.format(); however, does not reference specific log lines or exact code locations in the implementation."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes and methods are named: DateFormatUtils, FastDateFormat, GregorianCalendar, TimeZone, Calendar.setTimeZone(), Calendar.getTime()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Affected subsystems are identifiable: DateFormatUtils and FastDateFormat classes; Calendar and TimeZone from java.util; source files could be located."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Two complete, runnable code snippets are included that directly demonstrate the failure and workaround; these are highly relevant technical artifacts."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependencies or library versions are specified; the report mentions 'probably a bug in the JDK' but does not name the JDK version or other relevant libraries."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No environment details (OS, JDK version, framework version, etc.) are provided; the report mentions 'any time zone' but lacks specific environmental context."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No vague references; all classes, methods, and components are specifically named (DateFormatUtils, FastDateFormat, GregorianCalendar, etc.)."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and conditions are fully specified in the unit test code: exact timezone strings, exact date/time values, exact format pattern."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is explicit: the formatted output should be '2009-10-16T16:42:16.000Z'; a developer can determine correctness from this criterion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "JDK version, OS, and runtime environment information are missing; these could materially affect reproduction and diagnosis."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory statements; the report is internally consistent: setTimeZone() fails without getTime(), succeeds with getTime()."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Faulty behavior is described precisely: setTimeZone() does not update Calendar fields correctly; correct behavior would be to update fields without requiring getTime()."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Specific components are identified: DateFormatUtils.format() and FastDateFormat; however, the exact code location requiring a fix (whether in DateFormatUtils or Calendar handling) is not pinpointed."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior is concrete: format(cal) should return '2009-10-16T16:42:16.000Z' regardless of whether getTime() was called; this serves as an acceptance criterion."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The report identifies a relevant edge case: Calendar constructed with one timezone, then setTimeZone() called with another; however, other edge cases or constraints are not explicitly documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "A developer could implement a plausible fix (e.g., calling getTime() in DateFormatUtils.format() before formatting, or detecting and resolving the state issue); however, the root cause location is not definitively identified."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A specific potential root cause is proposed: Calendar.setTimeZone() does not correctly update Calendar fields in certain construction scenarios; this is explicitly stated."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The proposed root cause references specific operations: Calendar.setTimeZone() and Calendar.getTime(); the issue is tied to these specific API calls."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The causal chain is articulated: setTimeZone() fails to update fields \u2192 Calendar fields remain incorrect \u2192 format() produces incorrect output; calling getTime() synchronizes fields \u2192 format() works correctly."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report describes a specific, concrete scenario (Calendar constructed with GMT-8, setTimeZone(GMT), format with GMT); complete and unambiguous reproduction steps can be directly derived from the unit test code."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific subsystems are identifiable: DateFormatUtils, FastDateFormat, Calendar, TimeZone; the bug affects date formatting with timezone-aware Calendar objects."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report distinguishes between symptom (incorrect formatted output) and likely defect location (Calendar.setTimeZone() or DateFormatUtils.format() handling of Calendar state)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Multiple impacted areas are identified: DateFormatUtils, FastDateFormat, Calendar timezone handling; however, the cross-cutting concerns are not exhaustively detailed."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The report names five distinct technical concepts: DateFormatUtils, FastDateFormat, GregorianCalendar, TimeZone, and Calendar.setTimeZone(); these are sufficient to understand the scope."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.75
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.75
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.8
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.75
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.75
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.9166666666666666,
+  "cohens_kappa": 0.6999999999999997,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.62)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.74)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.62)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.62)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.74)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.62)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

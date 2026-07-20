@@ -1,0 +1,1427 @@
+{
+  "bug": {
+    "bug_id": "Compress-9",
+    "project": "Compress",
+    "summary": "TarArchiveOutputStream.getBytesWritten() returns invalid value",
+    "description": "It appears the TarArchiveOutputStream.getBytesWritten()returns zero or invalid value when queried.\n\nIn the code sample below, it returns zero, even after an sizeable file was processed.\n\nI've printed it twice, once before closing the output stream, and once after, just for the reference.\n\nIt is also demonstrable on multiple processed files.\n\nWithin the TarArchiveOutputStream.getBytesWritten() implementation, it appears the call for count(numToWrite) is made after the numToWrite is depleted in the process of actual byte writing. When call for count(numToWrite); is moved up, the returned values for TarArchiveOutputStream.getBytesWritten() are getting equal to the sum of the sizes of processed files. This is much closer to expected value (\"Returns the current number of bytes written to this stream.\") but still not correct, for that number should include the tar header sizes as well.\n\nAt any rate, please find the proposed patch below, merely moving count(numToWrite); up a few lines. This makes TarArchiveOutputStream.getBytesWritten() closer to true value.\n\nTest code:\n\n@Test\n\npublic\nvoid tartest() \nthrows\nException {\n\nFileOutputStream myOutputStream = \nnew\nFileOutputStream(\n\"C:/temp/tartest.tar\"\n);\n\nArchiveOutputStream sTarOut = \nnew\nArchiveStreamFactory().createArchiveOutputStream(ArchiveStreamFactory.TAR, myOutputStream);\n\nFile sSource = \nnew\nFile(\n\"C:/share/od_l.txt\"\n);\nTarArchiveEntry sEntry = \nnew\nTarArchiveEntry(sSource);\nsTarOut.putArchiveEntry(sEntry);\n\nFileInputStream sInput = \nnew\nFileInputStream(sSource);\n\nbyte\n[] cpRead = \nnew\n\nbyte\n[8192];\n\nint\niRead = 0;\n\nwhile\n((iRead = sInput.read(cpRead)) > 0) {\nsTarOut.write(cpRead, 0, iRead);\n}\n\nsLog.info(\n\"Processed: \"\n+sTarOut.getBytesWritten()+\n\" bytes. File Len: \"\n+sSource.length());\n\nsInput.close();\nsTarOut.closeArchiveEntry();\nsTarOut.close();\n\nsLog.info(\n\"Processed: \"\n+sTarOut.getBytesWritten()+\n\" bytes. File Len: \"\n+sSource.length());\n\nreturn\n;\n\n}\n\nTest Output:\n\nOct 21, 2011 9:09:28 AM com.cronsult.jndmpd.test.Backup tartest\nINFO: Processed: 0 bytes. File Len: 186974208\nOct 21, 2011 9:09:28 AM com.cronsult.jndmpd.test.Backup tartest\nINFO: Processed: 0 bytes. File Len: 186974208\n\nProposed Patch:\n\nIndex: src/main/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java\n===================================================================\n--- src/main/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java (revision 1187150)\n+++ src/main/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStream.java (working copy)\n@@ -276,6 +276,8 @@\n\n// eliminate some of the buffer copying.\n\n//\n\n}\n+ \n+ count(numToWrite);\n\nif\n(assemLen > 0) {\n\nif\n((assemLen + numToWrite) >= recordBuf.length) {\n@@ -325,7 +327,7 @@\nwOffset += num;\n}\n\n- count(numToWrite);\n+ \n}\n\n/**"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports observable faulty behavior: getBytesWritten() returns 0/invalid after writing files."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected component is identified as TarArchiveOutputStream.getBytesWritten()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes test code, output logs, and a proposed patch location."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Provides a concrete scenario and code sample sufficient to start investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Likely affected subsystem is Apache Commons Compress tar archive output stream."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Language is understandable despite minor grammatical issues."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Problem is clearly identified as incorrect bytes-written reporting."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Description follows a logical flow: symptom, test, output, proposed cause, patch."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References to TarArchiveOutputStream, getBytesWritten(), and count(numToWrite) are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Technical terms are used consistently around tar output and byte counting."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Triggering condition is writing one or more files to TarArchiveOutputStream."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides explicit test code showing how to reproduce."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Mentions file paths and a 2011 test run, but no library version or OS details."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reports concrete output: 'Processed: 0 bytes' twice."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes the issue from a generic failure by pointing to count(numToWrite) placement and tar header omission."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Expected behavior is stated via the quoted API description and comparison to file size."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated as returning zero/invalid values."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Mismatch between expected current bytes written and observed zero is clear."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The included test code is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "No clear environment or dependency requirements are documented beyond the code sample."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Proposes a cause: count(numToWrite) is called after numToWrite is depleted."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Links the proposed cause to the zero/incorrect getBytesWritten() result."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Supports the claim with a proposed patch and changed output behavior."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is internally consistent and matches the described symptom."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References technical artifacts such as count(numToWrite) and the TarArchiveOutputStream method."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Mentions TarArchiveOutputStream, getBytesWritten(), and TarArchiveEntry."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem is the tar archiver output stream."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes test code, log output, and a patch diff."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.45,
+        "reason": "No external dependencies or integrations are specifically referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.52,
+        "reason": "No OS, browser, framework, or library version is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.62,
+        "reason": "Some references are vague, such as 'invalid value' and 'sizeable file'."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Conditions are not fully specified beyond a single test case."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Expected behavior is reasonably clear from the API description and discussion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Faulty behavior is precise: getBytesWritten() reports 0 after writing tar entries."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely fix location is identified in TarArchiveOutputStream.getBytesWritten()/write logic."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "States the target behavior: bytes written should reflect processed files and tar headers."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Mentions multiple files and header-size consideration, which affects the fix."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "A developer would likely still need to inspect the implementation details to confirm the correct accounting."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explicitly proposes the count(numToWrite) call being in the wrong place."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References the specific code construct count(numToWrite)."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explains that moving count(numToWrite) changes the reported byte count."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The narrative and test code clearly imply how to trigger the bug."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The tar archive output stream and byte-counting logic are the affected concept."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Symptom is in getBytesWritten(), while defect is implied in write/count logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Only one subsystem is clearly implicated; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report clearly describes getBytesWritten() returning 0 even after writing a large file."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "TarArchiveOutputStream.getBytesWritten() and the write() method are explicitly identified."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Test code, test output, stack location, and a proposed patch with diff are all provided."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Full reproduction code, output, and a patch pointing to the exact line are included."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The TAR archiver subsystem in Apache Commons Compress is explicitly identified."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report is well-written and grammatically coherent throughout."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem\u2014getBytesWritten() returning 0\u2014is clearly stated."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Information flows logically: description, test code, output, explanation, patch."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References to classes, methods, and code locations are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms (count, numToWrite, getBytesWritten, etc.) are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific triggering condition: writing a file via TarArchiveOutputStream and calling getBytesWritten()."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Complete test code with exact steps is provided."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "SVN revision 1187150 is referenced in the patch; OS/Java version not explicitly stated."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Exact output showing '0 bytes' vs file length of 186974208 bytes is provided."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report pinpoints the misplaced count(numToWrite) call as the specific cause."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected behavior stated: getBytesWritten() should return the number of bytes written including headers."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior explicitly stated: returns 0 both before and after closing."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Discrepancy between 0 returned and ~186MB expected is clearly identifiable."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Full test code is provided and is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No explicit OS, Java version, or library version dependencies documented beyond the SVN revision."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reporter explicitly proposes that count(numToWrite) is called after numToWrite is depleted."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The misplaced count() call is directly linked to getBytesWritten() returning 0."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reporter tested moving the call and observed closer-to-correct values, providing empirical evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The explanation is internally coherent: counting after depletion means count is never incremented properly."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "References specific method count(numToWrite), line numbers via diff, and SVN revision."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "TarArchiveOutputStream, getBytesWritten(), count(), numToWrite, TarArchiveEntry all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Apache Commons Compress TAR archiver subsystem is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Code snippet, test output, and unified diff patch are all included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Apache Commons Compress library and ArchiveStreamFactory are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, JDK version, or library version explicitly stated beyond SVN revision."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific and unambiguous throughout the report."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and conditions are well described with actual code and file sizes."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior is stated (bytes written including headers), though 'correct' value is acknowledged as approximate."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "OS, Java, and library version information are not explicitly provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements found in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The faulty behavior (count called after depletion) is precisely described."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Exact file and method (TarArchiveOutputStream.java, write method) are identified with line numbers."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected correct behavior stated: return total bytes written including headers."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Reporter notes the fix still won't include header sizes, flagging an edge case."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A complete patch is provided; a developer could apply it directly, though header counting may need further work."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root cause explicitly stated: count(numToWrite) is called after numToWrite is depleted."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "References specific method call count(numToWrite) and its position relative to the write loop."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Causal chain articulated: depleted numToWrite \u2192 count(0 or invalid) \u2192 getBytesWritten() returns 0."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Full test code with all steps is provided, making reproduction straightforward even without numbered steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "TarArchiveOutputStream write() method and byte counting logic are clearly identified."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom (getBytesWritten() returns 0) is distinguished from defect location (misplaced count() call in write())."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Only one area (byte counting in write()) is identified; no cross-cutting concerns mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.99
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.97
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.97
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.99
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.45,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.45,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.28,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.52,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.28,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.99
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.35,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.99
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.9148936170212766,
+  "cohens_kappa": 0.6642857142857144,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.45)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.62)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.55)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.45)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.62)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.55)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 0.9246780984747159,
+      "Clarity": 0.9246780984747159,
+      "Specificity": 0.9246780984747159,
+      "Reproducibility": 0.32635697593225266,
+      "ReasoningQuality": 0.9246780984747159,
+      "TechnicalContext": 0.32635697593225266,
+      "Ambiguity": 0.32635697593225266,
+      "RepairReadiness": -2.0669275142376002,
+      "RootCauseEvidence": -0.27196414661021057,
+      "HiddenReproducibility": -1.468606391695137,
+      "ImpactScope": -0.8702852691526738
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

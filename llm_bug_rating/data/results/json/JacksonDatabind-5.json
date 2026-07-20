@@ -1,0 +1,1427 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-5",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "In summary, mixin annotations are lost when Jackson scans a parent mixin class with Json annotations followed by an interface implemented by the parent mixin class that does not have the same Json annotations.\n\nJackson version: 2.4.0\n\nDetail:\n\nI have the following class structure\n\npublic\n\ninterface\n\nContact\n{\n\nString\n\ngetCity\n();\n}\n\npublic\n\nclass\n\nContactImpl\n\nimplements\n\nContact\n{\n\npublic\n\nString\n\ngetCity\n() { ... }\n}\n\npublic\n\nclass\n\nContactMixin\n\nimplements\n\nContact\n{\n\n@\nJsonProperty\n\npublic\n\nString\n\ngetCity\n() { \nreturn\n\nnull\n; }\n}\n\npublic\n\ninterface\n\nPerson\n\nextends\n\nContact\n{}\n\npublic\n\nclass\n\nPersonImpl\n\nextends\n\nContactImpl\n\nimplements\n\nPerson\n{}\n\npublic\n\nclass\n\nPersonMixin\n\nextends\n\nContactMixin\n\nimplements\n\nPerson\n{}\n\nand I configure a module as\n\n// There are other getters/properties in the Impl class that do not need to be serialized and so\n\n// I am using the Mixin to match the interface and explicitly annotate all the inherited methods\n\nmodule\n.\ndisable\n(\nMapperFeature\n.\nALLOW_FINAL_FIELDS_AS_MUTATORS\n)\n.\ndisable\n(\nMapperFeature\n.\nAUTO_DETECT_FIELDS\n)\n.\ndisable\n(\nMapperFeature\n.\nAUTO_DETECT_GETTERS\n)\n.\ndisable\n(\nMapperFeature\n.\nAUTO_DETECT_IS_GETTERS\n)\n.\ndisable\n(\nMapperFeature\n.\nINFER_PROPERTY_MUTATORS\n);\n\nmodule\n.\nsetMixInAnnotation\n(\nPerson\n.\nclass\n, \nPersonMixin\n.\nclass\n);\n\nWhen a \nPersonImpl\ninstance is serialized, \ncity\nis not included.\n\nI debugged the code and this is what happens:\n\nIn \nAnnotatedClass.resolveMemberMethods()\nthe supertypes of \nPersonImpl\nare \n[Person.class, Contact.class, ContactImpl.class]\nin that order.\n\nIt starts with \nPerson\nfor which it finds \nPersonMixin\nand proceeds to \nAnnotatedClass._addMethodMixIns()\n. Here the \nparents\nlist has \n[PersonMixin, ContactMixin, Contact]\n. When it processes \nContactMixin\nit adds \ngetCity()\nwith the \nJsonProperty\nannotation. Then it processes \nContact\n, doesn't find \ngetCity()\nin \nmethods\nmap and so creates a new \nAnnotatedMethod\nfor \ngetCity()\nwith the one from the interface which has no annotation which replaces the one from \nContactMixin\n\nThe workaround for this issue is to explicitly add any parent mixins to the module i.e.\n\nmodule\n.\nsetMixInAnnotation\n(\nContact\n.\nclass\n, \nContactMixin\n.\nclass\n);"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports observable faulty behavior: PersonImpl serialization omits city."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected functionality is Jackson serialization with mixin annotations."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes debug analysis of AnnotatedClass.resolveMemberMethods() and _addMethodMixIns()."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides class structure, module configuration, observed result, and workaround."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Likely affected subsystem is Jackson mixin annotation handling in AnnotatedClass."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Language is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as lost mixin annotations during serialization."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Description follows a logical flow: setup, symptom, debug findings, workaround."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References to PersonMixin, ContactMixin, and AnnotatedClass methods are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terms like mixin, JsonProperty, and AnnotatedClass are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Triggering condition is described: PersonImpl extends ContactImpl and uses PersonMixin."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Shows configuration and class setup that can be used to reproduce."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "Jackson version 2.4.0 is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific failure is reported: city is not included in serialized output."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes the issue with parent mixin/interface ordering and annotation replacement."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: city should be serialized due to JsonProperty on mixin."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicit: city is not included."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Clear discrepancy between expected inclusion and observed omission."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Setup and configuration are sufficient to attempt reproduction, though not fully stepwise."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Jackson version is documented; other environment details are not."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "A potential cause is explicitly proposed in the debug explanation."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The explanation is linked to the missing city symptom."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Evidence is given from the method resolution and mixin processing order."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is internally consistent and matches the described behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References technical artifacts like AnnotatedClass.resolveMemberMethods() and _addMethodMixIns()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Mentions classes, interfaces, and Jackson internals."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected subsystem is Jackson annotation/mixin resolution."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes code snippets and internal method names, though no stack trace."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "No external dependencies or integrations are referenced."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson version 2.4.0 is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are broad, such as 'other getters/properties' and 'module'."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.68,
+        "reason": "Exact serialization call and full reproduction inputs are not fully specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is reasonably inferable from the JsonProperty annotation."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Only Jackson version is given; broader environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Faulty behavior is precise: mixin annotation on inherited method is lost."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Likely code location is AnnotatedClass._addMethodMixIns() / resolveMemberMethods()."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected correct behavior is stated: city should be included when annotated in mixin."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Edge case is documented: parent mixin followed by interface without same annotations."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "A developer would likely still need to inspect Jackson internals beyond the report."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "A root cause is explicitly proposed in the debug walkthrough."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific logic in _addMethodMixIns() and method map replacement."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Causal chain is described: interface method replaces annotated mixin method, losing JsonProperty."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reproduction can be inferred from the class hierarchy and module setup."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected concept is Jackson mixin annotation resolution during serialization."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Symptom manifests in serialization, while defect is in annotation resolution internals."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Only one main subsystem is identified; no multiple cross-cutting areas are described."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observable faulty behavior: city field is not included in serialized output when it should be."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected functionality is mixin annotation resolution in Jackson serialization, specifically AnnotatedClass._addMethodMixIns()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report references specific class/method (AnnotatedClass.resolveMemberMethods, _addMethodMixIns), describes internal logic flow, and explains the exact point of failure."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Class hierarchy, mixin configuration, Jackson version, and internal debug trace are all provided."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Subsystem identified as AnnotatedClass mixin resolution in Jackson's databind module."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report is well-written and grammatically coherent despite some formatting artifacts from code rendering."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Problem is clearly stated: mixin annotations are lost when a parent mixin's annotations are overwritten by an unannotated interface method."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Information flows logically: class structure, configuration, observed behavior, debug trace, workaround."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to classes, interfaces, and methods are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Technical terms (mixin, annotation, serialization, supertypes) are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific triggering condition: mixin hierarchy where parent mixin implements an interface without the same annotations."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Class structure and module configuration are provided, allowing reproduction, though not listed as numbered steps."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Jackson version 2.4.0 is explicitly stated."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific failure: city field absent from serialized JSON output."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Detailed class hierarchy and internal method trace distinguish this from a generic annotation failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior implied: city should be included in serialized output with @JsonProperty annotation from mixin."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior stated: city is not included in serialized output."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is clear: annotation present in mixin but lost during resolution, causing field to be excluded."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Class structure and configuration are provided; a developer could reconstruct the scenario, though explicit step-by-step instructions are absent."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson version and MapperFeature configuration are documented; no OS/environment details but likely not relevant here."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Root cause explicitly proposed: Contact interface (without annotations) overwrites the annotated method from ContactMixin in _addMethodMixIns."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Proposed cause directly linked to symptom: annotation loss leads to city not being serialized."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Debug trace of supertypes list and processing order provides evidence for the proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explanation is internally coherent: processing order causes unannotated interface method to replace annotated mixin method."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References AnnotatedClass.resolveMemberMethods(), _addMethodMixIns(), and the methods map as specific technical artifacts."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "AnnotatedClass.resolveMemberMethods(), _addMethodMixIns(), setMixInAnnotation(), MapperFeature constants all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Affected subsystem is Jackson databind's annotation introspection/mixin resolution."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No stack traces, logs, or screenshots; only code snippets and debug narrative are provided."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No external dependencies beyond Jackson itself are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Only Jackson version is provided; OS, JDK, and other environment details are absent."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific: named classes, methods, and processing steps are clearly identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Class hierarchy and configuration are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior (city included in JSON) is clear from context."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "JDK version and OS are not mentioned, though they are likely not critical for this issue."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements found in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Faulty behavior precisely described: unannotated interface method replaces annotated mixin method in _addMethodMixIns."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "AnnotatedClass._addMethodMixIns() is identified as the location requiring a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior: annotations from parent mixin should not be overwritten by unannotated interface methods."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Processing order of supertypes and the condition under which replacement occurs are documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "While highly informative, a developer would still need to examine the actual source code logic to implement the fix safely."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Root cause explicitly stated: Contact interface processing in _addMethodMixIns creates a new unannotated AnnotatedMethod that replaces the annotated one from ContactMixin."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific code path: _addMethodMixIns(), methods map lookup, and AnnotatedMethod creation logic."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Causal chain articulated: interface processed after mixin \u2192 no existing entry found \u2192 new unannotated method created \u2192 replaces annotated method \u2192 annotation lost \u2192 field excluded from JSON."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Class hierarchy, mixin configuration, and module setup are described in enough detail to infer reproduction steps even without explicit numbered instructions."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "AnnotatedClass mixin resolution in Jackson databind is clearly identified as the affected component."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Symptom (missing field in JSON) is distinguished from defect location (_addMethodMixIns processing order)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Only one primary area (mixin annotation resolution) is identified; no cross-cutting concerns or multiple impacted areas are described."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 1.0,
+        "judge2_confidence": 0.97
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.97
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "T3": {
+        "agreement": false,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.35,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.4,
+        "judge2_confidence": 0.75
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.88
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.1499999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.9148936170212766,
+  "cohens_kappa": 0.6690140845070424,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.68)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.68)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 0.8778086039709794,
+      "Clarity": 0.8778086039709794,
+      "Specificity": 0.8778086039709794,
+      "Reproducibility": 0.8778086039709794,
+      "ReasoningQuality": 0.8778086039709794,
+      "TechnicalContext": 0.23408229439226122,
+      "Ambiguity": 0.23408229439226122,
+      "RepairReadiness": -1.6970966343438931,
+      "RootCauseEvidence": -0.40964401518645693,
+      "HiddenReproducibility": -1.6970966343438931,
+      "ImpactScope": -1.0533703247651751
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,1432 @@
+{
+  "bug": {
+    "bug_id": "Collections-18",
+    "project": "Collections",
+    "summary": "performance problem in ListOrderedSet.retainAll()",
+    "description": "Hi,\n\nI am encountering a performance problem in ListOrderedSet.retainAll().\n\nIt appears in version 3.2.1 and also in revision 1365132. I attached\n\na test that exposes this problem and a patch that fixes it. On my\n\nmachine, for this test, the patch provides a 263X speedup.\n\nTo run the test, just do:\n\n$ java Test\n\nThe output for the un-patched version is:\n\nTime is 3682\n\nThe output for the patched version is:\n\nTime is 14\n\nThe problem is that the code for method\n\n\"ListOrderedSet.retainAll(Collection<?> coll)\" is:\n\npublic\n\nboolean\nretainAll(Collection<?> coll) {\n\nboolean\nresult = collection.retainAll(coll);\n....\n}\n\nbecause \"collection.retainAll(coll)\" has quadratic complexity if\n\nparameter \"coll\" is a List. Conceptually, the solution is to call\n\n\"coll.retainAll(collection)\" which has linear complexity (not\n\nquadratic), because \"collection\" is always a HashSet (we know this,\n\nbecause \"collection\" is an inherited field of ListOrderedSet, and thus\n\ncannot have another type). See the\n\n\"java.util.AbstractCollection.retainAll()\" code inlined below for why\n\none call has quadratic complexity, and the other has linear\n\ncomplexity.\n\nDirectly calling \"coll.retainAll(collection)\" would change the\n\nbehavior of ListOrderedSet.retainAll(), which is why the patch seems a\n\nbit involved. In reality, the patch simulates the behavior of\n\n\"coll.retainAll(collection)\" (which is just the intersection of two\n\ncollections). You can easily see this by looking at the patch and at\n\nthe \"java.util.AbstractCollection.retainAll()\" code inlined below.\n\n\"collection.retainAll(coll)\" is \"java.util.HashSet.retainAll()\", which\n\nis \"java.util.AbstractCollection.retainAll()\", which has the code:\n\npublic\n\nboolean\nretainAll(Collection<?> c) {\n\nboolean\nmodified = \nfalse\n;\nIterator<E> e = iterator();\n\nwhile\n(e.hasNext()) {\n\nif\n(!c.contains(e.next())) {\ne.remove();\nmodified = \ntrue\n;\n}\n}\n\nreturn\nmodified;\n}\n\nIs this a bug, or am I misunderstanding the intended behavior? If so,\n\ncan you please confirm if the patch is correct?\n\nThanks,\n\nAdrian"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports observable slow behavior: retainAll() takes 3682 vs 14 with patch."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Affected component is explicitly identified as ListOrderedSet.retainAll()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes timing output, code snippet, and mentions attached test and patch."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides version, test command, observed timings, and suspected cause to start investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Likely affected subsystem is ListOrderedSet / retainAll implementation in collections."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Text is understandable and grammatically coherent overall."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Problem is clearly a performance bug in ListOrderedSet.retainAll()."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report follows a logical flow: problem, version, test, cause, proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References to method names and collection types are specific and mostly unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terms like retainAll, HashSet, AbstractCollection, and quadratic complexity are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Triggering condition is described: retainAll() with a List parameter."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Gives a reproduction command: 'java Test'."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Mentions version 3.2.1 and revision 1365132."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides concrete timing outputs: 3682 unpatched and 14 patched."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Distinguishes the issue as a performance regression due to quadratic complexity, not a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Expected behavior is implied as faster performance, but not stated explicitly as a correctness expectation."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicitly stated as slow execution time in the unpatched version."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Difference is clear: unpatched retainAll is much slower than patched retainAll."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The test command and scenario are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No detailed environment or dependency requirements beyond version and revision are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes the cause: collection.retainAll(coll) has quadratic complexity when coll is a List."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Links the proposed cause directly to the observed slowdown."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with timing results and an inlined AbstractCollection.retainAll() implementation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is internally consistent and matches the described complexity behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References technical artifacts such as method code and AbstractCollection.retainAll()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Mentions ListOrderedSet.retainAll(), HashSet.retainAll(), and AbstractCollection.retainAll()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem is identifiable as the collections implementation for ListOrderedSet."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes code snippets and timing output, though no stack trace."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References java.util.AbstractCollection and java.util.HashSet behavior."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Provides version and revision, but no OS/browser/framework/hardware details beyond 'my machine'."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Some references are broad, such as 'my machine' and the attached test/patch."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "Exact input data and test conditions are not fully specified in the text."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.68,
+        "reason": "Expected behavior is not explicitly stated, only implied by the proposed fix."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment details are missing despite version and revision being given."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Faulty behavior is precisely described as quadratic performance in retainAll()."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The likely code location is identifiable: ListOrderedSet.retainAll()."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Correct behavior is implied as linear-time intersection, but not explicitly stated as a target requirement."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Condition that coll may be a List and complexity implications are documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "A developer would likely still need to inspect the patch and surrounding code to implement safely."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes the root cause as collection.retainAll(coll) being quadratic for List arguments."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References the specific operation collection.retainAll(coll) and AbstractCollection.retainAll()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explains that the quadratic retainAll implementation causes the observed slowdown."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Narrative implies reproduction by running the provided Test class against unpatched code."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific affected concept is ListOrderedSet retainAll behavior in the collections module."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Symptom is slow test execution, while defect is in retainAll implementation logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Only one main area is discussed; no multiple impacted subsystems are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Report describes observable performance degradation with measured times (3682ms vs 14ms)."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Affected component is explicitly identified: ListOrderedSet.retainAll() in commons-collections."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report includes code snippets, timing measurements, version info, and a patch reference."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Sufficient context provided: version, method, root cause analysis, and patch attached."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ListOrderedSet.retainAll() in commons-collections is clearly identified as the affected component."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Report is well-written, grammatically coherent, and easy to follow."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Problem is clearly stated: quadratic complexity in retainAll() when coll is a List."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Information flows logically: problem statement, evidence, root cause, proposed fix."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References to collection, coll, HashSet, and ListOrderedSet are unambiguous throughout."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms (quadratic complexity, linear complexity, HashSet, retainAll) are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Triggering condition specified: calling retainAll() with a List parameter causes quadratic complexity."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reproduction described via attached test: 'java Test', though steps are not numbered explicitly."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Version 3.2.1 and revision 1365132 are mentioned."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific timing outputs provided: 3682ms (unpatched) vs 14ms (patched), 263X speedup."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Issue is distinguished by specific method, complexity analysis, and concrete timing measurements."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior implied: linear complexity (fast execution ~14ms)."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior explicitly stated: 3682ms execution time due to quadratic complexity."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Discrepancy between expected linear and observed quadratic performance is clearly articulated."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Attached test with 'java Test' command provides reproduction, though test file content not shown inline."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version 3.2.1 / revision 1365132 documented; JDK implied but not explicitly stated."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root cause explicitly proposed: collection.retainAll(coll) has quadratic complexity when coll is a List."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Explanation directly linked to observed slowness via AbstractCollection.retainAll() code analysis."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Evidence provided: inlined AbstractCollection.retainAll() code showing O(n*m) iteration with List.contains()."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reasoning is internally consistent: HashSet.contains() is O(1), List.contains() is O(n), making the difference clear."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References specific code locations: ListOrderedSet.retainAll(), AbstractCollection.retainAll(), HashSet, and inlined source code."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ListOrderedSet.retainAll(), AbstractCollection.retainAll(), HashSet, and collection field are all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "commons-collections ListOrderedSet subsystem is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Code snippet of AbstractCollection.retainAll() is inlined; patch and test attached."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Java standard library (AbstractCollection, HashSet, List) referenced as relevant dependencies."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Version of commons-collections given but OS, JDK version, and hardware not explicitly stated."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific and well-defined; no vague terms used."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The condition (coll being a List) is clearly described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior (linear complexity / fast execution) is clearly implied."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "JDK version and OS are not specified, which could be relevant for performance measurements."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No contradictory or inconsistent statements found in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Faulty behavior precisely described: quadratic complexity due to List.contains() in retainAll loop."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ListOrderedSet.retainAll() is explicitly identified as the location requiring a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected correct behavior stated: linear complexity intersection, with patch provided."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Constraint noted: cannot simply call coll.retainAll(collection) as it changes behavior; patch simulates intersection correctly."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A developer could implement the fix using the report's analysis and the attached patch, though patch content is not fully inlined."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root cause explicitly stated: collection.retainAll(coll) calls List.contains() in a loop, causing O(n*m) complexity."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific code construct identified: AbstractCollection.retainAll() iterating and calling c.contains() on a List."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Causal chain articulated: List.contains() is O(n), called n times in loop = O(n^2), causing observed slowness."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "From the narrative, one can infer: create a large ListOrderedSet, call retainAll() with a large List, measure time."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "ListOrderedSet.retainAll() in commons-collections is clearly the affected component."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Report does not clearly distinguish symptom location from defect location; both are in the same method."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one method/component is identified as impacted; no cross-cutting concerns mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.98
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.88
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.88
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.95
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.26,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.88
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.8085106382978723,
+  "cohens_kappa": 0.19734345351043628,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.8 > 0.75)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.74)"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.68)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.7)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.62)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.72)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge1 (higher confidence: 0.8 > 0.75)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.74)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.68)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.7)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.62)"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 0.7694837640638656,
+      "Clarity": 0.7694837640638656,
+      "Specificity": 0.7694837640638656,
+      "Reproducibility": 0.7694837640638656,
+      "ReasoningQuality": 0.7694837640638656,
+      "TechnicalContext": 0.7694837640638656,
+      "Ambiguity": 0.20519567041703088,
+      "RepairReadiness": -2.051956704170308,
+      "RootCauseEvidence": -0.35909242322980384,
+      "HiddenReproducibility": -1.4876686105234733,
+      "ImpactScope": -0.9233805168766386
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

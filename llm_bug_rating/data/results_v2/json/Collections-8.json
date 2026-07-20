@@ -1,0 +1,1453 @@
+{
+  "bug": {
+    "bug_id": "Collections-8",
+    "project": "Collections",
+    "summary": "Serialization/Deserialization doesn't work well with empty buffers.",
+    "description": "When I serialize the queue to disk an it has elements, all works ok, but when I serialize an empty queue I have some problems when I create a new object using the serialized file.\n\nWhen I deserialize the queue it has a 'buffer' with size 1 (with null content), 'tail' and 'head' fields are 0 (they are declared transient). So, when I try to add a new object to the queue, the sentence:\n\nObject[] tmp = new Object\n[((buffer.length - 1) * 2) + 1]\n;\n\nIs executed in the add() method to increase the buffer length, but the buffer remains with the same size! (buffer.length = 1 --> (1 - 1) * 2 + 1 = 1). So, the object is added and when the tail is going to be incremented, it is reset to 0!! \n\nprivate int increment(int index) {\n\nindex++;\n\nif (index >= buffer.length) \n\n{\nindex = 0;\n}\n\nreturn index;\n\n}\n\nSo it is impossible to add new elements after an empty queue has been serialized / deserialized.\n\nI attach a simple TestCase where this is proved. The example works when you use XMLEncoder to serialize the buffer but doesn't work if you use ObjectOutputStream or XStream."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: deserializing an empty queue leaves buffer size 1 and prevents adding elements."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Identifies the add() method and increment(int index) logic as the affected code path."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Includes concrete code snippets from add() and increment(), directly implicating the fault location."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides enough detail to reproduce: serialize an empty queue, deserialize it, then add an element."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Points to the queue implementation and its add()/increment() behavior as the place to start reading code."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The failure scenario is explained clearly enough for a developer unfamiliar with the codebase."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A failing test can be written from the described serialize-empty-deserialize-add sequence."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The sequence and conditions are explicit and unambiguous."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References to buffer, head, tail, add(), and increment() are specific enough to locate the code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Terminology is used consistently: serialization, deserialization, transient fields, buffer growth, and tail increment."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete triggering condition is given: an empty queue serialized and then deserialized."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Reproduction steps are implied in order, though not numbered."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No environment or version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reports the exact failure mode: buffer stays length 1 and tail resets to 0."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The empty-queue serialization case is specific and distinguishes this bug from general serialization issues."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit: a deserialized empty queue should accept new elements."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: after deserialization, adding fails because tail resets to 0."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The mismatch between expected addability and observed failure is clearly stated."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The report gives a complete enough scenario to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No specific environment, runtime, or dependency setup is documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Proposes a specific cause: buffer length remains 1 after deserialization of an empty queue."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Links the cause to the symptom through the add() growth formula and increment() wraparound."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Supports the explanation with code snippets and the described buffer state."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The explanation is internally consistent and matches the described behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "References concrete artifacts: add(), increment(int index), buffer.length, head, and tail."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Names specific methods add() and increment(int index)."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "The queue implementation and its serialization/deserialization path are identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes relevant code snippets showing the growth and increment logic."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Mentions ObjectOutputStream and XStream as relevant serialization mechanisms."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No OS, browser, framework, or runtime version details are given."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The exact queue class/module is not named, only described generically."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering condition are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior is clear enough from context."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Version and environment information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report explains the faulty behavior and implies the needed fix is in buffer initialization or growth after deserialization."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The relevant code location is identifiable from add() and increment()."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Acceptance criterion is clear: a deserialized empty queue must accept new elements."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No edge cases or constraints beyond the empty-queue case are documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "A plausible fix can be inferred from the described buffer-length issue without further clarification."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Explicitly proposes that the buffer remains size 1 after deserialization as the cause."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References the concrete growth expression in add() and the wraparound logic in increment()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Explains the causal chain from unchanged buffer length to tail resetting to 0 and inability to add."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A concrete scenario is given from which full reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The queue buffer management subsystem is clearly affected."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The symptom appears on deserialization, while the defect likely resides in buffer growth logic."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Only one main affected area is described, not multiple cross-cutting areas."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Mentions buffer, head, tail, add(), increment(), ObjectOutputStream, XStream, and XMLEncoder."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: deserialized empty queue cannot accept new elements due to buffer size remaining 1."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific methods identified: add() method, increment() method, and buffer field; class appears to be a queue implementation."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Code snippets provided: buffer resizing formula, increment() method logic, and the problematic condition (buffer.length = 1)."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report includes reproduction scenario (serialize empty queue, deserialize, add element) and mentions attached test case; developer could attempt reproduction."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Queue class with add(), increment() methods and buffer field are specifically named; serialization/deserialization logic is implicated."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Failure scenario is clear: empty queue serialization leads to buffer size 1, preventing element addition after deserialization."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Sufficient detail to write a test: serialize empty queue, deserialize, attempt add(); expected behavior is clear."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: serialize empty queue \u2192 deserialize (buffer=1, head=0, tail=0) \u2192 add() \u2192 buffer stays size 1 \u2192 tail resets."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Queue class name not provided; developer would need to search codebase to locate the specific queue implementation."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terminology (serialization, deserialization, buffer, transient fields) used accurately and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific input condition: empty queue; specific operation: serialize then deserialize; concrete enough for test case."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Reproduction steps are ordered: serialize empty queue, deserialize, add element; test case mentioned as attached."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "No Java version, framework version, or environment details provided; serialization methods mentioned (XMLEncoder, ObjectOutputStream, XStream) but no versions."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific failure mode described: buffer.length remains 1 after resizing attempt; tail resets to 0 unexpectedly."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Issue uniquely identified: empty queue serialization + buffer size 1 edge case + increment() wraparound logic; distinguishes from general serialization bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior stated implicitly: deserialized queue should accept new elements without losing them."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior explicitly stated: buffer remains size 1, tail resets to 0, elements cannot be added."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Discrepancy clear: expected (queue accepts elements), observed (buffer size unchanged, tail reset); unambiguous."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Steps are sufficient: serialize empty queue, deserialize, add element; test case attached provides complete reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "No specific Java version, JVM details, or OS information provided; serialization method choice mentioned but not version-specific."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific potential cause proposed: buffer resizing formula produces size 1 when buffer.length=1, preventing growth."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal link explicit: formula (1-1)*2+1=1 \u2192 buffer unchanged \u2192 increment() wraps tail to 0 \u2192 element lost."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Evidence provided: code snippet of resizing formula, increment() method, and concrete calculation (buffer.length=1 case)."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explanation is coherent: empty queue \u2192 buffer size 1 after deserialization \u2192 formula fails \u2192 increment() wraparound; no contradictions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References specific code: add() method, increment() method, buffer field, exact formula ((buffer.length - 1) * 2) + 1."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Methods named: add(), increment(); fields named: buffer, tail, head; transient modifier mentioned."
+      },
+      "T2": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Queue class name not provided; subsystem identifiable as queue implementation but file/package location unknown."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Code snippets provided: buffer resizing formula, increment() method; test case mentioned as attached."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Serialization frameworks named: XMLEncoder, ObjectOutputStream, XStream; versions not specified but frameworks identified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "No OS, Java version, JVM, or runtime environment details provided; only serialization method names given."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Queue class name not specified; developer would need to identify which queue implementation is affected."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Inputs and conditions are clear: empty queue, serialization, deserialization, add operation; sufficient for reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear: queue should accept new elements after deserialization without data loss."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Java version, JVM, and OS information missing; serialization framework versions not specified."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictions detected; report is internally consistent regarding the failure mechanism."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Correct behavior clear: buffer must grow beyond size 1 when resizing; formula needs adjustment for empty queue case."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Faulty code location identified: buffer resizing formula in add() method; increment() method logic also implicated."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior concrete: deserialized empty queue should accept elements; buffer should grow appropriately."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Edge case documented: empty queue (buffer size 1) is the critical condition; transient fields reset to 0."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could implement fix: adjust resizing formula to handle buffer.length=1 case, or initialize buffer larger for empty queues."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root cause explicitly proposed: buffer resizing formula ((buffer.length - 1) * 2) + 1 produces size 1 when buffer.length=1."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Root cause references specific formula and condition: (1-1)*2+1=1; increment() method's wraparound logic at buffer.length boundary."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal chain clear: empty queue serialized with buffer size 1 \u2192 formula fails to grow buffer \u2192 increment() wraps tail \u2192 element lost."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Concrete scenario fully determinable: create empty queue, serialize (ObjectOutputStream/XStream), deserialize, call add(); steps are complete and unambiguous."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific subsystem identified: queue implementation with serialization support; add() and increment() methods affected."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Symptom (element loss after add) distinguished from root cause (buffer resizing formula and increment() wraparound)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple areas identified: serialization/deserialization logic, buffer resizing, increment() wraparound, transient field initialization."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Four distinct technical concepts named: buffer field, add() method, increment() method, transient fields; serialization frameworks (ObjectOutputStream, XStream)."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.75
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.37,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.6
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.30999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.65
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "T2": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.6
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.47,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.5
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.9166666666666666,
+  "cohens_kappa": 0.6999999999999997,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.82 > 0.75)"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.83 > 0.6)"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.72)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge1 (higher confidence: 0.82 > 0.75)"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "Selected judge1 (higher confidence: 0.83 > 0.6)"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.7)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.72)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": 0.07808688094430297,
+      "Ambiguity": -0.7808688094430304,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

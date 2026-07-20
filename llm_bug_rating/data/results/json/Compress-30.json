@@ -1,0 +1,1424 @@
+{
+  "bug": {
+    "bug_id": "Compress-30",
+    "project": "Compress",
+    "summary": "BZip2CompressorInputStream return value wrong when told to read to a full buffer.",
+    "description": "BZip2CompressorInputStream.read(buffer, offset, length) returns -1 when given an offset equal to the length of the buffer.\n\nThis indicates, not that the buffer was full, but that the stream was finished.\n\nIt seems like a pretty stupid thing to do - but I'm getting this when trying to use Kryo serialization (which is probably a bug on their part, too), so it does occur and has negative affects.\n\nHere's a JUnit test that shows the problem specifically:\n\n@Test\npublic void testApacheCommonsBZipUncompression () throws Exception {\n// Create a big random piece of data\nbyte[] rawData = new byte[1048576];\nfor (int i=0; i<rawData.length; ++i) {\nrawData[i] = (byte) Math.floor(Math.random()*256);\n}\n\n// Compress it\nByteArrayOutputStream baos = new ByteArrayOutputStream();\nBZip2CompressorOutputStream bzipOut = new BZip2CompressorOutputStream(baos);\nbzipOut.write(rawData);\nbzipOut.flush();\nbzipOut.close();\nbaos.flush();\nbaos.close();\n\n// Try to read it back in\nByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());\nBZip2CompressorInputStream bzipIn = new BZip2CompressorInputStream(bais);\nbyte[] buffer = new byte[1024];\n// Works fine\nAssert.assertEquals(1024, bzipIn.read(buffer, 0, 1024));\n// Fails, returns -1 (indicating the stream is complete rather than that the buffer \n// was full)\nAssert.assertEquals(0, bzipIn.read(buffer, 1024, 0));\n// But if you change the above expected value to -1, the following line still works\nAssert.assertEquals(1024, bzipIn.read(buffer, 0, 1024));\nbzipIn.close();\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports observable faulty behavior: read(buffer, offset, length) returns -1 for offset equal to buffer length."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Affected component is identified as BZip2CompressorInputStream.read(buffer, offset, length)."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a JUnit test and exact failing assertion values, which are useful for debugging."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Provides a concrete scenario and test case sufficient to start investigating the issue."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Likely affected subsystem is Apache Commons Compress BZip2 decompression input stream."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly identified as an incorrect return value from read()."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Description, explanation, and test case are presented in a logical order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References to the stream class, buffer, and method are specific and unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terms like buffer, offset, length, stream, and JUnit are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes the triggering condition: calling read with offset equal to buffer length."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Provides concrete JUnit reproduction steps and code."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No OS, library version, or runtime environment is given."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reports the specific failure: read() returns -1 instead of 0."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes this from a generic failure by specifying the offset==length case and the exact return behavior."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is stated implicitly: returning 0 when asked to read zero bytes into a full buffer."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: the method returns -1."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The discrepancy between expected 0 and observed -1 is clearly described."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The JUnit test provides sufficient steps to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "No environment or dependency conditions are documented beyond using Kryo and Apache Commons BZip2."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No explicit root cause is proposed."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "There is no proposed explanation to link to symptoms."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No evidence is offered for a specific cause beyond the failing test."
+      },
+      "Q4": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No explicit explanation is given to assess coherence."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.89,
+        "reason": "The report does not reference technical artifacts as part of a root-cause explanation."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Mentions BZip2CompressorInputStream and BZip2CompressorOutputStream."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected subsystem is identifiable as BZip2 compression/decompression in Apache Commons Compress."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a JUnit test snippet as technical artifact."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "References Kryo serialization as a related external integration."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Some references are informal, such as 'pretty stupid thing to do' and 'probably a bug on their part'."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering condition are described concretely in the test."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clear from the test assertion and explanation."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The report is internally consistent and does not contradict itself."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The faulty behavior is precise enough to define the needed change in read() return handling."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The fix location is identifiable as BZip2CompressorInputStream.read(buffer, offset, length)."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected correct behavior is stated: return 0 for a zero-length read request."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The edge case of offset equal to buffer length is documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would likely need to inspect implementation details beyond the report."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No explicit root cause is proposed."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No specific code construct or logic error is identified."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The causal relationship is not articulated beyond the failing behavior."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The narrative and JUnit test clearly imply how to reproduce the bug."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected concept is the BZip2 decompression input stream."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "The report does not distinguish underlying defect location from symptom location."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Only one main component and one integration scenario are mentioned."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Report clearly describes that read() returns -1 instead of 0 when called with offset equal to buffer length."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "BZip2CompressorInputStream.read(buffer, offset, length) is explicitly identified as the affected component."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "A complete JUnit test case is provided demonstrating the exact failure scenario."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report includes reproduction code, expected vs actual values, and context about when it occurs."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "BZip2CompressorInputStream in Apache Commons Compress is explicitly named."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report is grammatically coherent and clearly written."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly stated: read() returns -1 when offset equals buffer length, instead of 0."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Information flows logically: description, context, then test code."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References to BZip2CompressorInputStream, buffer, offset, and return values are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Technical terms like offset, buffer, stream, and return value are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific triggering condition: offset equal to buffer length (1024) with length 0."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Complete JUnit test with exact steps to reproduce is provided."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No version of Apache Commons Compress or Java environment is specified."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific return value -1 is reported instead of expected 0."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The specific combination of offset=1024 and length=0 distinguishes this from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Expected return value of 0 is explicitly stated in the Assert.assertEquals call."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed return value of -1 is explicitly stated in the description and test comments."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Discrepancy between expected 0 and actual -1 is clearly identifiable."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Self-contained JUnit test provides sufficient steps to reproduce."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific library version or environment dependencies are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No explicit root cause is proposed; the report describes the symptom but not why the code behaves this way."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No causal explanation is linked to the observed -1 return value."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No evidence supporting a root cause is provided beyond the test demonstrating the symptom."
+      },
+      "Q4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No internal explanation or hypothesis is presented to evaluate for coherence."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No logs, traces, or code locations within the library are referenced as evidence."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "BZip2CompressorInputStream, BZip2CompressorOutputStream, ByteArrayInputStream, ByteArrayOutputStream are all mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Apache Commons Compress BZip2 subsystem is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "A complete JUnit test code snippet is included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Kryo serialization is mentioned as an external dependency that triggers the scenario."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, Java version, or library version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific and unambiguous; method, class, and values are all named."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Inputs (buffer size 1024, offset 1024, length 0) are precisely described in the test."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior (return 0) is explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Library version and Java environment are not specified."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior (returning -1 instead of 0 for zero-length read) is precisely described."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "BZip2CompressorInputStream.read(buffer, offset, length) is the specific method to fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected correct behavior (return 0 for zero-length read) is explicitly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The edge case of offset equal to buffer length with length=0 is documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Without knowing the internal implementation, a developer would need to inspect the source code to implement the fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No root cause is proposed; only the symptom is described."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific code construct or logic error is identified as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No causal relationship between a root cause and the failure is articulated."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The JUnit test provides complete, self-contained reproduction steps that can be directly executed."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "BZip2CompressorInputStream.read() in Apache Commons Compress is clearly identified."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "The report does not distinguish between where the symptom manifests and where the defect resides internally."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one component (BZip2CompressorInputStream) is identified as impacted; Kryo is mentioned as context but not as a second impacted area."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.72
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.72
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.22000000000000008,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.7
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.75
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.65
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.75
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.8
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.20999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.65
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.9787234042553191,
+  "cohens_kappa": 0.9545014520813165,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.87,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 0,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 1
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 1
+    },
+    "zscore": {
+      "Actionability": 1.2311356819069839,
+      "Clarity": 1.2311356819069839,
+      "Specificity": 0.7102705857155676,
+      "Reproducibility": 0.7102705857155676,
+      "ReasoningQuality": -1.3731897990500972,
+      "TechnicalContext": 0.7102705857155676,
+      "Ambiguity": 0.7102705857155676,
+      "RepairReadiness": -0.852324702858681,
+      "RootCauseEvidence": -1.3731897990500972,
+      "HiddenReproducibility": -0.852324702858681,
+      "ImpactScope": -0.852324702858681
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

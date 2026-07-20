@@ -1,0 +1,1452 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-83",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "Culprit appears to be \nlines 155-161 of FromStringDeserializer\n:\n\n// 05-May-2016, tatu: Unlike most usage, this seems legit, so...\nJsonMappingException e = ctxt.weirdStringException(text, _valueClass, msg);\nif (cause != null) {\ne.initCause(cause);\n}\nthrow e;\n// nothing to do here, yet? We'll fail anyway\n\nThe above lines appear to show that the exception will be thrown regardless of any problem handling logic.\n\nTest Case:\n\nimport com.fasterxml.jackson.databind.DeserializationContext;\nimport com.fasterxml.jackson.databind.ObjectMapper;\nimport com.fasterxml.jackson.databind.deser.DeserializationProblemHandler;\nimport org.junit.Test;\n\nimport java.io.IOException;\nimport java.util.UUID;\n\npublic class UUIDDeserializerTest {\n\n@Test\npublic void itUsesDeserializationProblemHandlerProperly() throws IOException {\nObjectMapper mapper = new ObjectMapper().addHandler(new DeserializationProblemHandler() {\n@Override\npublic Object handleWeirdStringValue(final DeserializationContext ctxt, final Class<?> targetType, final String valueToConvert, final String failureMsg) throws IOException {\nreturn null;\n}\n});\n\nmapper.readValue(\"{\\\"id\\\" : \\\"I am not a UUID\\\"}\", IdBean.class);\n\n}\n\npublic static class IdBean {\nprivate UUID id;\n\npublic UUID getId() {\nreturn id;\n}\n\npublic void setId(final UUID id) {\nthis.id = id;\n}\n}\n}\n\nThe handler handles the issue properly; but an exception is thrown anyway:\n\nan not deserialize value of type java.util.UUID from String \"I am not a UUID\": not a valid textual representation\nat [Source: (String)\"{\"id\" : \"I am not a UUID\"}\"; line: 1, column: 9] (through reference chain: com.company.test.UUIDDeserializerTest$IdBean[\"id\"])\ncom.fasterxml.jackson.databind.exc.InvalidFormatException: Can not deserialize value of type java.util.UUID from String \"I am not a UUID\": not a valid textual representation\nat [Source: (String)\"{\"id\" : \"I am not a UUID\"}\"; line: 1, column: 9] (through reference chain: com.company.test.UUIDDeserializerTest$IdBean[\"id\"])\nat com.fasterxml.jackson.databind.exc.InvalidFormatException.from(InvalidFormatException.java:67)\nat com.fasterxml.jackson.databind.DeserializationContext.weirdStringException(DeserializationContext.java:1504)\nat com.fasterxml.jackson.databind.deser.std.FromStringDeserializer.deserialize(FromStringDeserializer.java:156)\nat com.fasterxml.jackson.databind.deser.impl.MethodProperty.deserializeAndSet(MethodProperty.java:127)\nat com.fasterxml.jackson.databind.deser.BeanDeserializer.vanillaDeserialize(BeanDeserializer.java:287)\nat com.fasterxml.jackson.databind.deser.BeanDeserializer.deserialize(BeanDeserializer.java:151)\nat com.fasterxml.jackson.databind.ObjectMapper._readMapAndClose(ObjectMapper.java:3999)\nat com.fasterxml.jackson.databind.ObjectMapper.readValue(ObjectMapper.java:2980)"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable failure: a UUID field throws InvalidFormatException even though a DeserializationProblemHandler returns null."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the code path in FromStringDeserializer.deserialize and the UUID deserialization path."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a stack trace and exact exception message pointing to FromStringDeserializer.java:156."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides a runnable test case and the failing JSON input, enough to reproduce immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Pinpoints FromStringDeserializer as the likely component to inspect."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer can understand the failure scenario: handler is ignored and exception is still thrown."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The test case and expected handler behavior are concrete enough to derive a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The sequence is clear: invalid UUID string, handler invoked, then exception thrown anyway."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References ObjectMapper, DeserializationProblemHandler, FromStringDeserializer, and UUIDBean/IdBean precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent with Jackson deserialization and exception handling."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete input is given: JSON with id = \"I am not a UUID\"."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Shows ordered reproduction via a JUnit test using ObjectMapper.addHandler and readValue."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No version, OS, or runtime details are provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Reports the exact InvalidFormatException message and stack trace."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The combination of UUID field, handler returning null, and exception in FromStringDeserializer is distinctive."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Expected behavior is implied: the handler should handle the weird string without throwing."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicit: InvalidFormatException is thrown anyway."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The mismatch between handler handling and thrown exception is clearly stated."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The test code is sufficient to attempt reproduction without extra clarification."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "No environment or dependency versions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes a cause: lines 155-161 of FromStringDeserializer throw regardless of problem handling."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Links the unconditional throw to the handler being ignored."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with stack trace and code excerpt."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is internally consistent with the reported failure."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References exact file, line range, and exception type."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names ObjectMapper, DeserializationProblemHandler, FromStringDeserializer, and MethodProperty."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The Jackson databind deserialization subsystem is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a relevant stack trace and code excerpt."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external dependency or version is named."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "No OS, browser, framework version, or runtime environment details are given."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report is somewhat vague about the exact intended handler contract and affected scope."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and trigger are concrete enough to reproduce."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is reasonably inferable from the handler test."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Version/environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The correct behavior is clear: honor the problem handler instead of always throwing."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Identifies FromStringDeserializer.deserialize as the fix location."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Acceptance criterion is concrete: no exception when handler resolves the weird string."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "Edge cases and constraints are not discussed."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A plausible fix can be inferred from the report alone."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes the culprit lines in FromStringDeserializer."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References the unconditional throw of JsonMappingException after weirdStringException."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explains that the throw happens regardless of problem handling, matching the observed exception."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The test case directly determines a complete reproduction scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected concept is Jackson databind string deserialization, specifically FromStringDeserializer."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom at UUID property deserialization from likely defect in FromStringDeserializer."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Only one main impacted path is clearly described."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Mentions multiple technical concepts: ObjectMapper, DeserializationProblemHandler, FromStringDeserializer, InvalidFormatException, MethodProperty."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: exception is thrown despite DeserializationProblemHandler returning a value, distinguishing it from expected behavior where the handler's return value should be used."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific class and lines identified: FromStringDeserializer lines 155-161, with exact method name deserialize() shown in stack trace."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete stack trace provided showing InvalidFormatException thrown from FromStringDeserializer.deserialize at line 156, with full exception message."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Minimal reproducible test case provided with concrete inputs (UUID string 'I am not a UUID'), allowing immediate reproduction attempt."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Exact file and lines pinpointed: FromStringDeserializer lines 155-161, enabling developer to locate code immediately."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clear: DeserializationProblemHandler.handleWeirdStringValue() returns a value but exception is still thrown, indicating handler is bypassed."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Test case provided is directly usable as a failing test; developer could write equivalent test without clarification."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Sequence is unambiguous: handler is invoked, returns null, but exception is thrown anyway; no alternative interpretation possible."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "All entities precisely identified: FromStringDeserializer class, DeserializationProblemHandler interface, handleWeirdStringValue method, UUID type."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terminology used accurately: DeserializationProblemHandler, weirdStringException, InvalidFormatException are correctly applied."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific input provided: JSON string with UUID field containing 'I am not a UUID', directly usable in test case."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Complete reproduction steps provided: create ObjectMapper with handler, call readValue with specific JSON and class, observe exception thrown."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for Jackson library, OS, or Java version; these could affect reproducibility."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific exception type and message provided verbatim: InvalidFormatException with message 'Can not deserialize value of type java.util.UUID from String'."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report uniquely identifies issue: DeserializationProblemHandler is registered but ignored during UUID deserialization, distinguishing from other handler-related bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected behavior is implicit but clear: handler's return value should be used instead of throwing exception, serving as correctness criterion."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior explicitly stated: InvalidFormatException is thrown with specific message despite handler returning a value."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: handler returns value but exception is thrown anyway; clear contradiction between expected and observed."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Reproduction steps are complete: test case shows all necessary setup and invocation to trigger the bug."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Jackson version, Java version, and OS are not specified; these environmental details would help ensure exact reproduction."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific potential cause proposed: lines 155-161 of FromStringDeserializer throw exception unconditionally without checking handler result."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Causal mechanism is plausible: code path shows exception is created and thrown regardless of problem handler logic, directly explaining symptom."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete evidence provided: code snippet from lines 155-161 shows throw statement executed unconditionally; stack trace confirms execution path."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explanation is internally coherent: handler is invoked (shown in test), but exception is thrown anyway (shown in stack trace), consistent throughout."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific technical artifacts referenced: FromStringDeserializer class, lines 155-161, method weirdStringException, stack trace line 156."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific classes and methods named: FromStringDeserializer, DeserializationProblemHandler, handleWeirdStringValue, weirdStringException, InvalidFormatException."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Affected subsystem identifiable: FromStringDeserializer class in Jackson databind deserialization module, locatable from package name."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Stack trace provided showing exact execution path from ObjectMapper.readValue through BeanDeserializer to FromStringDeserializer.deserialize."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Jackson library version not specified; external dependency version information is missing."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "OS, Java version, and runtime environment details are not provided; only code context is given."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all entities are specifically named: FromStringDeserializer, UUID, DeserializationProblemHandler."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Inputs are fully specified: JSON string, target class IdBean with UUID field, handler implementation with null return."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior is clear: handler's return value should be used instead of throwing exception; no ambiguity about correctness."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Jackson version, Java version, and OS are missing; these could affect reproducibility and are material to the investigation."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictions detected; report is internally consistent: handler is invoked, returns value, but exception is thrown."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Faulty behavior is precise: exception thrown unconditionally; correct behavior is clear: check handler result before throwing."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific location identified: FromStringDeserializer lines 155-161, method deserialize; developer knows exactly where to apply fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected behavior stated concretely: handler's return value should be used; test case serves as acceptance criterion."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Relevant constraint identified: DeserializationProblemHandler must be consulted before throwing exception; edge case of null return is shown."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer could implement fix: check handler result in lines 155-161 and return handler value instead of throwing exception unconditionally."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific root cause explicitly proposed: lines 155-161 throw exception unconditionally without checking problem handler result."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Root cause references specific code: FromStringDeserializer.deserialize method, throw statement at lines 155-161, weirdStringException call."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Causal chain articulated: handler is invoked (test shows it returns value), but code unconditionally throws exception (lines 155-161), causing observed failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete scenario provided: register handler returning null, deserialize UUID field with invalid string; complete and unambiguous reproduction steps are directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific subsystem identified: FromStringDeserializer class in Jackson databind deserialization module."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Symptom manifests in UUID deserialization; underlying defect resides in FromStringDeserializer exception handling logic."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Multiple impacted areas identifiable: DeserializationProblemHandler interface, FromStringDeserializer class, exception handling mechanism."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Four or more distinct technical concepts identified: FromStringDeserializer, DeserializationProblemHandler, handleWeirdStringValue, weirdStringException, InvalidFormatException, UUID deserialization."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.96
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.93
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.96
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.94
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.82
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.88
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.92
+      }
+    }
+  },
+  "percent_agreement": 0.9375,
+  "cohens_kappa": 0.7857142857142857,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.74)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.74)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

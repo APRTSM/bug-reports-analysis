@@ -1,0 +1,1450 @@
+{
+  "bug": {
+    "bug_id": "Math-102",
+    "project": "Math",
+    "summary": "chiSquare(double[] expected, long[] observed) is returning incorrect test statistic",
+    "description": "ChiSquareTestImpl is returning incorrect chi-squared value. An implicit assumption of public double chiSquare(double[] expected, long[] observed) is that the sum of expected and observed are equal. That is, in the code:\n\nfor (int i = 0; i < observed.length; i++) \n\n{\ndev = ((double) observed[i] - expected[i]);\nsumSq += dev * dev / expected[i];\n}\n\nthis calculation is only correct if sum(observed)==sum(expected). When they are not equal then one must rescale the expected value by sum(observed) / sum(expected) so that they are.\n\nIronically, it is an example in the unit test ChiSquareTestTest that highlights the error:\n\nlong[] observed1 = \n\n{ 500, 623, 72, 70, 31 }\n\n;\n\ndouble[] expected1 = \n\n{ 485, 541, 82, 61, 37 }\n\n;\n\nassertEquals( \"chi-square test statistic\", 16.4131070362, testStatistic.chiSquare(expected1, observed1), 1E-10);\n\nassertEquals(\"chi-square p-value\", 0.002512096, testStatistic.chiSquareTest(expected1, observed1), 1E-9);\n\n16.413 is not correct because the expected values do not make sense, they should be: 521.19403 581.37313 88.11940 65.55224 39.76119 so that the sum of expected equals 1296 which is the sum of observed.\n\nHere is some R code (r-project.org) which proves it:\n\n> o1\n\n[1]\n500 623 72 70 31\n\n> e1\n\n[1]\n485 541 82 61 37\n\n> chisq.test(o1,p=e1,rescale.p=TRUE)\n\nChi-squared test for given probabilities\n\ndata: o1 \n\nX-squared = 9.0233, df = 4, p-value = 0.06052\n\n> chisq.test(o1,p=e1,rescale.p=TRUE)$observed\n\n[1]\n500 623 72 70 31\n\n> chisq.test(o1,p=e1,rescale.p=TRUE)$expected\n\n[1]\n521.19403 581.37313 88.11940 65.55224 39.76119"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes incorrect chi-square statistic behavior and contrasts it with the expected rescaled result."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names the API chiSquare(double[] expected, long[] observed) and ChiSquareTestImpl."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes code snippet and unit test values, plus R output showing the correct expected values."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides concrete inputs and a direct comparison to R, enough to reproduce or investigate immediately."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points to ChiSquareTestImpl and the chiSquare method as the likely code location."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "A developer can understand the failure: chi-square is wrong when expected and observed sums differ."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The unit test example gives concrete inputs and an expected statistic, enabling a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The condition is explicit: sums differ, so expected values must be rescaled."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References ChiSquareTestImpl, chiSquare, chiSquareTest, and the unit test class."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Terminology is consistent: chi-square statistic, expected values, observed values, p-value."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Gives specific observed and expected arrays as triggering inputs."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Shows a concrete test case, though not full step-by-step reproduction instructions."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No version, OS, or runtime environment information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reports the incorrect statistic 16.4131070362 and the correct R output 9.0233."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The rescaling issue with mismatched sums and the exact example distinguish this bug."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is stated: expected values should be rescaled so sums match observed."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicitly the incorrect chi-square value returned by chiSquare."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The discrepancy between 16.413... and the correct 9.0233 is clearly identified."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The example inputs are sufficient to attempt reproduction, though exact test harness steps are not fully spelled out."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or dependency setup details are documented beyond mentioning R."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes the cause: chiSquare assumes equal sums and should rescale expected values."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Links the incorrect statistic directly to the missing rescaling when sums differ."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Supports the explanation with code, unit test data, and R output."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The explanation is internally consistent and matches the example."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References concrete artifacts like chiSquare(double[] expected, long[] observed) and the unit test arrays."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names ChiSquareTestImpl, chiSquare, chiSquareTest, and ChiSquareTestTest."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The affected module is identifiable as the chi-square test implementation."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Includes code snippets and R output directly relevant to the failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "References R and chisq.test as an external comparison tool."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No OS, browser, framework, or runtime version details are given."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "References are specific, not vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Inputs and triggering condition are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Expected behavior is clearly stated: rescale expected values."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Material environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "States the correct behavior and the needed fix: rescale expected values by sum(observed)/sum(expected)."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies ChiSquareTestImpl and chiSquare as the fix location."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Acceptance criterion is concrete: match the rescaled chi-square result."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Documents the edge case where sums of expected and observed differ."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A plausible fix can be implemented from the report alone."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes the root cause: missing rescaling when sums differ."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References the calculation loop and the sum(observed)/sum(expected) rescaling operation."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explains how the incorrect formula leads to the wrong statistic in the example."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The example arrays and R comparison allow complete reproduction steps to be derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The chi-square test implementation subsystem is clearly affected."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes the symptom in chiSquare from the underlying defect in expected-value handling."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Only one main impacted area is described; multiple distinct impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Mentions ChiSquareTestImpl, chiSquare, chiSquareTest, ChiSquareTestTest, and R chisq.test."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: incorrect chi-squared test statistic returned when sum(observed) \u2260 sum(expected), with concrete numerical example showing 16.4131 vs correct 9.0233."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific method identified: ChiSquareTestImpl.chiSquare(double[] expected, long[] observed), with exact code location in the for loop."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes concrete debugging artifacts: unit test case with specific input arrays, expected vs observed values, R code verification with exact numerical outputs."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Developer can immediately reproduce using provided test data (observed1, expected1 arrays) and verify against R output; no clarification needed."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Pinpoints ChiSquareTestImpl class and the specific for loop in chiSquare method; developer knows exactly where to start reading code."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Failure scenario is clear: method assumes sum(observed)==sum(expected) but does not enforce or rescale when unequal; unfamiliar developer can understand the issue."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Developer could write a failing test using provided arrays and expected chi-squared value (9.0233) without asking for clarification."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Sequence is unambiguous: input arrays provided \u2192 current code computes incorrect statistic \u2192 rescaling expected values yields correct result."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "All entities precisely identified: ChiSquareTestImpl class, chiSquare method, specific array variables (observed1, expected1), and the for loop location."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Technical terminology used accurately: chi-squared test statistic, rescaling, sum of expected/observed; no misleading language."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific inputs provided as concrete arrays: observed1={500,623,72,70,31}, expected1={485,541,82,61,37}; directly usable in test case."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reproduction steps are concrete: call chiSquare(expected1, observed1) and compare result to 9.0233; no prior knowledge required."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for ChiSquareTestImpl, Java version, or testing framework; R version mentioned but not Java environment details."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific outputs reported verbatim: incorrect value 16.4131070362, correct value 9.0233, with R verification showing expected rescaled values."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Details uniquely identify this issue: unequal sums causing incorrect rescaling, with specific numerical discrepancy (16.41 vs 9.02) distinguishing from other chi-square bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Expected behavior explicitly stated: chi-squared statistic should be 9.0233 when rescaling expected values to match sum(observed)."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior explicitly stated: method returns 16.4131070362 instead of correct 9.0233; failure is clearly identifiable."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Discrepancy unambiguously identifiable: expected 9.0233, observed 16.4131; root cause (missing rescaling) clearly linked to symptom."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reproduction steps are complete: provide arrays, call method, compare to 9.0233; sufficient to attempt reproduction without additional investigation."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environmental conditions not documented: Java version, testing framework, platform OS not specified; only R environment mentioned for verification."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes specific cause: missing rescaling of expected values by sum(observed)/sum(expected) when sums are unequal."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Proposed explanation directly linked to symptoms: unequal sums cause incorrect chi-squared calculation; rescaling would fix it, as demonstrated by R output."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete evidence provided: R code output showing rescaled expected values and correct chi-squared result (9.0233); unit test case demonstrating the error."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explanation is internally coherent: missing rescaling \u2192 incorrect calculation \u2192 wrong test statistic; no contradictions with provided data."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific technical artifacts: exact formula dev*dev/expected[i], specific array indices, R function chisq.test with rescale.p=TRUE parameter."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods named: ChiSquareTestImpl, chiSquare(double[], long[]), ChiSquareTestTest unit test class."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Affected subsystem identifiable: ChiSquareTestImpl class with chi-squared test implementation; developer can locate source files."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical artifacts included: code snippet of for loop, unit test case with arrays, R code output with numerical results."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "External dependency mentioned: R project (r-project.org) with chisq.test function; version not specified but function behavior is clear."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Environment details missing: no Java version, OS, testing framework (JUnit version?), or runtime information provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No vague references; all entities (ChiSquareTestImpl, chiSquare method, arrays) are precisely named and locatable."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Inputs fully specified: concrete array values provided; no ambiguity about parameters or conditions."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Expected behavior is clear: chi-squared should be 9.0233 with rescaled expected values; no ambiguity about correctness criterion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Version and environment information missing: Java version, testing framework, platform not specified; could affect reproduction setup."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No contradictions; all statements consistent: incorrect value 16.41, correct value 9.02, rescaling formula all align logically."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Faulty behavior precisely described: missing rescaling; correct behavior is to rescale expected by sum(observed)/sum(expected) before calculation."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific component identifiable: ChiSquareTestImpl.chiSquare method, exact for loop location where rescaling should be added."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Expected correct behavior stated concretely: chi-squared result should be 9.0233 for given test case; serves as acceptance criterion."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Relevant constraints documented: rescaling only needed when sum(observed)\u2260sum(expected); edge case of equal sums implicitly handled."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Developer could implement fix: add rescaling logic before loop (expected[i] *= sum(observed)/sum(expected)) using only report information."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific root cause explicitly proposed: missing rescaling of expected values when sum(observed)\u2260sum(expected)."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Root cause references specific code construct: the for loop in chiSquare method, the division by expected[i] without prior rescaling."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Causal chain articulated: unequal sums \u2192 missing rescaling \u2192 incorrect chi-squared formula application \u2192 wrong test statistic; verifiable via R output."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Concrete scenario fully specified: call chiSquare with observed1={500,623,72,70,31} and expected1={485,541,82,61,37}; complete and unambiguous reproduction steps directly derivable."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific subsystem identifiable: ChiSquareTestImpl class and chiSquare method; not just broad functional area."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Distinguishes symptom from defect: symptom is incorrect test statistic value; defect is missing rescaling logic in chiSquare method."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Multiple impacted areas identifiable: chiSquare method, chiSquareTest method (which depends on chiSquare), unit test assertions; cross-cutting concern of statistical correctness."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Names multiple technical concepts: ChiSquareTestImpl class, chiSquare method, chi-squared test statistic formula, rescaling operation, sum aggregation, array indexing."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.96
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.24,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.88
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      }
+    }
+  },
+  "percent_agreement": 0.9791666666666666,
+  "cohens_kappa": 0.9210526315789472,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.8864052604279183,
+      "Clarity": 0.8864052604279183,
+      "Specificity": 0.0,
+      "Reproducibility": 0.0,
+      "ReasoningQuality": 0.8864052604279183,
+      "TechnicalContext": 0.0,
+      "Ambiguity": 0.0,
+      "RepairReadiness": 0.8864052604279183,
+      "RootCauseEvidence": -0.8864052604279183,
+      "HiddenReproducibility": -2.6592157812837547,
+      "ImpactScope": 0.0
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

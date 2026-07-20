@@ -1,0 +1,1431 @@
+{
+  "bug": {
+    "bug_id": "JacksonCore-10",
+    "project": "JacksonCore",
+    "summary": "No title",
+    "description": "The following code demonstrates a bug in jackson-core, version 2.6.0, in the hash table implementation of \ncom.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer\n. From a quick glance, it looks to me as if the \"primary hash information area\" \n_hashArea\nhas a spillover area that is not accounted for properly in the \nString\narray \n_names\n.\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ncore\n.\nJsonFactory\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ncore\n.\nsym\n.\nByteQuadsCanonicalizer\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ndatabind\n.\nObjectMapper\n;\n\nimport\n\norg\n.\ntestng\n.\nannotations\n.\nTest\n;\n\nimport\n\njava\n.\nlang\n.\nreflect\n.\nField\n;\n\nimport\n\njava\n.\nlang\n.\nreflect\n.\nMethod\n;\n\nimport\n\njava\n.\nnio\n.\ncharset\n.\nStandardCharsets\n;\n\nimport\n\njava\n.\nutil\n.\nMap\n;\n\n/**\n\n* Simple test case for demonstrating bug in class {@link ByteQuadsCanonicalizer}.\n\n*\n\n* <p>In some cases, it is possible to work around this bug by disabling the\n\n* {@link JsonFactory.Feature#CANONICALIZE_FIELD_NAMES} feature. In that case\n\n* {@link com.fasterxml.jackson.core.json.ByteSourceJsonBootstrapper#constructParser(int, com.fasterxml.jackson.core.ObjectCodec, ByteQuadsCanonicalizer, com.fasterxml.jackson.core.sym.CharsToNameCanonicalizer, int)}\n\n* creates a {@link com.fasterxml.jackson.core.json.ReaderBasedJsonParser} instead of a\n\n* {@link com.fasterxml.jackson.core.json.UTF8StreamJsonParser}.\n\n*/\n\npublic\n\nclass\n\nUTF8ByteStreamTest\n{\n\nprivate\n\nstatic\n\nfinal\n\nint\n\nSEED\n= -\n523743345\n;\n\nprivate\n\nstatic\n\nvoid\n\ninjectReproducibleSeed\n(\nObjectMapper\n\nobjectMapper\n) \nthrows\n\nException\n{\n\nJsonFactory\n\njsonFactory\n= \nobjectMapper\n.\ngetFactory\n();\n\n// As a workaround, uncomment the following line.\n\n// jsonFactory.disable(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES);\n\nField\n\nbyteSymbolCanonicalizerField\n= \nJsonFactory\n.\nclass\n.\ngetDeclaredField\n(\n\"_byteSymbolCanonicalizer\"\n);\n\nbyteSymbolCanonicalizerField\n.\nsetAccessible\n(\ntrue\n);\n\nMethod\n\nfactoryMethod\n= \nByteQuadsCanonicalizer\n.\nclass\n.\ngetDeclaredMethod\n(\n\"createRoot\"\n, \nint\n.\nclass\n);\n\nfactoryMethod\n.\nsetAccessible\n(\ntrue\n);\n\nbyteSymbolCanonicalizerField\n.\nset\n(\njsonFactory\n, \nfactoryMethod\n.\ninvoke\n(\nnull\n, \nSEED\n));\n}\n\n@\nTest\n\npublic\n\nvoid\n\ntestRead\n() \nthrows\n\nException\n{\n\nObjectMapper\n\nobjectMapper\n= \nnew\n\nObjectMapper\n();\n\ninjectReproducibleSeed\n(\nobjectMapper\n);\n\nStringBuilder\n\nstringBuilder\n= \nnew\n\nStringBuilder\n();\n\nstringBuilder\n.\nappend\n(\n\"{\n\\n\n\"\n);\n\nstringBuilder\n.\nappend\n(\n\" \n\\\"\nexpectedGCperPosition\n\\\"\n: null\"\n);\n\nfor\n(\nint\n\ni\n= \n0\n; \ni\n< \n60\n; ++\ni\n) {\n\nstringBuilder\n.\nappend\n(\n\",\n\\n\n\n\\\"\n\"\n).\nappend\n(\ni\n+ \n1\n).\nappend\n(\n\"\n\\\"\n: null\"\n);\n}\n\nstringBuilder\n.\nappend\n(\n\"\n\\n\n}\"\n);\n\nobjectMapper\n.\nreadValue\n(\nstringBuilder\n.\ntoString\n().\ngetBytes\n(\nStandardCharsets\n.\nUTF_8\n), \nMap\n.\nclass\n);\n}\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report describes a concrete failure when reading JSON with jackson-core."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "It identifies ByteQuadsCanonicalizer in jackson-core as the affected component."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It includes code, class names, method names, and a workaround note."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report gives a test case and enough setup to start investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "It points to the hash table implementation in ByteQuadsCanonicalizer and field-name canonicalization."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The description is understandable, though the formatting is rough."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The problem is clearly identified as a bug in ByteQuadsCanonicalizer."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "It follows a logical flow from summary to explanation to test code."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Referenced classes and fields are specific and identifiable."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Technical terms like hash table, spillover area, and canonicalization are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It specifies version 2.6.0 and a seed value used to reproduce the issue."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A runnable test method is provided, which serves as reproduction steps."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.0,
+        "reason": "No OS, browser, or runtime environment details are given."
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No explicit exception, stack trace, or error message is shown."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "It distinguishes the issue as a canonicalizer hash-table spillover problem, not a generic parse failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Expected behavior is implied by the workaround, but not stated directly."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is that the provided test demonstrates a bug during readValue."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "The exact expected-versus-observed discrepancy is not explicitly spelled out."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The code snippet is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No broader environment or dependency requirements are documented beyond library version."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "It explicitly proposes a cause: the spillover area is not accounted for properly in _names."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The proposed cause is tied to the failure in ByteQuadsCanonicalizer during parsing."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The test case and workaround are presented as supporting evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The explanation is internally consistent and does not contradict the test."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It references technical artifacts such as _hashArea, _names, and constructParser."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "It mentions JsonFactory, ByteQuadsCanonicalizer, ObjectMapper, and constructParser."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected subsystem is the field-name canonicalization/hash table path in jackson-core."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report includes a code snippet and reflective test setup."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "No external dependency or service is relevantly referenced."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "It includes library version information: jackson-core 2.6.0."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Some references are indirect, such as 'bug' and 'workaround', without a precise failure description."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The triggering conditions are only partially described through the test code and seed."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Expected behavior is not explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Environment details are missing despite the version being given."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The faulty behavior is narrowed to canonicalizer hash-table handling during JSON parsing."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "ByteQuadsCanonicalizer and related parser construction code are identifiable."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The correct expected behavior is not explicitly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The workaround and seed-based trigger provide some relevant conditions."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "A developer would likely need further investigation to confirm the exact fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A potential root cause is explicitly proposed in the description."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The root cause references specific constructs: _hashArea and _names."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report links the suspected spillover accounting bug to the observed parser failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The narrative and test code clearly imply how to trigger the bug."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected subsystem is the ByteQuadsCanonicalizer field-name canonicalization path."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The symptom appears in ObjectMapper.readValue, while the suspected defect is in ByteQuadsCanonicalizer."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one main subsystem is identified; no multiple impacted areas are described."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report demonstrates a bug in ByteQuadsCanonicalizer with a concrete code example that triggers faulty behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected component is explicitly identified as com.fasterxml.jackson.core.sym.ByteQuadsCanonicalizer and its hash table implementation."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A full reproducible test case with code is provided, including reflection-based seed injection to make the bug deterministic."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report provides version, component, a hypothesis about the root cause, and a complete reproduction test."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The subsystem is clearly identified: ByteQuadsCanonicalizer's hash table, specifically _hashArea and _names array."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The description is written in coherent English with clear technical explanations."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The problem is clearly identified as a bug in the hash table implementation where the spillover area is not accounted for properly in the _names array."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report presents context, hypothesis, workaround, and reproduction code in a logical order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References to _hashArea, _names, ByteQuadsCanonicalizer, and related classes are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terms like 'primary hash information area', 'spillover area', 'hash table' are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific triggering conditions include a fixed seed (-523743345), a specific JSON structure with 61 fields, and jackson-core version 2.6.0."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A complete, self-contained test method (testRead) with setup code is provided as reproduction steps."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Version 2.6.0 of jackson-core is explicitly mentioned."
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "No specific exception, error message, or stack trace is included; the failure mode is implied but not explicitly shown."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The specific seed value, field count, and field names distinguish this from a generic failure description."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Expected behavior (successful parsing of the JSON) is implied but not explicitly stated."
+      },
+      "R2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "The observed failure (exception type, wrong output, etc.) is not explicitly described; only the code triggering it is shown."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Without explicit expected and observed behavior statements, the discrepancy cannot be clearly identified from the report alone."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The test code with seed injection is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The seed value and jackson-core version 2.6.0 are documented as required conditions."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report proposes that the spillover area of _hashArea is not accounted for properly in the _names String array."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The proposed explanation is linked to the hash table behavior triggered when parsing many fields."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The reproducible test case with a fixed seed serves as evidence supporting the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The explanation is internally coherent: spillover area mismatch between _hashArea and _names is a plausible indexing bug."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific field names _hashArea and _names in ByteQuadsCanonicalizer are referenced as technical artifacts."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Classes like ByteQuadsCanonicalizer, JsonFactory, UTF8StreamJsonParser, ReaderBasedJsonParser, and fields _hashArea, _names are explicitly mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The affected subsystem is the symbol canonicalization / hash table module in jackson-core."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A complete code snippet demonstrating the bug is included."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "jackson-core 2.6.0, jackson-databind, and TestNG are referenced as dependencies."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No OS, JVM version, or other environment details are provided beyond the library version."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "References to components and fields are specific and unambiguous."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "The seed, JSON structure, and field count are precisely specified."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Expected behavior is not explicitly stated; it is only implied that parsing should succeed without error."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "JVM version, OS, and other environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The faulty behavior is described as improper accounting of the spillover area in _names relative to _hashArea."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "ByteQuadsCanonicalizer is identified as the class requiring a fix, with specific fields _hashArea and _names."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "The expected correct behavior is not explicitly stated; only the bug is described."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The spillover area condition and the specific seed/field-count triggering the bug are documented as relevant constraints."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would need to investigate the exact indexing logic in ByteQuadsCanonicalizer further, as the exact fix is not specified."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report explicitly proposes that the spillover area of _hashArea is not accounted for properly in the _names array."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specific fields _hashArea and _names in ByteQuadsCanonicalizer are referenced as the locus of the defect."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The causal relationship is articulated: improper spillover accounting leads to incorrect behavior when parsing JSON with many fields."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The test method testRead() with seed injection provides clear implicit reproduction steps even without numbered steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "ByteQuadsCanonicalizer's hash table implementation is clearly identified as the affected module."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "The report does not clearly distinguish between where the symptom manifests (parsing failure) and where the defect resides (hash table indexing)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The report mentions both UTF8StreamJsonParser and ByteQuadsCanonicalizer as impacted areas, and notes the workaround affects which parser is used."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.97
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.93,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.0,
+        "judge2_confidence": 0.93
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.65
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.7
+      },
+      "R2": {
+        "agreement": false,
+        "confidence_diff": 0.25,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.65
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.65
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.85
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": false,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.82
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.10000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.7
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.72
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.7
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.7
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.82
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.20999999999999996,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.65
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      }
+    }
+  },
+  "percent_agreement": 0.8297872340425532,
+  "cohens_kappa": 0.49326145552560646,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.65)"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "T5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.75)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.88 > 0.82)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.65)"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.75 > 0.7)"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.65)"
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.68,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.75)"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge1 (higher confidence: 0.88 > 0.82)"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.65)"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Selected judge2 (higher confidence: 0.75 > 0.7)"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 4,
+      "RepairReadiness": 3,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 2,
+      "ambiguity_count": 4,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 1.0954451150103321,
+      "Clarity": 1.0954451150103321,
+      "Specificity": 0.42600643361512913,
+      "Reproducibility": -0.2434322477800739,
+      "ReasoningQuality": 1.0954451150103321,
+      "TechnicalContext": 1.0954451150103321,
+      "Ambiguity": -1.5823096105704801,
+      "RepairReadiness": -0.912870929175277,
+      "RootCauseEvidence": -0.2434322477800739,
+      "HiddenReproducibility": -1.5823096105704801,
+      "ImpactScope": -0.2434322477800739
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

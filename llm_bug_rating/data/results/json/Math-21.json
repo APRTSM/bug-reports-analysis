@@ -1,0 +1,1430 @@
+{
+  "bug": {
+    "bug_id": "Math-21",
+    "project": "Math",
+    "summary": "Correlated random vector generator fails (silently) when faced with zero rows in covariance matrix",
+    "description": "The following three matrices (which are basically permutations of each other) produce different results when sampling a multi-variate Gaussian with the help of CorrelatedRandomVectorGenerator (sample covariances calculated in R, based on 10,000 samples):\n\nArray2DRowRealMatrix\n\n{\n{0.0,0.0,0.0,0.0,0.0}\n\n,\n\n{0.0,0.013445532,0.01039469,0.009881156,0.010499559}\n\n,\n\n{0.0,0.01039469,0.023006616,0.008196856,0.010732709}\n\n,\n\n{0.0,0.009881156,0.008196856,0.019023866,0.009210099}\n\n,\n\n{0.0,0.010499559,0.010732709,0.009210099,0.019107243}}\n\n> cov(data1)\n\nV1 V2 V3 V4 V5\n\nV1 0 0.000000000 0.00000000 0.000000000 0.000000000\n\nV2 0 0.013383931 0.01034401 0.009913271 0.010506733\n\nV3 0 0.010344006 0.02309479 0.008374730 0.010759306\n\nV4 0 0.009913271 0.00837473 0.019005488 0.009187287\n\nV5 0 0.010506733 0.01075931 0.009187287 0.019021483\n\nArray2DRowRealMatrix\n\n{\n{0.013445532,0.01039469,0.0,0.009881156,0.010499559}\n\n,\n\n{0.01039469,0.023006616,0.0,0.008196856,0.010732709}\n\n,\n\n{0.0,0.0,0.0,0.0,0.0},\n{0.009881156,0.008196856,0.0,0.019023866,0.009210099},\n\n{0.010499559,0.010732709,0.0,0.009210099,0.019107243}}\n\n> cov(data2)\n\nV1 V2 V3 V4 V5\n\nV1 0.006922905 0.010507692 0 0.005817399 0.010330529\n\nV2 0.010507692 0.023428918 0 0.008273152 0.010735568\n\nV3 0.000000000 0.000000000 0 0.000000000 0.000000000\n\nV4 0.005817399 0.008273152 0 0.004929843 0.009048759\n\nV5 0.010330529 0.010735568 0 0.009048759 0.018683544 \n\nArray2DRowRealMatrix{\n{0.013445532,0.01039469,0.009881156,0.010499559},\n{0.01039469,0.023006616,0.008196856,0.010732709},\n{0.009881156,0.008196856,0.019023866,0.009210099},\n\n{0.010499559,0.010732709,0.009210099,0.019107243}}\n\n> cov(data3)\n\nV1 V2 V3 V4\n\nV1 0.013445047 0.010478862 0.009955904 0.010529542\n\nV2 0.010478862 0.022910522 0.008610113 0.011046353\n\nV3 0.009955904 0.008610113 0.019250975 0.009464442\n\nV4 0.010529542 0.011046353 0.009464442 0.019260317\n\nI've traced this back to the RectangularCholeskyDecomposition, which does not seem to handle the second matrix very well (decompositions in the same order as the matrices above):\n\nCorrelatedRandomVectorGenerator.getRootMatrix() = \n\nArray2DRowRealMatrix{{0.0,0.0,0.0,0.0,0.0}\n\n,\n\n{0.0759577418122063,0.0876125188474239,0.0,0.0,0.0}\n\n,\n\n{0.07764443622513505,0.05132821221460752,0.11976381821791235,0.0,0.0}\n\n,\n\n{0.06662930527909404,0.05501661744114585,0.0016662506519307997,0.10749324207653632,0.0}\n\n,{0.13822895138139477,0.0,0.0,0.0,0.0}}\n\nCorrelatedRandomVectorGenerator.getRank() = 5\n\nCorrelatedRandomVectorGenerator.getRootMatrix() = \n\nArray2DRowRealMatrix{{0.0759577418122063,0.034512751379448724,0.0},\n\n{0.07764443622513505,0.13029949164628746,0.0}\n\n,\n\n{0.0,0.0,0.0}\n\n,\n\n{0.06662930527909404,0.023203936694855674,0.0}\n\n,{0.13822895138139477,0.0,0.0}}\n\nCorrelatedRandomVectorGenerator.getRank() = 3\n\nCorrelatedRandomVectorGenerator.getRootMatrix() = \n\nArray2DRowRealMatrix{{0.0759577418122063,0.034512751379448724,0.033913748226348225,0.07303890149947785},\n\n{0.07764443622513505,0.13029949164628746,0.0,0.0}\n\n,\n\n{0.06662930527909404,0.023203936694855674,0.11851573313229945,0.0}\n\n,{0.13822895138139477,0.0,0.0,0.0}}\n\nCorrelatedRandomVectorGenerator.getRank() = 4\n\nClearly, the rank of each of these matrices should be 4. The first matrix does not lead to incorrect results, but the second one does. Unfortunately, I don't know enough about the Cholesky decomposition to find the flaw in the implementation, and I could not find documentation for the \"rectangular\" variant (also not at the links provided in the javadoc)."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report describes incorrect sampling results and silent failure with zero rows in the covariance matrix."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "It identifies CorrelatedRandomVectorGenerator and RectangularCholeskyDecomposition as the affected components."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It includes computed covariances, root matrices, and rank outputs from the generator."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The matrices, observed ranks, and comparison across three cases provide enough context to start investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The likely affected subsystem is the rectangular Cholesky decomposition used by the random vector generator."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The problem is clearly identified as incorrect handling of covariance matrices with zero rows."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It follows a logical structure: matrices, observed covariances, then traced decomposition behavior."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References to matrices, generator methods, and decomposition are specific and mostly unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terms like covariance, rank, and Cholesky decomposition are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "It specifies the triggering condition: covariance matrices containing a zero row."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No explicit step-by-step reproduction procedure is given."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environment, version, or platform information is included."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "It reports concrete failures in rank and root matrix output, though no exception message."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The report distinguishes this from a generic failure by showing permutation-dependent behavior and incorrect rank values."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Expected behavior is implied by the stated correct rank, but not explicitly framed as expected output."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicitly shown via differing root matrices and ranks."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy is clear: rank should be 4, but the generator returns 5, 3, and 4."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "The report gives data and outcomes but not a complete reproduction procedure."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "No required environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "It explicitly proposes RectangularCholeskyDecomposition as the source of the issue."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The proposed cause is linked to the observed incorrect ranks and root matrices."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The differing decomposition results across permutations are presented as evidence."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The explanation is coherent: a decomposition bug causes silent incorrect sampling."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "It references technical artifacts such as getRootMatrix(), getRank(), and the decomposition class."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "CorrelatedRandomVectorGenerator and RectangularCholeskyDecomposition are named."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The affected module is identifiable as the correlated random vector generation/decomposition path."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report includes matrices, root matrices, and rank outputs."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No external dependencies or integrations are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Some references are vague, such as 'the second matrix' and 'silently' without a concrete error."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Inputs are partially described but not as a full reproduction recipe."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Expected behavior is implied rather than explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Environment and version information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior is specific enough to target the decomposition handling of zero rows."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "RectangularCholeskyDecomposition is the identifiable code location likely needing a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report states the rank should be 4, giving a concrete correctness target."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "It documents the edge case of zero rows and permutation sensitivity."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would likely need more investigation into the implementation details to fix it."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "A potential root cause is explicitly proposed: the RectangularCholeskyDecomposition mishandles the second matrix."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report references the decomposition operation and its rank/root-matrix logic."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "It connects the decomposition behavior directly to the incorrect sampling results and wrong rank."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The narrative implies reproduction by passing the listed covariance matrices to CorrelatedRandomVectorGenerator."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is the correlated random vector generation / covariance decomposition subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The symptom appears in CorrelatedRandomVectorGenerator, while the suspected defect is in RectangularCholeskyDecomposition."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Only one main subsystem is implicated; no multiple endpoints or cross-cutting areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report clearly describes observable faulty behavior: different sample covariances produced for permutations of the same covariance matrix."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected components are explicitly identified: CorrelatedRandomVectorGenerator and RectangularCholeskyDecomposition."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report includes actual matrix inputs, root matrix outputs, rank values, and sample covariance results from R, providing substantial debugging information."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Three concrete matrix examples with expected vs. observed outputs and traced root matrices provide sufficient context to begin investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The report explicitly identifies RectangularCholeskyDecomposition as the likely faulty subsystem."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report is written in coherent English with clear technical descriptions, though the matrix formatting is somewhat dense."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The problem is clearly stated: zero rows in a covariance matrix cause incorrect results in CorrelatedRandomVectorGenerator."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report follows a logical order: problem statement, examples, traced root cause, and acknowledgment of limitation."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References to classes (CorrelatedRandomVectorGenerator, RectangularCholeskyDecomposition, Array2DRowRealMatrix) are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Technical terms like rank, Cholesky decomposition, covariance matrix, and root matrix are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific input matrices with zero rows are provided, clearly identifying the triggering condition."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The matrices and the use of CorrelatedRandomVectorGenerator are described concretely enough to reproduce, though explicit step-by-step code is not provided."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information for Apache Commons Math or Java environment is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific incorrect root matrices, incorrect rank values, and incorrect sample covariances are reported."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The report distinguishes the issue specifically to zero rows in the covariance matrix and their position (first vs. middle row), not a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is implied: all three permutations should produce rank 4 and equivalent sample covariances; the third matrix (no zero row) is shown as the correct reference."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed incorrect root matrices, ranks, and sample covariances are explicitly provided for each input."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The discrepancy is clear: the second matrix yields rank 3 and wrong covariances, while it should yield rank 4 like the others."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The input matrices are fully specified; a developer can construct the same inputs and run CorrelatedRandomVectorGenerator to reproduce."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific library version, Java version, or other environmental dependencies are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The reporter explicitly traces the issue to RectangularCholeskyDecomposition not handling zero rows correctly."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The incorrect root matrix and wrong rank from RectangularCholeskyDecomposition are linked to the incorrect sample covariances."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The root matrices and rank values from getRootMatrix()/getRank() are provided as evidence supporting the proposed explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The reasoning is coherent: permutations of the same matrix should yield the same rank; the decomposition fails for the middle-zero-row case."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report references specific methods (getRootMatrix(), getRank()) and class (RectangularCholeskyDecomposition) with actual output values."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Classes CorrelatedRandomVectorGenerator, RectangularCholeskyDecomposition, Array2DRowRealMatrix, and methods getRootMatrix(), getRank() are explicitly mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The affected subsystem is clearly the random vector generation and Cholesky decomposition modules of Apache Commons Math."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Actual matrix outputs from getRootMatrix() and rank values are included as technical artifacts."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "R is referenced as an external tool used to validate expected covariance results."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, Java version, or library version information is provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "References to components and behaviors are specific and well-defined; no vague references detected."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Input matrices are fully specified with exact values."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior (rank 4, correct covariances matching the 4x4 reference) is clearly implied and partially stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Library version and environment details are missing, which is relevant for reproducing the issue."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior (incorrect Cholesky decomposition for matrices with zero rows not in the first position) is described precisely enough to guide a fix."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "RectangularCholeskyDecomposition is identified as the component requiring a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The expected correct behavior is stated: rank should be 4 and results should be equivalent to the 4x4 matrix case."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The edge case of zero rows at different positions (first vs. middle) is documented as a relevant condition."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "While the report is detailed, the reporter admits not knowing enough about the rectangular Cholesky variant to pinpoint the exact flaw, so further investigation of the algorithm is needed."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The root cause is explicitly proposed: RectangularCholeskyDecomposition does not handle zero rows correctly when they appear in non-first positions."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The specific class RectangularCholeskyDecomposition and its output (root matrix, rank) are referenced as the source of the error."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The causal chain is articulated: incorrect decomposition \u2192 wrong rank (3 instead of 4) \u2192 incorrect random vector generation \u2192 wrong sample covariances."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "From the narrative, one can infer: construct the three matrices, pass each to CorrelatedRandomVectorGenerator, call getRootMatrix() and getRank(), and compare sample covariances."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "RectangularCholeskyDecomposition and CorrelatedRandomVectorGenerator are clearly identified as the affected components."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The symptom (wrong sample covariances) manifests in CorrelatedRandomVectorGenerator, while the defect resides in RectangularCholeskyDecomposition."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Only one primary defect location (RectangularCholeskyDecomposition) is identified; no multiple cross-cutting areas are described."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "S2": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "R4": {
+        "agreement": false,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.1100000000000001,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.93
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.88
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.88
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.93
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.851063829787234,
+  "cohens_kappa": 0.5385694249649369,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.95 > 0.86)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "M2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Selected judge2 (higher confidence: 0.95 > 0.86)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.78)"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 2
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 2
+    },
+    "zscore": {
+      "Actionability": 1.1430011430017144,
+      "Clarity": 1.1430011430017144,
+      "Specificity": 0.44450044450066667,
+      "Reproducibility": 0.44450044450066667,
+      "ReasoningQuality": 1.1430011430017144,
+      "TechnicalContext": 0.44450044450066667,
+      "Ambiguity": -0.2540002540003811,
+      "RepairReadiness": -1.6510016510024768,
+      "RootCauseEvidence": -0.2540002540003811,
+      "HiddenReproducibility": -1.6510016510024768,
+      "ImpactScope": -0.9525009525014289
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

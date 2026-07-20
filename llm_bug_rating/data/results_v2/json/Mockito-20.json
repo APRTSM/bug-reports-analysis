@@ -1,0 +1,1462 @@
+{
+  "bug": {
+    "bug_id": "Mockito-20",
+    "project": "Mockito",
+    "summary": "No title",
+    "description": "I posted this in GoogleCode and was asked to submit in github.\n\nMockito is easy to use when the test needs to provide canned values for a certain method.\n\nBut it gets harder when a canned value isn't sufficient.\n\nExample 1: Fake with trivial Logic\n\ninterface UserAccount {\nList<String> getEmails();\nvoid addEmail(String email);\n// 12 other methods ...\n}\n\nWhen mocking such domain entity object, it's tedious to manually program getEmails()/addEmail() with when().thenReturn() and to make sure the two methods are logically consistent, that is, getEmails() returns all emails added.\n\nExample 2: callback-style API\n\ninterface AccountService {\nvoid getAccount(String id, AsyncCallback<UserAccount> callback);\n}\n\nStubbing AccountService isn't easy. It'd require use of Answer, and the Answer API isn't statically type safe:\n\nwhen(service.getAccount(eq(id), any(AsyncCallback.class)).thenAnswer(new Answer<Void>() {\nAsyncCallback<UserAccount> callback = (AsyncCallback<UserAccount>) getArguments()[1];\n...\n});\n\nExample 3: Uninteresting parameters\n\ninterface AccountRpcService {\nFutureAccount getAccount(RpcContext context, String id);\n}\n\nNone of the tests care about the context object. It's an uninteresting parameter imposed by the framework.\n\nIf AccountRpcService were directly mocked, all tests would have to use isA() to repetitively mention this uninteresting parameter, like this:\n\nwhen(service.getAccount(isA(RpcContext.class), eq(\"id\")).thenReturn(...);\n\nAnd all other parameters are required to be wrapped in eq().\n\nProposal\n\nI propose adding support for abstract classes to mockito to make it easier to deal with tests like above:\n\nFor example 1\n\nabstract class FakeUserAccount implements UserAccount {\nprivate final List<String> emails = new ArrayList<>();\n\n@Override public void addEmail(String email) {\nemails.add(email);\n}\n@Override List<String> getEmails() {\nreturn ImmutableList.copyOf(emails);\n}\n}\n\n@Fake private FakeUserAccount userAccount; // Mockito instantiates abstract class.\n\nFor example 2\n\nabstract class MockAccountService implements AccountService {\n@Override public void getAccount(String id, AsyncCallback<UserAccount> callback) {\ncallback.onSuccess(getAccount(id));\n}\nabstract UserAccount getAccount(String id);\n}\n\n@Fake private MockAccountService service;\n\n...\n\nwhen(service.getAccount(\"id\")).thenReturn(account);\n\nFor example 3\n\nabstract class MockAccountRpcService implements AccountRpcService {\n@Override Future<Account> getAccount(RpcContext context, String id) {\ncheckNotNull(context); // Common sanity test. Don't have to repeat it in tests.\nreturn getAccount(id);\n}\n\nabstract Future<Account> getAccount(String id);\n}\n\n@Fake private MockAccountRpcService service;\n\nwhen(service.getAccount(\"id\")).thenReturn(...);\n\nMy work place internally implemented a default Answer to support abstract classes. We found that the support of abstract classes helps us to avoid overusing mocks when we should be using fakes. And in situations like above we get cleaner test code.\n\nBut because it's not integrated in the core Mockito, there are gotchas with our implementation (like, you can't have private/final methods in your fake).\n\nIf the idea sounds okay to give a try, I'll volunteer to submit a patch.\n\nThanks!"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Describes observable test-stubbing pain and inconsistent behavior for abstract-class fakes with concrete examples."
+      },
+      "A2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No specific Mockito class, method, or code path is identified; only the general feature request is described."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No stack trace, error message, logs, or code snippet showing a fault location is provided."
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The report is a feature proposal, not a reproducible bug report with concrete failure steps."
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "It does not pinpoint a module or component in Mockito where a developer should start reading code."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The examples explain the intended use cases clearly enough for a developer to understand the scenario."
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "It proposes behavior but not a concrete failing test case for an existing bug."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "The scenarios are described consistently, though as examples for a proposal rather than a bug sequence."
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "Referenced entities are generic interfaces and proposed fake classes, not precise codebase locations."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Terminology like mock, fake, Answer, and callback is used consistently and correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Concrete inputs and conditions are given through three interface examples and abstract fake patterns."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No ordered reproduction steps are provided."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No environment, version, OS, or framework version information is included."
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No verbatim failure output or exception is reported."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "The proposal is specific to abstract-class support in Mockito and distinguishes it from ordinary mocking."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "Expected behavior is implied: Mockito should support abstract classes as fakes with concrete method implementations."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.69,
+        "reason": "Observed behavior is described as current Mockito making these cases hard and requiring Answer/isA/eq boilerplate."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "The discrepancy is a feature gap, but not an unambiguous bug manifestation from a specific run."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Reproduction steps are not complete; only illustrative examples are given."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or dependency setup details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "A specific explanation is proposed: add support for abstract classes to Mockito."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.79,
+        "reason": "The report links the explanation to symptoms like boilerplate, type-unsafe Answer usage, and uninteresting parameters."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No concrete evidence such as traces or code references is provided to support the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The proposal is internally consistent and does not contradict itself."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "It references APIs like Answer and eq/isA, but not exact log lines or code locations."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Interfaces and APIs such as UserAccount, AccountService, AccountRpcService, Answer, eq, and isA are named."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Mockito is the identifiable subsystem/module under discussion."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.66,
+        "reason": "Code snippets are included and directly relevant, though no traces or logs are present."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No external dependency versions or named integrations are provided."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No OS, browser, runtime, or framework version details are included."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The report is vague about the exact Mockito internals or implementation point."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Inputs and conditions are illustrative but not sufficient for direct reproduction."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Expected behavior is implied rather than stated as a precise correctness criterion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "No environment or version information is given."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The report is consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "It describes the desired behavior clearly enough to infer the intended fix direction."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No specific component, class, method, or code location is identified."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "The acceptance criterion is concrete: abstract classes should be mockable/fakeable in the shown patterns."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.68,
+        "reason": "It mentions constraints like private/final methods being problematic in the internal implementation."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "A developer would still need further investigation to implement the feature in Mockito."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.81,
+        "reason": "The proposed root cause is explicit: Mockito lacks core support for abstract classes."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.74,
+        "reason": "It references concrete constructs such as abstract classes, default Answer, private/final methods, and Answer API usage."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "The report explains how the lack of abstract-class support leads to boilerplate and type-unsafe stubbing."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.73,
+        "reason": "The three examples define concrete scenarios from which reproduction steps could be derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Mockito's mocking/faking behavior for abstract classes is the identifiable affected concept."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.67,
+        "reason": "The symptom is test boilerplate, while the underlying defect is lack of abstract-class support."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.71,
+        "reason": "Multiple areas are discussed: abstract classes, Answer, callback-style APIs, and parameter matchers."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.77,
+        "reason": "At least three technical concepts are named: abstract classes, Answer, and matchers like eq/isA."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report describes concrete pain points with mocking: tedious manual stubbing, type-unsafe Answer API, and repetitive parameter matching. Examples illustrate observable difficulties."
+      },
+      "A2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Report proposes a feature (abstract class support) rather than identifying a specific faulty class/method. No existing code path is pinpointed as broken."
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No stack traces, error messages, or logs provided. Report contains only code examples showing desired usage, not failure artifacts."
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Report is a feature request, not a bug report. A developer cannot immediately reproduce a failure; they would need to understand the proposal and implement it."
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No specific module or class in Mockito is identified as needing investigation. The report proposes new functionality rather than locating an existing defect."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Three concrete examples clearly illustrate the pain points: manual consistency maintenance, type-unsafe Answer API, and repetitive parameter matching."
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Report proposes a feature, not a failing test case. A developer could not write a test demonstrating a bug without first implementing the proposed feature."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Each example presents a clear sequence: problem scenario \u2192 current workaround \u2192 proposed solution. No ambiguity in the failure scenarios described."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "All referenced entities are named precisely: UserAccount, AccountService, AsyncCallback, RpcContext, FakeUserAccount, etc. A developer could locate these in code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Technical terminology is used accurately: mocking, stubbing, Answer API, abstract classes, type safety. No misleading language."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Examples provide concrete inputs and conditions: specific method signatures, parameter types, and usage patterns that could be used in test cases."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Report proposes a feature, not reproduction steps. It describes desired usage patterns, not steps to reproduce an existing bug."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No version information, environment details, or Mockito version specified. Report does not indicate when this issue was encountered."
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No specific error messages, exceptions, or failure outputs reported. Examples show desired behavior, not actual failure modes."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The three distinct scenarios (fake with logic, callback API, uninteresting parameters) uniquely characterize the feature request and distinguish it from general mocking improvements."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Expected behavior is explicitly stated: abstract classes should be instantiable by Mockito with @Fake annotation, enabling cleaner test code."
+      },
+      "R2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No observed failure behavior is reported. This is a feature request, not a bug report with observable incorrect behavior."
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No discrepancy between expected and observed behavior is described. Report proposes new functionality, not a deviation from current behavior."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No reproduction steps provided. Report describes desired usage patterns, not steps to reproduce a bug."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environmental conditions or dependencies documented. No version information, OS, or Mockito version specified."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Report proposes a specific solution: Mockito should support abstract classes via @Fake annotation to reduce boilerplate and improve type safety."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Proposal is linked to symptoms: abstract class support would eliminate manual stubbing consistency checks, type-unsafe Answer casts, and repetitive parameter matching."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report provides code examples demonstrating the problem (current workarounds) and proposed solution (abstract class usage with @Fake)."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Explanation is internally coherent: three distinct use cases all benefit from abstract class support; no contradictions present."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "References specific technical artifacts: Answer API, when().thenReturn(), isA(), eq(), AsyncCallback, RpcContext, and @Fake annotation."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specific classes and methods named: UserAccount, AccountService, AsyncCallback, RpcContext, FakeUserAccount, MockAccountService, etc."
+      },
+      "T2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific Mockito subsystem or module identified. Report does not reference where in Mockito codebase the feature should be implemented."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Code snippets provided showing current workarounds and proposed abstract class implementations. Directly relevant to understanding the proposal."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependencies or library versions mentioned. Report does not reference specific versions of frameworks or libraries involved."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environment details provided: no OS, Mockito version, Java version, or other runtime information specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "All references are concrete and specific: interface names, method signatures, and annotation usage are unambiguous."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Inputs and conditions are clearly described in code examples. No vague parameter descriptions."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Expected behavior is clearly stated: abstract classes should be instantiable with @Fake, enabling cleaner test code with less boilerplate."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Mockito version, Java version, and other environment details are missing. This information would affect implementation feasibility."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory statements present. Report is internally consistent throughout."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Correct behavior is clear: Mockito should instantiate abstract classes and inject them with @Fake. Code examples show desired behavior."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific Mockito component identified as needing modification. Report does not pinpoint which classes/methods in Mockito require changes."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Expected behavior is concrete: @Fake annotation should instantiate abstract classes, allowing method overrides and cleaner test code."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Constraints mentioned: internal implementation had gotchas with private/final methods. Edge cases around method visibility are documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "A developer would need to investigate Mockito's annotation processing and mock instantiation mechanisms. Report does not provide enough detail about implementation approach."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "This is a feature request, not a bug report. No root cause of a defect is proposed; instead, a missing feature is proposed."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No root cause is identified because this is not a bug report. The report proposes new functionality rather than explaining a failure."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No causal chain from root cause to failure is articulated. Report describes desired functionality, not a failure mechanism."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Report is a feature proposal, not a bug description. Complete reproduction steps cannot be derived because no failure scenario is described."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Affected subsystem is identifiable: Mockito's annotation processing and mock instantiation mechanisms would need modification."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Report does not distinguish between symptom manifestation and underlying defect because it is a feature request, not a bug report."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Multiple impacted areas identified: annotation processing (@Fake), mock instantiation, Answer API type safety, and parameter matching logic."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple technical concepts named: abstract classes, @Fake annotation, Answer API, when().thenReturn(), isA(), eq(), AsyncCallback, RpcContext."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.1499999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.8
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.8
+      },
+      "C4": {
+        "agreement": false,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.85
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.85
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.8
+      },
+      "R2": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.69,
+        "judge2_confidence": 0.85
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.83,
+        "judge2_confidence": 0.75
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.79,
+        "judge2_confidence": 0.75
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.75
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "T2": {
+        "agreement": false,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.66,
+        "judge2_confidence": 0.8
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.8
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.7
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.75
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.68,
+        "judge2_confidence": 0.7
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.81,
+        "judge2_confidence": 0.85
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.9
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": false,
+        "confidence_diff": 0.17000000000000004,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.73,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "I2": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.67,
+        "judge2_confidence": 0.8
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.71,
+        "judge2_confidence": 0.7
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.77,
+        "judge2_confidence": 0.8
+      }
+    }
+  },
+  "percent_agreement": 0.7291666666666666,
+  "cohens_kappa": 0.46757679180887357,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.91 > 0.85)"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.69)"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.86 > 0.75)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.72)"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "RC2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "RC3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.73)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.67)"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "Selected judge1 (higher confidence: 0.91 > 0.85)"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.69)"
+      },
+      "R3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.83,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.79,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Selected judge1 (higher confidence: 0.86 > 0.75)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.72)"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.73)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.67)"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.71,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 1,
+      "Clarity": 3,
+      "Specificity": 2,
+      "Reproducibility": 1,
+      "ReasoningQuality": 3,
+      "TechnicalContext": 2,
+      "Ambiguity": 4,
+      "RepairReadiness": 3,
+      "RootCauseEvidence": 1,
+      "HiddenReproducibility": 0,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 2,
+      "ambiguity_count": 4,
+      "hidden_s2r_present": false,
+      "root_cause_evidence": 1,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": -0.7954951288348658,
+      "Clarity": 1.1490485194281397,
+      "Specificity": 0.17677669529663692,
+      "Reproducibility": -0.7954951288348658,
+      "ReasoningQuality": 1.1490485194281397,
+      "TechnicalContext": 0.17677669529663692,
+      "Ambiguity": -0.7954951288348658,
+      "RepairReadiness": 1.1490485194281397,
+      "RootCauseEvidence": -0.7954951288348658,
+      "HiddenReproducibility": -1.7677669529663687,
+      "ImpactScope": 1.1490485194281397
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

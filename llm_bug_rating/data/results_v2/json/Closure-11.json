@@ -1,0 +1,1461 @@
+{
+  "bug": {
+    "bug_id": "Closure-11",
+    "project": "Closure",
+    "summary": "Record type invalid property not reported on function with @this annotation",
+    "description": "Code:\r\n\r\nvar makeClass = function(protoMethods) {\r\n  var clazz = function() {\r\n    this.initialize.apply(this, arguments);\r\n  }\r\n  for (var i in protoMethods) {\r\n    clazz.prototype[i] = protoMethods[i];\r\n  }\r\n\r\n  return clazz;\r\n}\r\n\r\n/**\r\n * @constructor\r\n * @param {{name: string, height: number}} options\r\n */\r\nvar Person = function(options){};\r\nPerson = makeClass(/** @lends Person.prototype */ {\r\n  /**\r\n   * @this {Person}\r\n   * @param {{name: string, height: number}} options\r\n   */\r\n  initialize: function(options) {\r\n    /** @type {string} */ this.name_ = options.thisPropDoesNotExist;\r\n  },\r\n\r\n  /**\r\n   * @param {string} message\r\n   * @this {Person}\r\n   */\r\n  say: function(message) {\r\n    window.console.log(this.name_ + ' says: ' + message);\r\n  }\r\n});\r\n\r\n\r\nvar joe = new Person({name: 'joe', height: 300});\r\njoe.say('hi');\r\n\r\n\r\ncompiled with:\r\njava -jar build/compiler.jar --formatting=PRETTY_PRINT --jscomp_error=checkTypes --jscomp_error=externsValidation --compilation_level=SIMPLE_OPTIMIZATIONS repro.js\r\n\r\n\r\nI would expect an error on this line:\r\n    /** @type {string} */ this.name_ = options.thisPropDoesNotExist;\r\n\r\nwhich works in other contexts.\r\n\r\nThanks!"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Describes a specific faulty behavior: a missing invalid-property error on a concrete line."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Identifies the relevant code path via the @this-annotated initialize method and the property access options.thisPropDoesNotExist."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes the exact code line and compiler invocation, which directly implicate the failure location."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Provides a self-contained repro snippet and compile command sufficient to investigate."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Points developers to the Person/initialize method and the property access inside it."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A developer can understand the failure scenario from the snippet and description without guessing."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The expected error on the invalid property access is concrete enough to form a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The sequence is clear: define Person, compile with checkTypes, expect an error on the assignment."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Referenced entities like Person, initialize, say, and options are named precisely in code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Terminology is consistent: invalid property, @this annotation, checkTypes, and type error."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The triggering input is concrete: options.thisPropDoesNotExist in initialize."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report gives ordered steps implicitly through the code and compile command."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No OS, browser, or runtime version is provided beyond the compiler command."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The failure mode is explicit: an error should be reported on the assignment line but is not."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The combination of @this on methods inside makeClass and the missing invalid-property report is specific."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: an error should be reported on the invalid property access."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Observed behavior is clear: no error is reported in this context."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The discrepancy is unambiguous: expected type error versus actual silence."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The snippet plus compiler flags are enough to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No environment or dependency details beyond the compiler invocation are given."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "The report does not explicitly propose a root cause, only the missing error symptom."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No causal explanation is provided linking a specific cause to the symptom."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "There is no evidence section or trace supporting a proposed explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The report is internally consistent and does not contradict itself."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "It references concrete artifacts like the assignment line and compiler flags, though not a root-cause artifact."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Names concrete code elements such as Person, initialize, say, and makeClass."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The affected area is identifiable as the compiler's type-checking path for @this-annotated methods."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes relevant code and the compiler command as technical artifacts."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No external dependency or library version is mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No OS, browser, framework, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The exact compiler internals affected are not specified, so a developer must infer the location."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and triggering code are concrete enough to attempt reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clear: report an error on the invalid property access."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Version/environment information that could affect reproduction is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "The report is consistent and contains no contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The correct behavior is clear enough to define the fix: flag the invalid property access."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The likely fix area is identifiable as the compiler's handling of @this in methods."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Acceptance criterion is explicit: an error should appear on the specified line."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No edge cases or constraints beyond the shown example are documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "A plausible fix can be inferred, but the report lacks enough detail to implement it without further investigation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No specific code construct is named as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No causal chain is articulated."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "The snippet and compile command define a concrete scenario from which full repro steps can be derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "The affected concept is the compiler's type checking of @this-annotated prototype methods."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "The symptom is missing error reporting, while the likely defect is in type inference/checking for the method."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Only one main affected path is described; multiple impacted areas are not identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Relevant concepts include @this, checkTypes, Person.prototype, and the invalid property access."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: type checker fails to report an error when accessing a non-existent property on a record type."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Identifies specific annotation context: @this annotation on function within @lends block; the initialize method is specifically named."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Includes complete code snippet showing the problematic line and compilation command with specific flags (--jscomp_error=checkTypes)."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer can immediately reproduce by compiling the provided code with the stated compiler flags and observing the missing error."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies the initialize method and the @this annotation as the specific context where the bug manifests; points to type checking logic for record types."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Failure scenario is clear: accessing undefined property on a record-typed object should error but does not when @this annotation is used."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer could write a test case: compile code with checkTypes enabled and verify that accessing options.thisPropDoesNotExist produces an error."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Sequence is unambiguous: Person constructor calls initialize, which accesses non-existent property on options parameter typed as {name: string, height: number}."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "All entities are precisely identified: Person class, initialize method, @this annotation, @lends block, and the specific property access."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is accurate: record type, @this annotation, @lends, type checking are used correctly and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific input provided: options parameter with concrete record type {name: string, height: number}; specific property access: options.thisPropDoesNotExist."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Complete ordered steps: save code to file, compile with specified jar and flags, observe missing error on the identified line."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Compiler version is specified via build artifact (build/compiler.jar) and specific compilation flags are provided; OS/environment not specified but not critical for this bug."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected failure is explicit: error should be reported on the line accessing thisPropDoesNotExist; observed behavior is that no error is reported."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report uniquely identifies the issue: combination of @this annotation, @lends block, and record type property validation is specific and distinguishes from general type checking bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior is explicit: type checker should report an error when accessing undefined property on a record-typed parameter."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is explicit: no error is reported on the line accessing options.thisPropDoesNotExist despite checkTypes flag."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Discrepancy is unambiguous: error should be reported but is not; report explicitly states 'I would expect an error on this line'."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Reproduction steps are complete: compile provided code with specified flags and observe the missing error."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Compiler jar path is specified; compilation flags are explicit; Java runtime is implied but not detailed; sufficient for reproduction."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report implicitly proposes that @this annotation context causes the type checker to skip record type validation, though not explicitly stated as root cause."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Proposed explanation (implicit): @this annotation affects type checking behavior; linked to symptom by noting error works 'in other contexts' but not with @this."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Report provides code evidence but does not include compiler output, stack traces, or internal type checking logs that would directly support the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Explanation is internally coherent: @this annotation in initialize method context is the distinguishing factor from 'other contexts' where the error is reported."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References specific artifacts: @this annotation, @lends block, initialize method, options parameter, and the exact property access line."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific names provided: Person class, initialize method, say method, @this annotation, @lends annotation, @type annotation."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Affected subsystem is identifiable: type checking logic for record types within @lends/@this annotation context."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Complete code snippet is included showing the problematic pattern; compilation command with specific flags is provided."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Compiler is identified as build/compiler.jar; no external dependencies are relevant to this bug."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "OS, Java version, and runtime environment are not specified; only compiler jar path and flags are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No vague references; all entities (Person, initialize, @this, @lends, options parameter) are clearly identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Inputs and conditions are fully specified: record type structure, property access, annotation context."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior is clear: type checker should report error on undefined property access, as it does in other contexts."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Java version and OS are not specified; compiler version is implied but not explicitly stated; these could affect reproducibility."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No contradictions; report is internally consistent about expected vs. observed behavior."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Correct behavior is clear: type checker should validate record type properties in @this annotation context as it does elsewhere."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Likely location is identifiable: type checking logic that handles @this annotations and record type validation; initialize method context."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Acceptance criterion is concrete: compiling the provided code with checkTypes flag should report an error on the thisPropDoesNotExist access."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Relevant constraints are implicit: must handle @this annotation, @lends block, and record type validation together; edge case of method within @lends block."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Developer could likely implement a fix by ensuring record type validation applies to @this-annotated methods in @lends blocks, though some investigation may be needed."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report implicitly proposes that @this annotation context is the root cause, though not explicitly stated as 'root cause'."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References specific constructs: @this annotation, @lends block, initialize method, and record type parameter."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Causal chain is suggested: @this annotation context \u2192 type checker skips record validation \u2192 no error reported; but not fully articulated."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Concrete scenario is fully specified: save code, compile with stated flags, observe missing error; steps are completely determinable from the report."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Affected subsystem is identifiable: type checking logic for record types, specifically in @this annotation context."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Distinguishes symptom (missing error message) from likely defect location (type validation logic for @this-annotated methods)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple concerns identified: @this annotation handling, @lends block processing, record type validation, method context."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Names four distinct technical concepts: @this annotation, @lends block, record type, initialize method; also references type checking and property validation."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.93
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.88
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "S3": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.88
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.93
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.92
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.75
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.75,
+        "judge2_confidence": 0.88
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.88
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.26,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.7
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.8
+      },
+      "RC2": {
+        "agreement": false,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.75
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.92
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.88
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.88
+      }
+    }
+  },
+  "percent_agreement": 0.75,
+  "cohens_kappa": 0.33333333333333354,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.85)"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.97 > 0.8)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.99 > 0.85)"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.8)"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.85)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "P5": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.99 > 0.8)"
+      },
+      "RC2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.85)"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.98 > 0.75)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.85)"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Selected judge1 (higher confidence: 0.97 > 0.8)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "Selected judge1 (higher confidence: 0.99 > 0.85)"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.8)"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.85)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "Selected judge1 (higher confidence: 0.99 > 0.8)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.85)"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Selected judge1 (higher confidence: 0.98 > 0.75)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.8)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 2,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 1.1909826683508273,
+      "Clarity": 1.1909826683508273,
+      "Specificity": 0.5359422007578724,
+      "Reproducibility": 0.5359422007578724,
+      "ReasoningQuality": -0.7741387344280377,
+      "TechnicalContext": -0.11909826683508262,
+      "Ambiguity": 0.5359422007578724,
+      "RepairReadiness": 0.5359422007578724,
+      "RootCauseEvidence": -2.084219669613948,
+      "HiddenReproducibility": -1.4291792020209926,
+      "ImpactScope": -0.11909826683508262
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,1452 @@
+{
+  "bug": {
+    "bug_id": "Math-69",
+    "project": "Math",
+    "summary": "PearsonsCorrelation.getCorrelationPValues() precision limited by machine epsilon",
+    "description": "Similar to the issue described in \nMATH-201\n, using PearsonsCorrelation.getCorrelationPValues() with many treatments results in p-values that are continuous down to 2.2e-16 but that drop to 0 after that.\n\nIn \nMATH-201\n, the problem was described as such:\n\n> So in essence, the p-value returned by TTestImpl.tTest() is:\n\n> \n\n> 1.0 - (cumulativeProbability(t) - cumulativeProbabily(-t))\n\n> \n\n> For large-ish t-statistics, cumulativeProbabilty(-t) can get quite small, and cumulativeProbabilty(t) can get very close to 1.0. When \n\n> cumulativeProbability(-t) is less than the machine epsilon, we get p-values equal to zero because:\n\n> \n\n> 1.0 - 1.0 + 0.0 = 0.0\n\nThe solution in \nMATH-201\nwas to modify the p-value calculation to this:\n\n> p = 2.0 * cumulativeProbability(-t)\n\nHere, the problem is similar. From PearsonsCorrelation.getCorrelationPValues():\n\np = 2 * (1 - tDistribution.cumulativeProbability(t));\n\nDirectly calculating the p-value using identical code as PearsonsCorrelation.getCorrelationPValues(), but with the following change seems to solve the problem:\n\np = 2 * (tDistribution.cumulativeProbability(-t));"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable p-values dropping to 0 after about 2.2e-16, which is a clear faulty behavior."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specifically identifies PearsonsCorrelation.getCorrelationPValues() and the p-value formula used there."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes concrete code expressions and the exact problematic calculation: 2 * (1 - tDistribution.cumulativeProbability(t))."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides enough detail to investigate and reproduce the precision issue from the described formula and threshold."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Points directly to PearsonsCorrelation and its getCorrelationPValues() method as the starting point."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer can understand the failure scenario: p-values become zero for large treatments due to precision loss."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report states a concrete expected fix and behavior, enabling a failing test around nonzero p-values."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The sequence is clear: many treatments lead to large t, then p-values become 0 because of the formula."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Named entities are precise enough to locate code: PearsonsCorrelation, getCorrelationPValues(), tDistribution.cumulativeProbability()."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Terminology is used consistently and correctly, referencing machine epsilon and cumulative probability underflow."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Describes a concrete trigger condition: many treatments causing p-values to drop to zero."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No ordered reproduction steps are given, only a description of the formula and symptom."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environment, version, or platform information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Reports the failure mode clearly: p-values are continuous down to 2.2e-16 and then become 0."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The issue is distinguished by the specific precision cutoff and the Pearson correlation p-value formula."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: p-values should not collapse to zero when using the alternative formula."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is explicit: p-values drop to 0 after about 2.2e-16."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The discrepancy is clear from the report: current formula yields zero, proposed formula avoids it."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Reproduction steps are not fully enumerated; only the calculation context is described."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No environment or dependency setup details are included."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes a cause: the p-value formula using 1 - cumulativeProbability(t)."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Links the cause to the symptom via machine epsilon causing subtraction to round to zero."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with the cited formula and the alternative calculation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is coherent and matches the described precision-loss behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References specific technical artifacts: PearsonsCorrelation.getCorrelationPValues() and tDistribution.cumulativeProbability()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names PearsonsCorrelation.getCorrelationPValues() and tDistribution.cumulativeProbability()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected module is identifiable as the Pearson correlation implementation in the math library."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes relevant code expressions showing the failing and proposed calculations."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "No external dependency or version is named beyond the referenced math issue."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No OS, browser, runtime, or framework environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "References are specific rather than vague."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Inputs and exact reproduction conditions are not fully specified."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is reasonably inferable from the proposed fix and comparison."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report identifies the precision-loss issue and suggests the correct formula change."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The fix location is directly identifiable: PearsonsCorrelation.getCorrelationPValues()."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Acceptance criterion is concrete: p-values should not underflow to zero due to the formula."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "Edge cases and broader constraints are not documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A plausible fix can be implemented from the report by changing the p-value computation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes the root cause as the current p-value formula."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References the specific code construct 1 - tDistribution.cumulativeProbability(t)."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explains the causal chain from machine epsilon rounding to zero p-values."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "A concrete scenario is implied: large t-statistics in PearsonsCorrelation.getCorrelationPValues()."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected concept is identifiable as Pearson correlation p-value computation."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The symptom is p-values becoming zero, while the defect is in the p-value formula."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one main affected area is described, not multiple cross-cutting areas."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Mentions multiple technical concepts: PearsonsCorrelation, getCorrelationPValues, tDistribution, cumulativeProbability, machine epsilon."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: p-values drop to 0 after 2.2e-16 instead of continuing to decrease, distinguishing it from expected behavior of continuous decrease."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specifically identifies PearsonsCorrelation.getCorrelationPValues() method and the exact line of code causing the issue."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes the problematic code snippet (p = 2 * (1 - tDistribution.cumulativeProbability(t))) and the proposed fix, directly implicating the fault location."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer could immediately locate the method, understand the precision loss mechanism, and attempt the proposed fix without clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Precisely identifies PearsonsCorrelation class and getCorrelationPValues() method; developer knows exactly where to start reading code."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clear: p-values become zero due to machine epsilon limitations when calculating 1.0 - 1.0 in floating-point arithmetic."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer could write a test with many treatments that produces very small p-values and verify they drop to zero instead of continuing to decrease."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Sequence is unambiguous: large t-statistics cause cumulativeProbability(t) to approach 1.0, leading to subtraction loss and zero p-values."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "PearsonsCorrelation class and getCorrelationPValues() method are precisely named; developer can locate them directly."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terminology (machine epsilon, cumulative probability, t-distribution, p-values) is used accurately and consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Specifies 'many treatments' as the triggering condition and notes p-values continuous down to 2.2e-16 then drop to 0; could be used in test case."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No explicit step-by-step reproduction steps provided; report assumes familiarity with how to invoke getCorrelationPValues() with appropriate data."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No version information, Java version, or environment details provided; machine epsilon reference is generic."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific failure mode described: p-values drop to 0 after 2.2e-16 (machine epsilon); exact threshold is quantified."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Report uniquely identifies this as a precision loss issue in correlation p-value calculation, distinct from other statistical test issues."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Expected behavior is implicit: p-values should continue decreasing below 2.2e-16 rather than dropping to zero."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior is explicit: p-values are continuous down to 2.2e-16 then drop to 0."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Discrepancy is clear: expected continuous decrease vs. observed discontinuous drop to zero at machine epsilon."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Reproduction steps are incomplete; report does not specify exact data, number of treatments, or correlation values needed to trigger the issue."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No environmental conditions, Java version, or dependency versions documented; assumes standard floating-point behavior."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Report explicitly proposes root cause: subtraction of values very close to 1.0 causes precision loss due to machine epsilon."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Proposed explanation is directly linked to observed symptoms: 1.0 - 1.0 + 0.0 = 0.0 explains why p-values become zero."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides concrete evidence: references MATH-201 issue, shows the problematic code line, and explains the floating-point arithmetic failure."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explanation is internally coherent: machine epsilon limitation, subtraction loss, and zero p-values form a consistent causal chain."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References specific method PearsonsCorrelation.getCorrelationPValues(), exact code line, and tDistribution.cumulativeProbability() calls."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specifically names PearsonsCorrelation class, getCorrelationPValues() method, and tDistribution.cumulativeProbability() API."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Identifies PearsonsCorrelation class and its p-value calculation method; developer can locate the relevant source file."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes problematic code snippet and proposed fix; references MATH-201 for additional context and similar solution pattern."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "References t-distribution and cumulative probability functions; implies dependency on statistical distribution library."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No OS, Java version, framework version, or runtime environment details provided; assumes standard IEEE 754 floating-point."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are precise: PearsonsCorrelation, getCorrelationPValues(), tDistribution are all clearly identified."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Inputs are underspecified: 'many treatments' is vague; no concrete data, sample size, or correlation values provided."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior is clear: p-values should not drop to zero and should continue decreasing below machine epsilon."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Version and environment information missing; Java version, library version, and platform not specified."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictions detected; report is internally consistent in describing the problem and proposed solution."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Faulty behavior is precise enough to determine correct behavior: p-values should use 2 * cumulativeProbability(-t) instead of 2 * (1 - cumulativeProbability(t))."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific component identified: PearsonsCorrelation.getCorrelationPValues() method; exact line of code requiring change is clear."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected correct behavior is concrete: p-values should continue decreasing below 2.2e-16 instead of dropping to zero."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report references MATH-201 solution and notes the constraint: machine epsilon precision loss in floating-point subtraction."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer could implement the fix (change one line of code) using only the information provided; proposed solution is concrete and tested in MATH-201."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes root cause: machine epsilon limitation in floating-point subtraction when cumulativeProbability(t) approaches 1.0."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References specific code construct: p = 2 * (1 - tDistribution.cumulativeProbability(t)) and the subtraction operation causing precision loss."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Causal chain is clear: large t-statistics \u2192 cumulativeProbability(t) \u2248 1.0 \u2192 1.0 - 1.0 = 0.0 \u2192 p-value = 0."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Report describes a scenario ('many treatments') but does not provide complete, unambiguous, fully determinable reproduction steps; specific data, sample sizes, and correlation values are not given."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies PearsonsCorrelation class and getCorrelationPValues() method as the affected component."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom (p-values drop to zero) from underlying defect (floating-point precision loss in subtraction)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Report focuses on a single method; does not identify multiple impacted areas or cross-cutting concerns."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Names four distinct technical concepts: PearsonsCorrelation, getCorrelationPValues(), tDistribution, cumulativeProbability()."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.88
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.89
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.87
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.10999999999999999,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.96
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    }
+  },
+  "percent_agreement": 0.9375,
+  "cohens_kappa": 0.817258883248731,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.74)"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.78)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.74)"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 4,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 1.111873974991652,
+      "Clarity": 1.111873974991652,
+      "Specificity": -0.5188745216627707,
+      "Reproducibility": -0.5188745216627707,
+      "ReasoningQuality": 1.111873974991652,
+      "TechnicalContext": 0.2964997266644406,
+      "Ambiguity": -0.5188745216627707,
+      "RepairReadiness": 1.111873974991652,
+      "RootCauseEvidence": -0.5188745216627707,
+      "HiddenReproducibility": -2.1496230183171936,
+      "ImpactScope": -0.5188745216627707
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

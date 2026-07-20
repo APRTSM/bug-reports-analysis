@@ -1,0 +1,1456 @@
+{
+  "bug": {
+    "bug_id": "JacksonCore-26",
+    "project": "JacksonCore",
+    "summary": "No title",
+    "description": "When feeding a non-blocking parser, the input array offset leaks into the offsets reported by \ngetCurrentLocation()\nand \ngetTokenLocation()\n.\n\nFor example, feeding with an offset of 7 yields tokens whose reported locations are 7 greater than they should be. Likewise the current location reported by the parser is 7 greater than the correct location.\n\nIt's not possible for a user to work around this issue by subtracting 7 from the reported locations, because the token location may have been established by an earlier feeding with a different offset.\n\nJackson version: 2.9.8\n\nUnit test:\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ncore\n.\nJsonFactory\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ncore\n.\nJsonParser\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ncore\n.\nJsonToken\n;\n\nimport\n\ncom\n.\nfasterxml\n.\njackson\n.\ncore\n.\nasync\n.\nByteArrayFeeder\n;\n\nimport\n\norg\n.\njunit\n.\nTest\n;\n\nimport\n\nstatic\n\njava\n.\nnio\n.\ncharset\n.\nStandardCharsets\n.\nUTF_8\n;\n\nimport\n\nstatic\n\norg\n.\njunit\n.\nAssert\n.\nassertEquals\n;\n\npublic\n\nclass\n\nFeedingOffsetTest\n{\n\n@\nTest\n\npublic\n\nvoid\n\ninputOffsetShouldNotAffectLocations\n() \nthrows\n\nException\n{\n\nJsonFactory\n\njsonFactory\n= \nnew\n\nJsonFactory\n();\n\nJsonParser\n\nparser\n= \njsonFactory\n.\ncreateNonBlockingByteArrayParser\n();\n\nByteArrayFeeder\n\nfeeder\n= (\nByteArrayFeeder\n) \nparser\n.\ngetNonBlockingInputFeeder\n();\n\nbyte\n[] \ninput\n= \n\"[[[\"\n.\ngetBytes\n(\nUTF_8\n);\n\nfeeder\n.\nfeedInput\n(\ninput\n, \n2\n, \n3\n);\n\nassertEquals\n(\nJsonToken\n.\nSTART_ARRAY\n, \nparser\n.\nnextToken\n());\n\nassertEquals\n(\n1\n, \nparser\n.\ngetCurrentLocation\n().\ngetByteOffset\n()); \n// ACTUAL = 3\n\nassertEquals\n(\n1\n, \nparser\n.\ngetTokenLocation\n().\ngetByteOffset\n()); \n// ACTUAL = 3\n\nfeeder\n.\nfeedInput\n(\ninput\n, \n0\n, \n1\n);\n\nassertEquals\n(\nJsonToken\n.\nSTART_ARRAY\n, \nparser\n.\nnextToken\n());\n\nassertEquals\n(\n2\n, \nparser\n.\ngetCurrentLocation\n().\ngetByteOffset\n());\n\nassertEquals\n(\n2\n, \nparser\n.\ngetTokenLocation\n().\ngetByteOffset\n());\n}\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes observable faulty behavior: non-blocking parser reports byte offsets 7 too high."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the affected API paths: getCurrentLocation() and getTokenLocation() on a non-blocking parser."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes a concrete failing unit test and actual vs expected values (ACTUAL = 3, expected 1)."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides enough information to reproduce with JsonFactory.createNonBlockingByteArrayParser() and feedInput()."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Points to the non-blocking byte array parser / feeder path as the place to investigate."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A developer can understand the failure scenario without codebase-specific knowledge."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The unit test and expected offsets are concrete enough to form a failing test case."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The sequence of feeding offsets and resulting location checks is explicit and ordered."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Named APIs and classes are specific enough to locate the code path."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Terminology like byte offset, token location, and non-blocking parser is used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Concrete triggering inputs are given: input array '[[[' with feedInput(input, 2, 3) and feedInput(input, 0, 1)."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The report includes ordered reproduction steps in the unit test."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "Jackson version 2.9.8 is specified."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reports exact failure mode: reported byte offsets are 7 greater than expected."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The combination of non-blocking feed offsets leaking into locations uniquely identifies the issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Expected behavior is explicit: input offset should not affect reported locations."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicit: locations are 7 greater than they should be."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The discrepancy between expected 1/2 and actual 3 is directly stated."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The included test is sufficient to attempt reproduction without extra clarification."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson 2.9.8 is given, but no other environment details are needed for the repro."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The report describes symptoms and a test, but does not explicitly propose a root cause."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No causal explanation is provided linking a specific cause to the offset leak."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "There is evidence of failure, but no evidence supporting a proposed cause."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report is internally consistent and the test matches the described symptom."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "It references APIs and test code, but not a specific causal artifact or code location."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names JsonFactory, JsonParser, JsonToken, ByteArrayFeeder, getCurrentLocation(), and getTokenLocation()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is the non-blocking parser / async byte array feeder path."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes a concrete JUnit test with exact assertions and actual values."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No external dependency or integration beyond Jackson itself is relevantly named."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Jackson version 2.9.8 is provided, which is the key environment/version detail."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "References are specific, not vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Inputs and conditions are sufficiently described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "Expected behavior is clearly stated."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Version information is present; no material environment ambiguity is introduced."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Correct behavior is clear: reported locations must ignore input array offset."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The fix area is identifiable as the non-blocking parser location tracking path."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Acceptance criterion is explicit in the assertions on byte offsets."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The edge case of multiple feedInput calls with different offsets is documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A developer could implement a plausible fix from the described offset leak and test."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No explicit root cause is proposed in the report."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No specific code construct or logic error is named as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "The report does not articulate a causal chain beyond the observed offset leak."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The unit test fully determines a concrete reproduction scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The affected concept is the non-blocking parser location tracking subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Symptom is in location reporting; underlying defect is in parser/feed offset handling."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.82,
+        "reason": "Only one impacted area is clearly described."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "At least three relevant concepts are named: JsonFactory, JsonParser, ByteArrayFeeder, plus location APIs."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: offset parameter to feedInput() leaks into getCurrentLocation() and getTokenLocation() results, with concrete example (offset 7 yields 7-greater locations)."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific APIs identified: JsonParser.getCurrentLocation(), getTokenLocation(), ByteArrayFeeder.feedInput(), and the non-blocking parser implementation."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Complete unit test provided with exact assertions showing expected vs. actual values (e.g., ACTUAL = 3 when expected = 1)."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Developer can immediately run the provided unit test to reproduce; test is self-contained and executable without clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Non-blocking parser implementation and location tracking methods are specifically named; developer knows to examine ByteArrayFeeder and location offset handling."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Failure scenario is clearly described: feeding with offset parameter causes reported locations to be inflated by that offset amount."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Unit test provided is a complete failing test case; developer could write additional tests directly from the description."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Sequence is unambiguous: feedInput() with offset \u2192 nextToken() \u2192 location check. No alternative interpretations possible."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "All referenced entities are precisely identified: JsonFactory, JsonParser, ByteArrayFeeder, getCurrentLocation(), getTokenLocation()."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terminology used accurately: 'non-blocking parser', 'input array offset', 'byte offset', 'token location' are all precise and consistent."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete inputs provided: byte array '[[['  with specific offset values (2, 3) and (0, 1) in feedInput() calls."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Ordered reproduction steps are explicit in the unit test: create parser, call feedInput with offset, call nextToken(), check locations."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson version 2.9.8 is specified; UTF-8 charset is specified; sufficient to identify environment."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific failure outputs reported: expected byte offset 1 but actual is 3; expected 2 but actual is 2 (second case passes)."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Report uniquely identifies the issue: offset leakage in non-blocking parser with multiple feedInput() calls; distinguishes from general location tracking bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is explicit: getCurrentLocation() and getTokenLocation() should return byte offsets relative to the logical stream position, not the input array offset."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is explicitly stated with exact values: feeding with offset 2 yields byte offset 3 instead of 1."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected 1, got 3 (difference of 2, matching the offset parameter); expected 2, got 2 (correct)."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Reproduction steps are complete and sufficient: unit test is fully executable and self-contained."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Environment conditions documented: Jackson 2.9.8, UTF-8 charset, non-blocking byte array parser; sufficient to set up reproduction."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report implicitly proposes that the offset parameter is not being properly isolated from location calculations, though not explicitly stated as a root cause."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Proposed mechanism is linked to symptoms: offset parameter leaks into location reporting; causal chain is plausible (offset not subtracted from reported values)."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Concrete evidence provided: unit test with exact input values and assertion failures demonstrating the offset leak."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explanation is internally coherent: offset leakage consistently explains both getCurrentLocation() and getTokenLocation() failures; no contradictions."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Report does not reference specific method names, log lines, or code locations where the offset is incorrectly handled; explanation is symptom-focused rather than code-focused."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific classes and methods named: JsonFactory, JsonParser, ByteArrayFeeder, getCurrentLocation(), getTokenLocation(), feedInput(), nextToken()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Affected subsystem identifiable: non-blocking parser implementation in Jackson core; location tracking and offset handling in ByteArrayFeeder."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Complete unit test provided with exact code; test assertions show expected vs. actual values; directly relevant to failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson library version 2.9.8 specified; no external dependencies mentioned but version is sufficient for context."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "UTF-8 charset specified; Jackson version specified; OS/runtime not specified but likely not material to this bug."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No vague references; all entities (parser, feeder, methods, offsets) are precisely identified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and conditions are fully specified: byte array content, offset values, sequence of calls."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Expected behavior is clear: locations should reflect logical stream position, not input array offset."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Version and charset are specified; sufficient environment information provided."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No contradictions; report is internally consistent (offset leakage explanation matches all observations)."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Correct behavior is clear: locations must be adjusted to subtract the input offset; fix would involve modifying offset tracking in location calculations."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Non-blocking parser and ByteArrayFeeder are identified; developer would examine location offset handling in these components."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Expected behavior is concrete: getCurrentLocation().getByteOffset() should return 1 after first feedInput(offset=2), not 3."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report notes important constraint: offset may vary across multiple feedInput() calls, so workaround of subtracting fixed offset is not viable."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Developer could implement a fix by ensuring offset parameter is properly subtracted from reported locations; unit test provides acceptance criterion."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report implicitly proposes that the offset parameter is not being subtracted from location calculations, though not explicitly stated as root cause."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Report does not reference specific code constructs, method implementations, or data structures where the offset leak occurs."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Causal chain is articulated: offset parameter \u2192 not subtracted from location \u2192 reported location inflated by offset amount."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Unit test provides complete, unambiguous, and fully determinable reproduction steps; no guessing or partial implications required."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific subsystem identified: non-blocking parser implementation, ByteArrayFeeder, location offset tracking."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report distinguishes symptom (incorrect location values) from likely defect location (offset handling in location calculation logic)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple impacted areas identified: getCurrentLocation(), getTokenLocation(), and the underlying offset tracking mechanism."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report names multiple relevant concepts: JsonParser, ByteArrayFeeder, getCurrentLocation(), getTokenLocation(), feedInput(), byte offset, non-blocking parser."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.96
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.91
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 1.0,
+        "judge2_confidence": 0.9
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.89
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.96
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.96
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.87
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.85
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.92
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.96
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.82
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.8
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.7
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.82
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.96
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      }
+    }
+  },
+  "percent_agreement": 0.8541666666666666,
+  "cohens_kappa": 0.5862068965517241,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.85)"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.94 > 0.87)"
+      },
+      "Q3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.94 > 0.82)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 1.0,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.85)"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Selected judge1 (higher confidence: 0.94 > 0.87)"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Selected judge1 (higher confidence: 0.94 > 0.82)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 2,
+      "TechnicalContext": 5,
+      "Ambiguity": 0,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 0,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.656599153958937,
+      "Clarity": 0.656599153958937,
+      "Specificity": 0.656599153958937,
+      "Reproducibility": 0.656599153958937,
+      "ReasoningQuality": -1.0101525445522108,
+      "TechnicalContext": 0.656599153958937,
+      "Ambiguity": 0.656599153958937,
+      "RepairReadiness": 0.656599153958937,
+      "RootCauseEvidence": -2.121320343559643,
+      "HiddenReproducibility": -1.565736444055927,
+      "ImpactScope": 0.10101525445522098
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

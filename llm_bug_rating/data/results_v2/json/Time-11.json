@@ -1,0 +1,1451 @@
+{
+  "bug": {
+    "bug_id": "Time-11",
+    "project": "Time",
+    "summary": "No title",
+    "description": "When a DateTimeZone is build with duplicate-named 'recurring saving time' in a first thread, all goes Ok: a warning message is generated and an identifier is automatically generated in PrecalculatedZone.create(). When a second thread does the same, an NPE is generated in ZoneInfoCompiler.verbose().\n\nThe cause is that the cVerbose ThreadLocal is incorrectly initialized in ZoneInfoCompiler:\n\nstatic\n{\n\ncVerbose\n.\nset\n(\nBoolean\n.\nFALSE\n);\n}\n\n...will initialize cVerbose only for the first thread and not for the subsequent ones. The NPE is caused by the autoboxing in:\n\npublic\n\nstatic\n\nboolean\n\nverbose\n() {\n\nreturn\n\ncVerbose\n.\nget\n();\n}\n\nA better approach could be to remove the initialization and test for null:\n\npublic\n\nstatic\n\nboolean\n\nverbose\n(){\n\nBoolean\n\nverbose\n= \ncVerbose\n.\nget\n();\n\nreturn\n(\nverbose\n!= \nnull\n) ? \nverbose\n: \nfalse\n;\n}\n\nHere follows a test case:\n\n@\nTest\n\npublic\n\nvoid\n\ntestDateTimeZoneBuilder\n() \nthrows\n\nException\n{\n\ngetTestDataTimeZoneBuilder\n().\ntoDateTimeZone\n(\n\"TestDTZ1\"\n, \ntrue\n);\n\nThread\n\nt\n= \nnew\n\nThread\n(\nnew\n\nRunnable\n() {\n\n@\nOverride\n\npublic\n\nvoid\n\nrun\n() {\n\ngetTestDataTimeZoneBuilder\n().\ntoDateTimeZone\n(\n\"TestDTZ2\"\n, \ntrue\n);\n}\n});\n\nt\n.\nstart\n();\n\nt\n.\njoin\n();\n}\n\nprivate\n\nDateTimeZoneBuilder\n\ngetTestDataTimeZoneBuilder\n() {\n\nreturn\n\nnew\n\nDateTimeZoneBuilder\n()\n.\naddCutover\n(\n1601\n, \n'w'\n, \n1\n, \n1\n, \n1\n, \nfalse\n, \n7200000\n)\n.\nsetStandardOffset\n(\n3600000\n)\n.\naddRecurringSavings\n(\n\"\"\n, \n3600000\n, \n1601\n, \nInteger\n.\nMAX_VALUE\n, \n'w'\n, \n3\n, -\n1\n, \n1\n, \nfalse\n, \n7200000\n)\n.\naddRecurringSavings\n(\n\"\"\n, \n0\n, \n1601\n, \nInteger\n.\nMAX_VALUE\n, \n'w'\n, \n10\n, -\n1\n, \n1\n, \nfalse\n, \n10800000\n);\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: first thread works, second thread gets an NPE in ZoneInfoCompiler.verbose()."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies specific code paths: DateTimeZoneBuilder.toDateTimeZone(), PrecalculatedZone.create(), and ZoneInfoCompiler.verbose()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes the concrete NPE location and the relevant code snippets for cVerbose and verbose()."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides a runnable test case and explains the triggering condition with two threads."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Points to ZoneInfoCompiler as the component where investigation should start."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The failure scenario is described clearly enough for a developer unfamiliar with the codebase."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The included test case is specific enough to form a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The sequence is unambiguous: one thread succeeds, a second thread triggers the NPE."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Named entities like DateTimeZoneBuilder, PrecalculatedZone, and ZoneInfoCompiler are precise enough to locate code."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Terminology is consistent and technically accurate, describing a ThreadLocal initialization and autoboxing NPE."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Concrete triggering inputs are given in the builder setup and the two-thread scenario."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Ordered reproduction steps are effectively provided via the test case."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reports the specific failure mode: an NPE in ZoneInfoCompiler.verbose()."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The ThreadLocal initialization bug and duplicate-named recurring savings scenario are specific to this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: warning generated and identifier automatically generated."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is explicit: NPE in ZoneInfoCompiler.verbose()."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The mismatch between expected warning/ID generation and observed NPE is clear."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The provided test case is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No environment or dependency setup details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes the cause: incorrect ThreadLocal initialization of cVerbose."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Links the ThreadLocal bug to the NPE via autoboxing in verbose()."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Supports the explanation with code snippets from ZoneInfoCompiler."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is internally consistent and matches the described failure."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References specific artifacts: cVerbose, verbose(), and PrecalculatedZone.create()."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names specific classes and methods: DateTimeZoneBuilder, PrecalculatedZone.create(), ZoneInfoCompiler.verbose()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected subsystem is identifiable as the zone compilation/building code."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes relevant code snippets showing the ThreadLocal initialization and getter."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No external dependencies or versions are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The report assumes familiarity with the zone compiler flow and ThreadLocal behavior."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Inputs and triggering conditions are described concretely."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Expected behavior is stated clearly."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Describes the faulty behavior and suggests the correct null-safe ThreadLocal handling."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies ZoneInfoCompiler as the fix location."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Expected behavior is concrete: no NPE, warning and generated identifier."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The duplicate-named recurring savings and multi-thread condition are explicitly documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "A plausible fix can be implemented from the report alone using the suggested null check."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes the root cause: cVerbose ThreadLocal is incorrectly initialized."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References the specific construct Boolean.FALSE set in the static initializer and autoboxing in verbose()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explains the causal chain from first-thread-only initialization to NPE on subsequent threads."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The test case and scenario are concrete enough to derive complete reproduction steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The affected concept is identifiable as the zone compilation/building subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Distinguishes symptom location (ZoneInfoCompiler.verbose()) from likely defect location (cVerbose initialization)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Only one main impacted path is described; multiple distinct impacted areas are not clearly identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Mentions several technical concepts: DateTimeZoneBuilder, PrecalculatedZone, ZoneInfoCompiler, ThreadLocal, and autoboxing."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: NPE in second thread vs. warning in first thread when building DateTimeZone with duplicate-named recurring saving time."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes identified: ZoneInfoCompiler, PrecalculatedZone, DateTimeZoneBuilder; specific method: verbose()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report identifies the exact fault location: ThreadLocal initialization in static block and autoboxing in verbose() method; includes code snippets showing the problem."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Complete test case provided with concrete steps; developer can immediately reproduce by running the test with duplicate-named recurring savings."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Pinpoints ZoneInfoCompiler class, cVerbose ThreadLocal field, and verbose() method as the exact locations requiring investigation."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clearly explained: first thread succeeds with warning, second thread throws NPE due to ThreadLocal not being initialized for new threads."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Report includes a complete, runnable test case that directly demonstrates the failure without ambiguity."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Sequence is unambiguous: static initialization happens once, second thread accesses uninitialized ThreadLocal, autoboxing on null causes NPE."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "All entities precisely identified: ZoneInfoCompiler class, cVerbose ThreadLocal, verbose() method, PrecalculatedZone.create()."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terminology used accurately: ThreadLocal, autoboxing, NPE, static initialization block; no misleading language."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific inputs provided: duplicate-named recurring savings with empty string names, specific dates (1601, Integer.MAX_VALUE), specific offsets (3600000, 7200000, 10800000)."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Concrete reproduction steps provided: call getTestDataTimeZoneBuilder().toDateTimeZone() in main thread, then in spawned thread; join and observe NPE."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for the library, Java version, or OS; these details would help confirm environment-specific behavior."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific failure mode identified: NPE in ZoneInfoCompiler.verbose() due to null return from ThreadLocal.get() being autoboxed."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report uniquely identifies this issue: ThreadLocal initialization in static block only affecting first thread, manifesting as NPE on second thread's verbose() call."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected behavior explicitly stated: first thread should generate warning, second thread should also succeed (not throw NPE)."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Observed behavior explicitly stated: first thread succeeds with warning, second thread throws NPE in verbose()."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected is no NPE on second thread; observed is NPE on second thread."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Reproduction steps are complete and sufficient: test case provided can be run directly without additional investigation."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environmental conditions not documented: Java version, library version, OS, and threading model assumptions are not specified."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report explicitly proposes specific root cause: ThreadLocal static initialization only affects first thread, not subsequent threads."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Proposed explanation directly linked to symptoms: static block initializes cVerbose only for first thread; second thread's get() returns null; autoboxing null causes NPE."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete evidence provided: code snippets showing static initialization block and verbose() method with autoboxing."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explanation is internally coherent: ThreadLocal semantics, static initialization behavior, and autoboxing rules are correctly applied."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References specific artifacts: ZoneInfoCompiler class, cVerbose field, static block, verbose() method, Boolean.FALSE, autoboxing operation."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific classes and methods named: ZoneInfoCompiler, PrecalculatedZone, DateTimeZoneBuilder, verbose(), cVerbose, create()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Affected subsystem identifiable: ZoneInfoCompiler class and its ThreadLocal field cVerbose; PrecalculatedZone.create() also mentioned."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Code snippets included showing static initialization block and verbose() method; test case provided demonstrating the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependencies or library versions mentioned; appears to be internal code but context is not provided."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Environment details missing: Java version, OS, threading implementation, library version not specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all classes, methods, and fields are specifically named."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Inputs and conditions are fully specified in the test case; reproduction is unambiguous."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior is clear: no NPE should occur on second thread; correct behavior is to handle null ThreadLocal value gracefully."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Version and environment information is missing; this could affect reproducibility in different Java versions or threading models."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No contradictory statements; report is internally consistent in describing the ThreadLocal initialization problem."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Correct behavior is clear: verbose() should return false when ThreadLocal is uninitialized; proposed fix (null check) is concrete and achieves this."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific component identified: ZoneInfoCompiler.verbose() method and cVerbose ThreadLocal field require modification."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected correct behavior stated: verbose() should return false for uninitialized ThreadLocal instead of throwing NPE."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Edge case documented: ThreadLocal uninitialized for threads other than the first; constraint is that behavior must be consistent across threads."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Developer can implement the proposed fix directly: replace autoboxing with null check as shown in the report."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific root cause explicitly proposed: ThreadLocal static initialization only affects the first thread, not subsequent threads."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Root cause references specific code: static block with cVerbose.set(Boolean.FALSE), ThreadLocal.get() in verbose() method, autoboxing operation."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Causal chain articulated: static block runs once \u2192 cVerbose initialized only for first thread \u2192 second thread's get() returns null \u2192 autoboxing null \u2192 NPE."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete scenario provided: build DateTimeZone with duplicate-named recurring savings in first thread, then in second thread; complete and unambiguous reproduction steps are directly derivable from test case."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Specific subsystem identified: ZoneInfoCompiler class and its ThreadLocal-based verbose flag mechanism."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Report distinguishes symptom (NPE in verbose()) from root cause (ThreadLocal not initialized for second thread)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Multiple impacted areas identified: ZoneInfoCompiler, PrecalculatedZone.create(), DateTimeZoneBuilder; threading and ThreadLocal semantics are cross-cutting concerns."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report names multiple technical concepts: ZoneInfoCompiler, cVerbose ThreadLocal, verbose() method, PrecalculatedZone, DateTimeZoneBuilder, autoboxing, static initialization."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.94
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.93
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.94
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.94
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.94
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.93
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.93
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.93
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.94
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.94
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      }
+    }
+  },
+  "percent_agreement": 0.9583333333333334,
+  "cohens_kappa": 0.8500000000000001,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 2,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 2,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9912407071619301,
+      "Clarity": 0.9912407071619301,
+      "Specificity": 0.15249857033260453,
+      "Reproducibility": 0.15249857033260453,
+      "ReasoningQuality": 0.9912407071619301,
+      "TechnicalContext": -0.6862435664967211,
+      "Ambiguity": -0.6862435664967211,
+      "RepairReadiness": 0.9912407071619301,
+      "RootCauseEvidence": -0.6862435664967211,
+      "HiddenReproducibility": -2.3637278401553723,
+      "ImpactScope": 0.15249857033260453
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

@@ -1,0 +1,1450 @@
+{
+  "bug": {
+    "bug_id": "Gson-10",
+    "project": "Gson",
+    "summary": "No title",
+    "description": "ReflectiveTypeAdapterFactory\ncorrectly detects the \n@JsonAdapter\nannotation and registers the custom adapter (\nsource\n), but its \nwrite\nmethod wraps that type adapter in a \nTypeAdapterRuntimeTypeWrapper\n(\nsource\n), which overrides the adapter with the default Gson adapter (\nsource\n).\n\nHere's a test that demonstrates the behavior:\n\ndiff --git a/gson/src/test/java/com/google/gson/functional/JsonAdapterAnnotationOnFieldsTest.java b/gson/src/test/java/com/google/gson/functional/JsonAdapterAnnotationOnFieldsTest\n\nindex 4c745ec..8cae980 100644\n\n--- a/gson/src/test/java/com/google/gson/functional/JsonAdapterAnnotationOnFieldsTest.java\n\n+++ b/gson/src/test/java/com/google/gson/functional/JsonAdapterAnnotationOnFieldsTest.java\n\n@@ -220,4 +220,43 @@\npublic final class JsonAdapterAnnotationOnFieldsTest extends TestCase {\nthis.part = part;\n}\n}\n\n+\n\n+\npublic void testPrimitiveFieldAnnotationTakesPrecedenceOverDefault() {\n\n+\nGson gson = new Gson();\n\n+\nString json = gson.toJson(new GadgetWithPrimitivePart(42));\n\n+\nassertEquals(\"{\\\"part\\\":\\\"42\\\"}\", json);\n\n+\nGadgetWithPrimitivePart gadget = gson.fromJson(json, GadgetWithPrimitivePart.class);\n\n+\nassertEquals(42, gadget.part);\n\n+\n}\n\n+\n\n+\nprivate static final class GadgetWithPrimitivePart {\n\n+\n@JsonAdapter(LongToStringTypeAdapterFactory.class)\n\n+\nfinal long part;\n\n+\n\n+\nprivate GadgetWithPrimitivePart(long part) {\n\n+\nthis.part = part;\n\n+\n}\n\n+\n}\n\n+\n\n+\nprivate static final class LongToStringTypeAdapterFactory implements TypeAdapterFactory {\n\n+\nstatic final TypeAdapter<Long> ADAPTER = new TypeAdapter<Long>() {\n\n+\n@Override public void write(JsonWriter out, Long value) throws IOException {\n\n+\nout.value(value.toString());\n\n+\n}\n\n+\n@SuppressWarnings(\"unchecked\")\n\n+\n@Override public Long read(JsonReader in) throws IOException {\n\n+\nreturn in.nextLong();\n\n+\n}\n\n+\n};\n\n+\n@Override public <T> TypeAdapter<T> create(Gson gson, final TypeToken<T> type) {\n\n+\nClass<?> cls = type.getRawType();\n\n+\nif (Long.class.isAssignableFrom(cls)) {\n\n+\nreturn (TypeAdapter<T>) ADAPTER;\n\n+\n} else if (long.class.isAssignableFrom(cls)) {\n\n+\nreturn (TypeAdapter<T>) ADAPTER;\n\n+\n}\n\n+\nthrow new IllegalStateException(\"Non-long field of type \" + type\n\n+\n+ \" annotated with @JsonAdapter(LongToStringTypeAdapterFactory.class)\");\n\n+\n}\n\n+\n}\n\n}\n\nAnd here's the result of running it:\n\n[snip]\nRunning com.google.gson.functional.JsonAdapterAnnotationOnFieldsTest\nTests run: 8, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.016 sec <<< FAILURE!\n[snip]\nResults :\n\nFailed tests: testPrimitiveFieldAnnotationTakesPrecedenceOverDefault(com.google.gson.functional.JsonAdapterAnnotationOnFieldsTest): expected:<{\"part\":[\"42\"]}> but was:<{\"part\":[42]}>\n\nTests run: 990, Failures: 1, Errors: 0, Skipped: 0\n\nIs this the intended behavior? If so, \nJsonAdapter\n's documentation is a bit misleading.\n\nIf it's not, I unfortunately do not have a suggested fix. I was actually a bit surprised to see that a new \nTypeAdapterRuntimeTypeWrapper\nobject is constructed for each field that is serialized, on every serialization.\n\nIn case you would like to incorporate my test into Gson, I hereby assign copyright of that test to Google.\n\nThanks!"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: @JsonAdapter on a primitive field is ignored on write, producing 42 instead of \"42\"."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the affected code path as ReflectiveTypeAdapterFactory.write and TypeAdapterRuntimeTypeWrapper."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes a failing test and exact assertion output showing expected vs actual JSON."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides a concrete test case and failure result sufficient to reproduce or investigate."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Points to ReflectiveTypeAdapterFactory and TypeAdapterRuntimeTypeWrapper as the starting code locations."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A developer can understand that serialization of an annotated primitive field uses the default adapter instead of the custom one."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The failing test case is concrete enough to turn into a regression test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The sequence is clear: annotate primitive field, serialize, observe default adapter output."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Named entities like ReflectiveTypeAdapterFactory, TypeAdapterRuntimeTypeWrapper, and @JsonAdapter are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Terminology is used consistently: custom adapter, runtime type wrapper, default Gson adapter."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific input is given: a GadgetWithPrimitivePart(42) instance with @JsonAdapter on a long field."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "The report includes an executable test snippet that serves as reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or version details are provided beyond the test run output."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reports the exact failure: expected {\"part\":\"42\"} but was {\"part\":42}."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The combination of primitive field, @JsonAdapter, and runtime type wrapper uniquely identifies the issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Expected behavior is explicit: serialize part as a string and deserialize back to 42."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicit: JSON output is 42 instead of \"42\"."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The discrepancy between expected and observed output is directly stated."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The provided test code is sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No specific environment, OS, or library version is documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Proposes a specific cause: write() wraps the custom adapter in TypeAdapterRuntimeTypeWrapper."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Links the wrapper to the symptom by saying it overrides the adapter with the default Gson adapter."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Supports the explanation with the failing test output and code references."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The explanation is coherent and matches the observed serialization failure."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References concrete artifacts: ReflectiveTypeAdapterFactory, TypeAdapterRuntimeTypeWrapper, and @JsonAdapter."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names specific classes and methods: ReflectiveTypeAdapterFactory, write, TypeAdapterRuntimeTypeWrapper."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The Gson reflective serialization subsystem is clearly identified."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes a relevant failing test and exact assertion output."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No external dependency or version information is mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No OS, browser, framework version, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The affected behavior and code path are specific, not vague."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Inputs and conditions are concrete in the test snippet."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clearly stated by the assertion."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Version/environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report states the correct behavior: the custom adapter should be used for serialization."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Identifies the likely fix location in ReflectiveTypeAdapterFactory.write and runtime wrapper usage."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Acceptance criterion is concrete: serialize the primitive field as \"42\"."
+      },
+      "P4": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "No edge cases or constraints beyond the primitive-field scenario are documented."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "A plausible fix can be inferred from the described wrapper behavior and failing test."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes that write() wraps the adapter in TypeAdapterRuntimeTypeWrapper."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names the specific construct TypeAdapterRuntimeTypeWrapper and the write method."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explains the causal chain: wrapper overrides custom adapter, causing default serialization."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The test snippet fully determines a concrete reproduction scenario."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Affected subsystem is Gson reflective field serialization."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom in output from likely defect in ReflectiveTypeAdapterFactory.write."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Mentions multiple relevant areas: @JsonAdapter handling, ReflectiveTypeAdapterFactory, TypeAdapterRuntimeTypeWrapper, default Gson adapter."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "References at least three technical concepts: @JsonAdapter, ReflectiveTypeAdapterFactory, TypeAdapterRuntimeTypeWrapper, TypeAdapter."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report clearly describes observable faulty behavior: @JsonAdapter annotation on primitive field is ignored during serialization, producing numeric output instead of string output."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes identified: ReflectiveTypeAdapterFactory, TypeAdapterRuntimeTypeWrapper, and the @JsonAdapter annotation mechanism."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report includes a complete failing test case with concrete inputs, expected output, and actual output showing the discrepancy."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Developer can immediately run the provided test case to reproduce the issue without additional clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific components named: ReflectiveTypeAdapterFactory.write() method and TypeAdapterRuntimeTypeWrapper as the problematic code path."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Failure scenario is clear: @JsonAdapter on primitive long field should serialize as string but serializes as number instead."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Report provides complete test case that a developer could use as a failing test without asking for clarification."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Sequence is unambiguous: annotation detected \u2192 custom adapter registered \u2192 write() method wraps adapter \u2192 default adapter overrides custom adapter."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "All referenced entities are precisely identified: ReflectiveTypeAdapterFactory, TypeAdapterRuntimeTypeWrapper, @JsonAdapter annotation."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Technical terminology used accurately: TypeAdapter, TypeAdapterFactory, serialization, wrapping, overriding."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete input provided: GadgetWithPrimitivePart(42) with @JsonAdapter(LongToStringTypeAdapterFactory.class) on long field."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Complete reproduction steps provided: instantiate object, call toJson(), verify output matches expected string format."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for Gson or Java runtime environment."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Exact failure mode reported verbatim: expected {\"part\":[\"42\"]} but was {\"part\":[42]}."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Report distinguishes this from similar issues by focusing on primitive types (long vs Long) with @JsonAdapter annotation."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected behavior explicitly stated: @JsonAdapter custom adapter should serialize long as string \"42\"."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Observed behavior explicitly stated with exact output: numeric 42 instead of string \"42\"."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected string serialization vs. actual numeric serialization."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reproduction steps are complete and sufficient: create object, serialize with Gson, verify output."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific environment details provided (Java version, Gson version, OS)."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report explicitly proposes root cause: TypeAdapterRuntimeTypeWrapper in write() method overrides the custom adapter."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Proposed explanation is directly linked to symptom: wrapping causes default adapter to be used instead of custom adapter."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report references source code locations and provides test case demonstrating the issue."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Explanation is internally coherent: annotation detection works, but write() method negates it via wrapping."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "References specific technical artifacts: ReflectiveTypeAdapterFactory.write() method and TypeAdapterRuntimeTypeWrapper class."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes named: ReflectiveTypeAdapterFactory, TypeAdapterRuntimeTypeWrapper, TypeAdapter, TypeAdapterFactory, @JsonAdapter."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Affected subsystem identifiable: Gson's type adapter registration and serialization mechanism."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Complete test case provided with concrete code snippets and test output showing failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No external dependencies or library versions mentioned beyond Gson itself."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No environment details provided: Java version, OS, Gson version not specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all components are specifically named and locatable."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Inputs and conditions are fully specified in the test case."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Expected behavior is clear: custom adapter should serialize long as string."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Version information for Gson and Java runtime is missing, which could affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "No contradictory statements; report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Faulty behavior is clear: custom adapter is overridden. Correct behavior should preserve custom adapter in write() method."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Specific location identified: ReflectiveTypeAdapterFactory.write() method where TypeAdapterRuntimeTypeWrapper wraps the adapter."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior stated concretely: @JsonAdapter custom adapter should be used for serialization without being overridden."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Report mentions edge case: primitive types (long) vs. boxed types (Long) both need to respect @JsonAdapter."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Developer could likely implement a fix by preventing TypeAdapterRuntimeTypeWrapper from overriding custom adapters, though exact mechanism requires code investigation."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific root cause explicitly proposed: TypeAdapterRuntimeTypeWrapper in write() method overrides the custom adapter."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Root cause references specific code construct: TypeAdapterRuntimeTypeWrapper wrapping operation in ReflectiveTypeAdapterFactory.write()."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Causal chain articulated: annotation detected \u2192 custom adapter registered \u2192 write() wraps adapter \u2192 default adapter overrides custom."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Concrete scenario provided: field with @JsonAdapter(LongToStringTypeAdapterFactory.class) on primitive long. Complete, unambiguous reproduction steps are directly derivable from test case."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Specific subsystem identified: Gson's type adapter registration and serialization mechanism, specifically ReflectiveTypeAdapterFactory."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Report distinguishes symptom (wrong serialization output) from defect location (TypeAdapterRuntimeTypeWrapper overriding custom adapter)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple areas identified: @JsonAdapter annotation processing, TypeAdapter wrapping, primitive vs. boxed type handling."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Four or more distinct technical concepts identified: ReflectiveTypeAdapterFactory, TypeAdapterRuntimeTypeWrapper, @JsonAdapter, TypeAdapter, TypeAdapterFactory, primitive types."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.91
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.89
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.92
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.87
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.94
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.88
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.89
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.87
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.88
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.91
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.82
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.91
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.88
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": false,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.78
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.88
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.89
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.87
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.86
+      }
+    }
+  },
+  "percent_agreement": 0.9791666666666666,
+  "cohens_kappa": 0.9285714285714284,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

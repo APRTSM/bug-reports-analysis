@@ -1,0 +1,1452 @@
+{
+  "bug": {
+    "bug_id": "Mockito-5",
+    "project": "Mockito",
+    "summary": "No title",
+    "description": "If JUnit is not on the classpath and mockito is version 1.10.x (as of now 1.10.1 up to 1.10.19) and the code is using the timeout verification which is not supposed to be related to JUnit, then the JVM may fail with a \nVerifyError\nor a \nNoClassDefFoundError\n.\n\nThis issue has been reported on the \nmailing list\nand on \nStackOverflow\n\nA simple test like that with \nTestNG\n(and no JUnit in the class path of course) exposes the issue:\n\nimport org.testng.annotations.Test;\nimport java.util.Observable;\nimport static org.mockito.Mockito.*;\n\npublic class VerifyErrorOnVerificationWithTimeoutTest {\n@Test public void should_not_throw_VerifyError() {\nverify(mock(Observable.class), timeout(500)).countObservers();\n}\n}\n\nWith TestNG 5.13.1, the stack trace is :\n\njava.lang.VerifyError: (class: org/mockito/internal/verification/VerificationOverTimeImpl, method: verify signature: (Lorg/mockito/internal/verification/api/VerificationData;)V) Incompatible argument to function\nat org.mockito.verification.Timeout.<init>(Timeout.java:32)\nat org.mockito.verification.Timeout.<init>(Timeout.java:25)\nat org.mockito.Mockito.timeout(Mockito.java:2103)\nat com.example.UserServiceImplTest.test(UserServiceImplTest.java:26)\n\nTestNG includes a dependency on JUnit 3.8.1, which has the \njunit.framework.ComparisonFailure\n, but the JVM cannot perform the linking at runtime (\nVerifyError\nextends \nLinkageError\n), probably because for the JVM there's some incompatible changes in this class between version 3.x and 4.x.\n\nNote that Mockito is compiled against JUnit 4.x. This also reveal that Mockito is not anymore compatible with JUnit 3.x.\n\nWith TestNG 6.8.13, the stack trace is :\n\njava.lang.NoClassDefFoundError: junit/framework/ComparisonFailure\nat java.lang.ClassLoader.defineClass1(Native Method)\nat java.lang.ClassLoader.defineClassCond(ClassLoader.java:637)\nat java.lang.ClassLoader.defineClass(ClassLoader.java:621)\nat java.security.SecureClassLoader.defineClass(SecureClassLoader.java:141)\nat java.net.URLClassLoader.defineClass(URLClassLoader.java:283)\nat java.net.URLClassLoader.access$000(URLClassLoader.java:58)\nat java.net.URLClassLoader$1.run(URLClassLoader.java:197)\nat java.security.AccessController.doPrivileged(Native Method)\nat java.net.URLClassLoader.findClass(URLClassLoader.java:190)\nat java.lang.ClassLoader.loadClass(ClassLoader.java:306)\nat sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:301)\nat java.lang.ClassLoader.loadClass(ClassLoader.java:247)\nat org.mockito.verification.Timeout.<init>(Timeout.java:32)\nat org.mockito.verification.Timeout.<init>(Timeout.java:25)\nat org.mockito.Mockito.timeout(Mockito.java:2103)\nat com.example.UserServiceImplTest.test(UserServiceImplTest.java:26)\nCaused by: java.lang.ClassNotFoundException: junit.framework.ComparisonFailure\nat java.net.URLClassLoader$1.run(URLClassLoader.java:202)\nat java.security.AccessController.doPrivileged(Native Method)\nat java.net.URLClassLoader.findClass(URLClassLoader.java:190)\nat java.lang.ClassLoader.loadClass(ClassLoader.java:306)\nat sun.misc.Launcher$AppClassLoader.loadClass(Launcher.java:301)\nat java.lang.ClassLoader.loadClass(ClassLoader.java:247)\n... 49 more\n\nIndeed JUnit is not anymore a dependency of TestNG.\n\nIn this specific case the issue is that the \nTimeout\nclass wraps a \nVerficationOverTimeImpl\nthat uses in try/catch block the exception \norg.mockito.exceptions.verification.junit.ArgumentsAreDifferent\nwhich extends \njunit.framework.ComparisonFailure\n.\n\nAt this time it seems to be the only place where JUnit is needed, this affect the following public API :\n\nMockito\n.\ntimeout\n(...)\n\nMockito\n.\nafter\n(...)"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes a concrete failure: timeout verification causes VerifyError or NoClassDefFoundError when JUnit is absent."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the affected API and code path: Mockito.timeout(...), Mockito.after(...), Timeout, and VerificationOverTimeImpl."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes full stack traces and the missing class error referencing junit.framework.ComparisonFailure."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides a minimal TestNG test and version conditions to reproduce the crash."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points to specific components to inspect: Timeout.java and VerificationOverTimeImpl."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "A developer can understand the failure scenario without codebase knowledge from the described test and stack traces."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The report is specific enough to derive a failing test for timeout/after verification without JUnit."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The triggering conditions are explicit: no JUnit on classpath, Mockito 1.10.x, timeout verification."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Named entities are precise enough to locate code: Timeout, VerificationOverTimeImpl, ArgumentsAreDifferent, Mockito.timeout."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent with JVM linkage failures and JUnit dependency issues."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Gives concrete inputs and conditions: TestNG test, Observable mock, timeout(500), no JUnit."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides an ordered minimal reproduction example, though not full project setup."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes relevant version information for Mockito and TestNG, but not full runtime details."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports exact failures and stack traces: VerifyError and NoClassDefFoundError for junit/framework/ComparisonFailure."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "The combination of timeout/after verification with missing JUnit and specific Mockito versions is distinctive."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: timeout verification should not throw VerifyError."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated with exact exceptions and stack traces."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The mismatch is clear: should work without JUnit, but instead fails at class loading/linking."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The sample test and conditions are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "Environment details are partial; versions of Mockito and TestNG are given, but not full runtime setup."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Proposes a specific cause: ArgumentsAreDifferent extends junit.framework.ComparisonFailure."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Links the cause to the failure by explaining that Timeout/VerificationOverTimeImpl triggers loading of the JUnit-based exception."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with stack traces and the named class hierarchy."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The explanation is coherent and matches the reported linkage errors."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References concrete artifacts such as Timeout.java, VerificationOverTimeImpl, and junit.framework.ComparisonFailure."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names specific classes and methods: Timeout, VerificationOverTimeImpl, Mockito.timeout, Mockito.after."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected module is identifiable as Mockito verification/timeout handling."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes stack traces and a code snippet directly relevant to the failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "References JUnit and TestNG by name and mentions their version context."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Provides framework versions, but not OS, JVM version, or other full environment details."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Some references are broad, such as 'timeout verification' and 'this specific case,' though key classes are named."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Inputs and trigger conditions are sufficiently described for reproduction."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Expected behavior is clear: timeout/after should work without JUnit."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Material environment details like JVM and OS are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The report is internally consistent and does not contain contradictory statements."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The report states the correct behavior and suggests the JUnit dependency should be removed from timeout verification."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The likely fix location is identifiable: Timeout and VerificationOverTimeImpl."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: timeout/after should not require JUnit and should not throw linkage errors."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Mentions the relevant edge case of running without JUnit on the classpath."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A plausible fix can be inferred from the report: remove or isolate the JUnit-based exception dependency."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes the root cause involving ArgumentsAreDifferent extending junit.framework.ComparisonFailure."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The root cause references specific code constructs and classes by name."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explains the causal chain from loading the JUnit-based exception to VerifyError/NoClassDefFoundError."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report contains a concrete scenario from which exact reproduction steps can be derived."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies the affected subsystem as Mockito verification timeout handling."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Distinguishes symptom location (timeout verification) from likely defect location (JUnit-based exception class)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Mentions multiple impacted APIs and components: timeout, after, Timeout, VerificationOverTimeImpl."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names more than three relevant technical concepts: Mockito, Timeout, VerificationOverTimeImpl, ArgumentsAreDifferent, JUnit, TestNG."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: VerifyError or NoClassDefFoundError when using timeout() verification without JUnit on classpath."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific classes identified: Timeout, VerificationOverTimeImpl, ArgumentsAreDifferent, and methods Mockito.timeout() and Mockito.after()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Two complete stack traces provided showing exact exception types, class names, method signatures, and line numbers."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Concrete test case provided using TestNG that reproduces the issue; developer can immediately run it to verify."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Root location pinpointed: Timeout class constructor at line 32, wrapping VerificationOverTimeImpl that catches ArgumentsAreDifferent."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Failure scenario is clear: timeout verification fails when JUnit absent and Mockito 1.10.x used with TestNG."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Sufficient detail to write a failing test: use TestNG, call verify(mock(), timeout()), ensure no JUnit on classpath."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Sequence is unambiguous: Mockito.timeout() called \u2192 Timeout constructor \u2192 VerificationOverTimeImpl instantiation \u2192 ClassNotFoundException."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "All entities precisely named: Timeout.java:32, VerificationOverTimeImpl, ArgumentsAreDifferent, junit.framework.ComparisonFailure."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Technical terminology accurate: VerifyError, NoClassDefFoundError, LinkageError, ClassNotFoundException used correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Concrete input provided: verify(mock(Observable.class), timeout(500)).countObservers() with TestNG annotation."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Complete reproduction steps: use TestNG, remove JUnit from classpath, call timeout() verification method."
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Versions specified: Mockito 1.10.1-1.10.19, TestNG 5.13.1 and 6.8.13, JUnit 3.8.1 and 4.x."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Exact error messages provided verbatim: VerifyError with signature details and NoClassDefFoundError with full stack trace."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishing detail: issue occurs only with timeout/after APIs when JUnit absent, not general Mockito usage."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior implicit: timeout() should work without JUnit on classpath since it is not JUnit-dependent."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Observed behavior explicit: VerifyError or NoClassDefFoundError thrown at Timeout.<init>() with specific stack traces."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Discrepancy clear: timeout() should succeed but throws LinkageError/ClassNotFoundException instead."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reproduction steps sufficient: provide test code, use TestNG, exclude JUnit, run test."
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Environmental conditions specified: TestNG versions, Mockito versions, JUnit absence requirement."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific cause proposed: Timeout class wraps VerificationOverTimeImpl that catches ArgumentsAreDifferent extending junit.framework.ComparisonFailure."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Causal link explicit: ArgumentsAreDifferent extends JUnit 4.x ComparisonFailure; when JUnit absent, class loading fails."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Evidence provided: stack traces show ClassNotFoundException for junit.framework.ComparisonFailure, code path through Timeout.java:32."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Explanation coherent: JUnit 3.x/4.x incompatibility and missing JUnit dependency logically explain both error types."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific artifacts referenced: Timeout.java:32, VerificationOverTimeImpl, ArgumentsAreDifferent, junit.framework.ComparisonFailure."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Classes named: Timeout, VerificationOverTimeImpl, ArgumentsAreDifferent, Observable; methods: Mockito.timeout(), Mockito.after()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Subsystem identifiable: org.mockito.verification and org.mockito.internal.verification packages clearly indicated."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Stack traces included with exact line numbers, method signatures, and exception types directly relevant to failure."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Dependencies named with versions: JUnit 3.8.1 and 4.x, TestNG 5.13.1 and 6.8.13, Mockito 1.10.x."
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Environment details provided: TestNG versions, JUnit versions, classpath configuration; OS/JVM version not specified but not critical."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references; all classes, methods, and components explicitly named with full package paths."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Inputs fully specified: concrete test code, timeout(500) parameter, Observable mock, method call."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.91,
+        "reason": "Expected behavior clear: timeout() should execute without throwing exceptions when JUnit absent."
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.89,
+        "reason": "Version information complete: Mockito 1.10.x, TestNG versions, JUnit versions all specified."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictions; report consistently describes JUnit dependency issue across both error scenarios."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Correct behavior clear: timeout() must not require JUnit on classpath; fix would remove JUnit dependency from ArgumentsAreDifferent."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Faulty component identified: Timeout class and VerificationOverTimeImpl's try/catch block catching ArgumentsAreDifferent."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Acceptance criterion: timeout() and after() methods work without JUnit on classpath, no VerifyError or NoClassDefFoundError."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "Constraints documented: must support TestNG without JUnit, must work with Mockito 1.10.x, must not break JUnit 4.x compatibility."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Developer could implement fix: decouple ArgumentsAreDifferent from JUnit ComparisonFailure or make JUnit dependency optional in timeout path."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Root cause explicitly proposed: ArgumentsAreDifferent extends junit.framework.ComparisonFailure, creating hard JUnit dependency."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Specific code constructs named: try/catch block in VerificationOverTimeImpl catching ArgumentsAreDifferent, Timeout.java:32."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal chain articulated: Timeout constructor \u2192 VerificationOverTimeImpl instantiation \u2192 ArgumentsAreDifferent class loading \u2192 junit.framework.ComparisonFailure missing."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Concrete scenario fully determinable: TestNG test with timeout() call, no JUnit on classpath, specific Mockito version range."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Specific subsystem identified: org.mockito.verification.Timeout and org.mockito.internal.verification.VerificationOverTimeImpl."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Symptom vs. defect distinguished: symptom is VerifyError/NoClassDefFoundError at runtime; defect is ArgumentsAreDifferent's JUnit dependency."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Multiple areas identified: Timeout class, VerificationOverTimeImpl, ArgumentsAreDifferent, exception handling, classpath resolution."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Four+ technical concepts named: Timeout, VerificationOverTimeImpl, ArgumentsAreDifferent, junit.framework.ComparisonFailure, ClassLoader, LinkageError."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.93
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.91
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.89
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.92
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.89
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.94
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.93
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.91
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R5": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.88
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.92
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.91
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.89
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.93
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.91
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.91
+      },
+      "M4": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.89
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.91
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.89
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.87
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.91
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.91
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.89
+      }
+    }
+  },
+  "percent_agreement": 0.9375,
+  "cohens_kappa": 0.6326530612244897,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.89 > 0.84)"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Selected judge2 (higher confidence: 0.88 > 0.72)"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": false,
+        "confidence": 0.89,
+        "reason": "Selected judge2 (higher confidence: 0.89 > 0.84)"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 0,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 0,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.5188745216627711,
+      "Clarity": 0.5188745216627711,
+      "Specificity": 0.5188745216627711,
+      "Reproducibility": 0.5188745216627711,
+      "ReasoningQuality": 0.5188745216627711,
+      "TechnicalContext": 0.5188745216627711,
+      "Ambiguity": 0.5188745216627711,
+      "RepairReadiness": 0.5188745216627711,
+      "RootCauseEvidence": -1.1118739749916515,
+      "HiddenReproducibility": -2.742622471646074,
+      "ImpactScope": -0.29649972666444024
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

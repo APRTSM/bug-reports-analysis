@@ -1,0 +1,1453 @@
+{
+  "bug": {
+    "bug_id": "JxPath-22",
+    "project": "JxPath",
+    "summary": "Resetting the default namespace causes a serious endless loop when requesting .asPath() on a node.",
+    "description": "sample smaller case:\n\n<...>\n<b:foo xmlns:b=\n\"bla\"\nxmlns=\n\"test111\"\n> <!-- No nodes are placed in the tree within ns \n\"test111\"\nbut the attribute is still there.-->\n<b:bar>a</b:bar> <!-- is in ns \n'bla'\n-->\n<test xmlns=\"\"></test> <!-- does not have a namespace -->\n</b:foo>\n</...>\n\nwhen requesting .asPath() on the 'test' node, it loops in org.apache.commons.jxpath.ri.NamespaceResolver.getPrefix(NodePointer, String), \n\nand if it didn't loop it would create a wrong xpath '//b:fo/null:test' DOMNodePointer.asPath().\n\nSo I think that the fix should be in org.apache.commons.jxpath.ri.model.dom.DOMNodePointer.asPath()\n\n....\n\nString\nln = DOMNodePointer.getLocalName(node);\n\nString\nnsURI = getNamespaceURI();\n\nif\n(nsURI == \nnull\n) {\nbuffer.append(ln);\nbuffer.append(\n'['\n);\nbuffer.append(getRelativePositionByName()).append(\n']'\n);\n}\n\nelse\n{\n\nString\nprefix = getNamespaceResolver().getPrefix(nsURI);\n\nif\n(prefix != \nnull\n) {\n...\n\nshould become\n\n...\n\nString\nln = DOMNodePointer.getLocalName(node);\n\nString\nnsURI = getNamespaceURI();\n\nif\n(nsURI == \nnull\n|| nsURI.length() == 0) { \n// check \nfor\nempty string which means that the node doesn't have a namespace.\n\nbuffer.append(ln);\nbuffer.append(\n'['\n);\nbuffer.append(getRelativePositionByName()).append(\n']'\n);\n}\n\nelse\n{\n\nString\nprefix = getNamespaceResolver().getPrefix(nsURI);\n\nif\n(prefix != \nnull\n) {\n..."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty behavior: .asPath() on the 'test' node causes an endless loop and wrong XPath output."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specifically identifies org.apache.commons.jxpath.ri.NamespaceResolver.getPrefix(NodePointer, String) and DOMNodePointer.asPath()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Includes concrete code snippets and the exact looping method location."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Provides a sample XML scenario and the failing call to .asPath(), enough to start reproducing."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points directly to DOMNodePointer.asPath() as the likely place to inspect and fix."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "A developer can understand the failure scenario: default namespace reset leads to infinite loop on a node without a namespace."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report is specific enough to derive a failing test around asPath() on the 'test' node."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The triggering condition is clearly stated: xmlns=\"\" on the test node after a default namespace declaration."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Referenced entities like DOMNodePointer, NamespaceResolver, and asPath() are named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Terminology is consistent: namespace, prefix, XPath, and default namespace are used correctly."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete input is given: XML with xmlns=\"\" and a test node."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.62,
+        "reason": "The report gives an example scenario but not a fully ordered reproduction procedure."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version, OS, or runtime environment information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Reports the exact failure mode: endless loop and incorrect XPath '//b:fo/null:test'."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The combination of default namespace reset plus asPath() on the 'test' node uniquely identifies the issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: asPath() should return a correct XPath, not loop or produce null:test."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior is explicit: endless loop in NamespaceResolver.getPrefix and wrong XPath output."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The discrepancy is clear: correct path vs. infinite loop/wrong path."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.58,
+        "reason": "The report lacks complete step-by-step reproduction instructions."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "No environment or dependency details are provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explicitly proposes a cause: DOMNodePointer.asPath() should treat empty namespace URI as no namespace."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Links the empty namespace URI to the loop and wrong XPath generation."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with code snippets and the observed null:test output."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The explanation is coherent and matches the described behavior."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "References specific artifacts: DOMNodePointer.asPath(), getNamespaceURI(), getPrefix(), and the null:test path."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names specific classes and methods: NamespaceResolver.getPrefix(NodePointer, String) and DOMNodePointer.asPath()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The affected subsystem is identifiable as the JXPath DOM node pointer/namespace resolution code."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Includes relevant code snippets and the incorrect XPath output."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "No external dependency names or versions are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, browser, framework, or runtime environment details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report uses a sample smaller case and ellipses, so some context is underspecified."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Inputs are not fully specified as a complete runnable test case."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is reasonably clear: no loop and a valid XPath."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "The report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "States the likely fix: treat empty namespace URI like null in DOMNodePointer.asPath()."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the fix location directly: org.apache.commons.jxpath.ri.model.dom.DOMNodePointer.asPath()."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: asPath() should not loop and should not emit null:test."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Documents the edge case of xmlns=\"\" meaning no namespace."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A developer could implement the proposed null-or-empty check from the report alone."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes the root cause: missing empty-string namespace check in DOMNodePointer.asPath()."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References the specific code construct getNamespaceURI() and the null check that should include length()==0."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explains the causal chain from empty namespace URI to NamespaceResolver looping and wrong XPath generation."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The sample XML and failing asPath() call are concrete enough to derive reproduction steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The affected concept is identifiable as DOM node path generation and namespace resolution."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom location (NamespaceResolver loop) from likely defect location (DOMNodePointer.asPath())."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.6,
+        "reason": "Only one main impacted path is described; multiple impacted areas are not clearly identified."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Mentions several technical concepts: NamespaceResolver, DOMNodePointer, asPath(), getNamespaceURI(), getPrefix()."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: endless loop in getPrefix() when calling asPath() on a node with empty namespace URI, and incorrect XPath generation ('//b:fo/null:test')."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes identified: org.apache.commons.jxpath.ri.NamespaceResolver.getPrefix(), org.apache.commons.jxpath.ri.model.dom.DOMNodePointer.asPath(), and DOMNodePointer.getNamespaceURI()."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Code snippets provided showing the problematic logic in DOMNodePointer.asPath() and the proposed fix with explicit condition check for empty namespace URI."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer can immediately locate the bug in DOMNodePointer.asPath() and attempt reproduction using the provided XML sample and method call sequence."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Precise module and class identified: org.apache.commons.jxpath.ri.model.dom.DOMNodePointer with specific method asPath() and related NamespaceResolver.getPrefix()."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Failure scenario is clear: calling asPath() on a node with empty namespace URI causes endless loop and incorrect XPath. XML example demonstrates the condition."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "A developer could write a test case: create XML with empty namespace attribute, call asPath() on the affected node, and verify it doesn't loop and produces correct XPath."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is unambiguous: XML parsing \u2192 asPath() call on 'test' node \u2192 getNamespaceURI() returns empty string \u2192 getPrefix() loops endlessly."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "All referenced entities are precisely identified: DOMNodePointer class, asPath() method, getNamespaceURI() method, and NamespaceResolver.getPrefix() method."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terminology is accurate: namespace URI, XPath generation, endless loop, and the distinction between null and empty string namespace values."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific XML input provided with concrete namespace declarations (xmlns:b='bla', xmlns='test111', xmlns='') and element structure that triggers the bug."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Reproduction steps are implied but not explicitly ordered: parse XML, call asPath() on 'test' node. Missing explicit step-by-step instructions."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.4,
+        "reason": "No version information provided for JXPath library or Java runtime environment."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Specific failure modes reported: endless loop in getPrefix() and incorrect XPath output '//b:fo/null:test' with 'null:' prefix."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report uniquely identifies the issue: combination of empty namespace URI (not null), asPath() call, and the specific loop in NamespaceResolver distinguishes it from similar bugs."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected behavior is implied: asPath() should return correct XPath without looping and without 'null:' prefixes for nodes with empty namespace."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Observed behavior explicitly stated: endless loop in getPrefix() and incorrect XPath '//b:fo/null:test' generated."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Discrepancy is clear: expected correct XPath without loop vs. observed endless loop and malformed XPath with null prefix."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Reproduction steps are sufficient but not fully explicit: XML sample and asPath() call on 'test' node are provided; environment setup details are missing."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.35,
+        "reason": "Environmental conditions not documented: no JXPath version, Java version, XML parser, or platform information provided."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report explicitly proposes root cause: getNamespaceURI() returns empty string (not null), which is not handled in the null check, causing getPrefix() to loop."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Proposed explanation directly linked to symptoms: empty namespace URI bypasses null check \u2192 getPrefix() called with empty string \u2192 endless loop; also explains null prefix in XPath."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Concrete evidence provided: code snippet showing the problematic null check and proposed fix with explicit empty string check."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Explanation is internally coherent: empty namespace URI causes both the loop (via getPrefix) and the null prefix in XPath output; no contradictions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "References specific technical artifacts: exact method names (getNamespaceURI(), getPrefix()), specific code location in DOMNodePointer.asPath(), and the condition check (nsURI.length() == 0)."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods named: org.apache.commons.jxpath.ri.NamespaceResolver.getPrefix(), org.apache.commons.jxpath.ri.model.dom.DOMNodePointer.asPath(), getNamespaceURI()."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem precisely identified: org.apache.commons.jxpath.ri.model.dom package and DOMNodePointer class."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Code snippets provided showing the problematic logic and proposed fix; XML sample demonstrates the triggering condition."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.5,
+        "reason": "External dependencies mentioned (Apache Commons JXPath) but no version specified; XML parser not identified."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.2,
+        "reason": "No environment details provided: OS, Java version, JXPath version, or XML parser implementation not specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "References are precise: specific class names, method names, and code locations are provided without vagueness."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Inputs are sufficiently described: XML structure with namespace declarations and the asPath() call on 'test' node are concrete."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Expected behavior is clear: asPath() should not loop and should generate correct XPath without null prefixes."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Version and environment information is missing: JXPath version, Java version, and XML parser details would affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements; the report is internally consistent regarding the bug description and proposed fix."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Faulty behavior is precisely described: empty namespace URI not handled. Correct behavior is clear: check for both null and empty string. Code change is straightforward."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific component identified: org.apache.commons.jxpath.ri.model.dom.DOMNodePointer.asPath() method with exact line location in code snippet."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior stated: asPath() should not loop and should generate correct XPath without null prefixes for empty namespace nodes."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Edge case documented: nodes with empty namespace URI (xmlns='') must be handled differently from nodes with null namespace."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Developer can implement the fix directly: add empty string check to the null check in DOMNodePointer.asPath() as shown in the proposed code change."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explicit root cause proposed: getNamespaceURI() returns empty string instead of null, which bypasses the null check in asPath()."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Root cause references specific code constructs: the null check in DOMNodePointer.asPath() and the getNamespaceURI() method call."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Causal chain articulated: empty namespace URI \u2192 bypasses null check \u2192 getPrefix(nsURI) called with empty string \u2192 endless loop in NamespaceResolver.getPrefix()."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Concrete scenario provided: XML with empty namespace attribute (xmlns='') on a node. Complete reproduction steps can be derived: parse XML, call asPath() on the 'test' node."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific subsystem identified: org.apache.commons.jxpath.ri.model.dom.DOMNodePointer and NamespaceResolver classes."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report distinguishes symptom (endless loop and incorrect XPath in asPath()) from root cause (empty namespace URI not handled in null check)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Multiple impacted areas identified: DOMNodePointer.asPath(), NamespaceResolver.getPrefix(), and namespace URI handling logic."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Four or more distinct technical concepts identified: DOMNodePointer, NamespaceResolver, namespace URI, XPath generation, and the asPath() method."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.88
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.9
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.62,
+        "judge2_confidence": 0.75
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.44999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.85,
+        "judge2_confidence": 0.4
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.88
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.9
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "R4": {
+        "agreement": false,
+        "confidence_diff": 0.22000000000000008,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.58,
+        "judge2_confidence": 0.8
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.49,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.35
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.92
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.95
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.55,
+        "judge2_confidence": 0.5
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.6000000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.2
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.14,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.85
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.6,
+        "judge2_confidence": 0.8
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.88
+      }
+    }
+  },
+  "percent_agreement": 0.9166666666666666,
+  "cohens_kappa": 0.7264957264957264,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.58)"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.6)"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.58)"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.55,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge2 (higher confidence: 0.92 > 0.78)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.6)"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9912407071619301,
+      "Clarity": 0.9912407071619301,
+      "Specificity": -0.6862435664967211,
+      "Reproducibility": 0.15249857033260453,
+      "ReasoningQuality": 0.9912407071619301,
+      "TechnicalContext": -0.6862435664967211,
+      "Ambiguity": 0.15249857033260453,
+      "RepairReadiness": 0.9912407071619301,
+      "RootCauseEvidence": -0.6862435664967211,
+      "HiddenReproducibility": -2.3637278401553723,
+      "ImpactScope": 0.15249857033260453
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

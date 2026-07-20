@@ -1,0 +1,1451 @@
+{
+  "bug": {
+    "bug_id": "Compress-32",
+    "project": "Compress",
+    "summary": "TarArchiveInputStream rejects uid or gid >= 0x80000000",
+    "description": "A POSIX-format archive that came from sysdiagnose produces NumberFormatException\n[1]\nwhen I try to read it with TarArchiveInputStream.\n\nThe relevant part of the .tar file looks like this:\n\n18 uid=429496729\n\nThat's the uid of 'nobody' on Mac OS (on Mac OS, uid_t is 'unsigned int').\n\nPOSIX doesn't say anything about the width of the uid extended header\n[2]\n, so I assume the tar file is okay. GNU tar doesn't have trouble with it.\n\nThe relevant code, in applyPaxHeadersToCurrentEntry:\n\n} else if (\"gid\".equals(key))\n\n{\ncurrEntry.setGroupId(Integer.parseInt(val));\n...\n}\n\nelse if (\"uid\".equals(key)){\n\ncurrEntry.setUserId(Integer.parseInt(val));\n\nuid_t and gid_t are typically unsigned 32-bit integers, so these should presumably use Long.parseLong to handle integers with the top bit set (and TarArchiveEntry would need some modifications to handle large uid and gid, too).\n\n[1]\njava.lang.NumberFormatException: For input string: \"4294967294\"\n\nat java.lang.NumberFormatException.forInputString(NumberFormatException.java:65)\n\nat java.lang.Integer.parseInt(Integer.java:495)\n\nat java.lang.Integer.parseInt(Integer.java:527)\n\nat org.apache.commons.compress.archivers.tar.TarArchiveInputStream.applyPaxHeadersToCurrentEntry(TarArchiveInputStream.java:488)\n\nat org.apache.commons.compress.archivers.tar.TarArchiveInputStream.paxHeaders(TarArchiveInputStream.java:415)\n\nat org.apache.commons.compress.archivers.tar.TarArchiveInputStream.getNextTarEntry(TarArchiveInputStream.java:295)\n\n[2]\n\nhttp://pubs.opengroup.org/onlinepubs/9699919799/utilities/pax.html#tag_20_92_13_03\n\nuid\n\nThe user ID of the file owner, expressed as a decimal number using digits from the ISO/IEC 646:1991 standard. This record shall override the uid field in the following header block(s). When used in write or copy mode, pax shall include a uid extended header record for each file whose owner ID is greater than 2097151 (octal 7777777)."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes observable failure: TarArchiveInputStream throws NumberFormatException on PAX uid/gid values >= 0x80000000."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Identifies the code path and method: TarArchiveInputStream.applyPaxHeadersToCurrentEntry."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a full stack trace showing Integer.parseInt failing in applyPaxHeadersToCurrentEntry."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Gives a concrete input condition and exception, enough to investigate or reproduce without clarification."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points directly to TarArchiveInputStream as the component to inspect."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer can understand the failure scenario: PAX tar with large uid/gid causes parse failure."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A failing test could assert that reading a PAX archive with uid=4294967294 does not throw."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The sequence is clear: read sysdiagnose tar -> applyPaxHeadersToCurrentEntry -> Integer.parseInt -> NumberFormatException."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Named entities are precise: TarArchiveInputStream, applyPaxHeadersToCurrentEntry, uid/gid PAX headers."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent and accurate: PAX headers, uid_t/gid_t, NumberFormatException."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Concrete trigger is given: PAX uid value 4294967294 from a sysdiagnose archive."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.72,
+        "reason": "No ordered reproduction steps are listed, only a description of the failing input."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "No version, OS, or library version is provided beyond a Mac sysdiagnose example."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports the exact exception and stack trace with the failing value 4294967294."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The combination of PAX uid/gid overflow and Integer.parseInt uniquely identifies this issue."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: TarArchiveInputStream should accept valid PAX uid/gid values."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicit: NumberFormatException for input string 4294967294."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy is clear: valid archive data should parse, but parsing fails."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Reproduction steps are not fully enumerated; only the failing archive content is described."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Environment details are incomplete; only a Mac sysdiagnose example is mentioned."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Proposes a specific cause: Integer.parseInt is used for uid/gid values that may exceed int range."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Links the cause directly to the symptom: large uid/gid values trigger NumberFormatException."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Supports the explanation with stack trace and code snippet from applyPaxHeadersToCurrentEntry."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The explanation is coherent and matches the reported exception and code path."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References concrete artifacts: Integer.parseInt, applyPaxHeadersToCurrentEntry, TarArchiveInputStream."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Names specific method and class: TarArchiveInputStream.applyPaxHeadersToCurrentEntry."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The tar archive parsing subsystem is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Includes a relevant stack trace and code snippet."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Mentions GNU tar and POSIX, but no specific external library version is given."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "Only a Mac sysdiagnose context is mentioned; no precise OS or runtime version."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific enough to investigate."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "The triggering input condition is concrete: uid/gid value 4294967294."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior is reasonably inferable: parse the archive successfully."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Version/environment details that could affect reproduction are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements are present."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The fix direction is clear: handle uid/gid values larger than Integer.MAX_VALUE."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The failing location is directly identified in TarArchiveInputStream.applyPaxHeadersToCurrentEntry."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Acceptance criterion is concrete: archives with large uid/gid should parse without NumberFormatException."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Mentions the relevant edge case: uid_t/gid_t may be unsigned 32-bit values."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A plausible fix can be implemented from the report: use wider parsing and adjust entry storage."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Explicitly proposes the root cause: Integer.parseInt is too narrow for uid/gid."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References the specific code construct Integer.parseInt in the uid/gid branches."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The causal chain is stated: large unsigned uid/gid values overflow int and throw NumberFormatException."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "A concrete scenario is given from which reproduction is directly derivable: read a PAX tar with uid=4294967294."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected subsystem is identifiable: tar archive parsing / PAX header handling."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Distinguishes symptom location (TarArchiveInputStream) from likely defect location (uid/gid parsing in applyPaxHeadersToCurrentEntry)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Mentions multiple relevant areas: PAX headers, uid/gid parsing, TarArchiveEntry storage."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names several technical concepts: TarArchiveInputStream, applyPaxHeadersToCurrentEntry, Integer.parseInt, TarArchiveEntry."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: NumberFormatException when reading a valid POSIX tar archive with uid >= 0x80000000, distinguishable from normal operation."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific class and method identified: TarArchiveInputStream.applyPaxHeadersToCurrentEntry, with exact line numbers and code paths."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Concrete debugging artifacts provided: full stack trace, exact error message 'NumberFormatException: For input string: \"4294967294\"', and relevant code snippet showing Integer.parseInt calls."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Developer could immediately attempt reproduction: specific uid value (429496729), exact exception type, and clear code location provided. A test tar file with this uid would enable immediate investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific module and method pinpointed: org.apache.commons.compress.archivers.tar.TarArchiveInputStream.applyPaxHeadersToCurrentEntry at line 488."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Failure scenario is clear: reading a POSIX tar archive with large uid/gid values causes NumberFormatException. A developer unfamiliar with the codebase could understand the issue."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sufficient precision to write a failing test: create a tar with uid=429496729 (or 4294967294) in PAX extended header and attempt to read with TarArchiveInputStream."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Sequence of events is unambiguous: PAX header with large uid is parsed, Integer.parseInt is called, exception is thrown. No alternative interpretations possible."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "All referenced entities are precisely identified: TarArchiveInputStream class, applyPaxHeadersToCurrentEntry method, uid/gid fields, Integer.parseInt calls."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Technical terminology is accurate: POSIX format, PAX headers, uid_t as unsigned 32-bit integer, NumberFormatException. No misleading language."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Specific input provided: uid value 429496729 (and 4294967294 in error message), concrete PAX header format shown ('18 uid=429496729')."
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Reproduction steps are not explicitly ordered. Report implies creating/obtaining a tar file with large uid, but does not provide step-by-step instructions for reproduction."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Environment information is minimal: mentions Mac OS and sysdiagnose, but lacks specific version numbers, Java version, or commons-compress version."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific failure output provided verbatim: 'java.lang.NumberFormatException: For input string: \"4294967294\"' with complete stack trace."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Details uniquely identify this issue: large uid/gid values (>= 0x80000000) in PAX headers causing Integer.parseInt overflow, distinct from other tar parsing issues."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implicit but clear: TarArchiveInputStream should successfully read POSIX tar archives with uid/gid >= 0x80000000, as GNU tar does."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is explicitly stated: NumberFormatException with specific error message and stack trace showing exact failure point."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is unambiguous: expected behavior (successful read) vs. observed behavior (NumberFormatException). Report explicitly contrasts with GNU tar's success."
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "Reproduction steps are incomplete: report does not provide explicit step-by-step instructions. A developer would need to construct a test tar file or obtain the original sysdiagnose archive."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Environmental conditions are underspecified: Java version, commons-compress version, and exact Mac OS version are not documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report explicitly proposes root cause: Integer.parseInt cannot handle values with top bit set; should use Long.parseLong instead."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Proposed explanation is directly linked to symptoms: Integer.parseInt has a maximum value of 2^31-1; uid 4294967294 exceeds this, causing NumberFormatException."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Concrete evidence provided: exact code snippet showing Integer.parseInt calls, error message showing the problematic value, and reference to POSIX standard allowing large uid/gid."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Explanation is internally coherent: uid_t is unsigned 32-bit, Integer.parseInt handles signed 32-bit, overflow occurs, exception is thrown. No contradictions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References specific technical artifacts: exact method name Integer.parseInt, specific line number 488, exact error value 4294967294, and uid field name."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes and methods named: TarArchiveInputStream, applyPaxHeadersToCurrentEntry, TarArchiveEntry, Integer.parseInt, Long.parseLong."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected subsystem precisely identifiable: org.apache.commons.compress.archivers.tar package, specifically PAX header parsing logic."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Technical artifacts included: full stack trace, code snippet showing Integer.parseInt calls, PAX header format example, and error message."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "External dependencies not referenced by version: commons-compress version not specified. Java standard library is implied but version not stated."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Environment details are sparse: mentions Mac OS and sysdiagnose, but lacks Java version, commons-compress version, and specific OS version."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "No vague references: all components (TarArchiveInputStream, applyPaxHeadersToCurrentEntry, uid/gid fields) are precisely named."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Inputs are described but not fully specified: uid value is given, but exact tar file format and how to construct a test case is not explicitly detailed."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Expected behavior is clear from context: TarArchiveInputStream should read valid POSIX tar archives without throwing exceptions, as GNU tar does."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "Version information is missing: Java version, commons-compress version, and Mac OS version are not specified, which could affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory statements: report is internally consistent. POSIX standard reference, uid value, and exception details all align."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Faulty behavior is precisely described: Integer.parseInt fails on large uid/gid. Correct behavior is clear: use Long.parseLong and handle unsigned 32-bit values."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific code location identified: TarArchiveInputStream.applyPaxHeadersToCurrentEntry, lines handling uid and gid parsing with Integer.parseInt."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected correct behavior is concrete: TarArchiveInputStream should successfully parse and apply PAX headers with uid/gid values up to 2^32-1 without throwing exceptions."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Relevant constraints documented: uid_t and gid_t are unsigned 32-bit integers; POSIX allows large values; TarArchiveEntry would need modifications to store large values."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Developer could implement a plausible fix: change Integer.parseInt to Long.parseLong for uid/gid, update TarArchiveEntry to use long fields. Report provides sufficient guidance."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific root cause explicitly proposed: Integer.parseInt cannot handle values with top bit set; should use Long.parseLong instead."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Root cause references specific code constructs: Integer.parseInt method calls on uid and gid values, Integer's maximum value limitation (2^31-1)."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Causal chain is clear: PAX header contains uid=4294967294 (unsigned 32-bit max), Integer.parseInt is called, value exceeds Integer.MAX_VALUE, NumberFormatException is thrown."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "While the scenario is concrete (tar with large uid), complete and unambiguous reproduction steps cannot be directly derived without additional information on how to construct or obtain such a tar file."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific subsystem identified: TarArchiveInputStream PAX header parsing, specifically uid/gid field handling."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Report distinguishes symptom (NumberFormatException in applyPaxHeadersToCurrentEntry) from root cause (Integer.parseInt overflow on large uid/gid values)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Multiple impacted areas identified: TarArchiveInputStream.applyPaxHeadersToCurrentEntry, TarArchiveEntry uid/gid storage, PAX header parsing logic."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Multiple technical concepts named: TarArchiveInputStream, TarArchiveEntry, PAX headers, uid_t/gid_t, Integer.parseInt, Long.parseLong, unsigned 32-bit integers."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.95
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.85
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.97
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.97
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.75
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.98
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.98
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.7
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.8
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.98
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": false,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.94
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.88
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.92
+      }
+    }
+  },
+  "percent_agreement": 0.9583333333333334,
+  "cohens_kappa": 0.873684210526316,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "agreement"
+      },
+      "M2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.92 > 0.8)"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.86,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.92,
+        "reason": "Selected judge1 (higher confidence: 0.92 > 0.8)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.7)"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 3,
+      "Reproducibility": 3,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 1.0493443645942062,
+      "Clarity": 1.0493443645942062,
+      "Specificity": -0.599625351196689,
+      "Reproducibility": -0.599625351196689,
+      "ReasoningQuality": 1.0493443645942062,
+      "TechnicalContext": -0.599625351196689,
+      "Ambiguity": 0.2248595066987586,
+      "RepairReadiness": 1.0493443645942062,
+      "RootCauseEvidence": -0.599625351196689,
+      "HiddenReproducibility": -2.2485950669875843,
+      "ImpactScope": 0.2248595066987586
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

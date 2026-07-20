@@ -1,0 +1,1451 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-104",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "The problem\n\njava.text.ParseException: Cannot parse date \"\u75dd055-12-02T16:47:04.192+0000\": not compatible with any of standard forms (\"yyyy-MM-dd'T'HH:mm:ss.SSSZ\", \"yyyy-MM-dd'T'HH:mm:ss.SSS\", \"EEE, dd MMM yyyy HH:mm:ss zzz\", \"yyyy-MM-dd\")\nat com.fasterxml.jackson.databind.util.StdDateFormat.parse(StdDateFormat.java:372)\n\nYears > 9999 are not rendered as 5 numbers or more, but with a non numerical characters for the thousands digit..\n\nThe testcase\n\npublic class MyTestCase{\npublic static void main(String[] args) throws JsonProcessingException, ParseException {\nStdDateFormat formatter = new StdDateFormat();\nSystem.out.println(formatter.format(new Date(Long.MIN_VALUE)));\nSystem.out.println(formatter.format(new Date(Long.MAX_VALUE)));\nSystem.out.println(formatter.parse(formatter.format(new Date(Long.MIN_VALUE))));\nSystem.out.println(formatter.parse(formatter.format(new Date(Long.MAX_VALUE))));\n\nassert formatter.parse(formatter.format(new Date(Long.MAX_VALUE))).getTime() == Long.MAX_VALUE;\n// Will fail due to lack of support for negative dates.\n//assert formatter.parse(formatter.format(new Date(Long.MIN_VALUE))).getTime() == Long.MIN_VALUE;\n}\n}\n\nExpected\n\na) All dates are formatted correctly, meaning, years bigger than 9999.\n\nb) or some sort of exception telling the data is not supported.\n\nThe location\n\n'0' + something\n\nhttps://github.com/FasterXML/jackson-databind/blob/master/src/main/java/com/fasterxml/jackson/databind/util/StdDateFormat.java#L442\n\nSuggestion\n\na) Adding '0' with an integer is not a safe operation. But if you are doing it, you need an upper bound check, e.g.:\n\nprivate static void pad2(StringBuffer buffer, int value) {\nint tens = value / 10;\n+ if (tens >= 10) {\n+ pad2(buffer, tens);\n+ buffer.append((char) ('0' + value % 10));\n+ return;\n+ }\nif (tens == 0) {\nbuffer.append('0');\n} else {\nbuffer.append((char) ('0' + tens));\nvalue -= 10 * tens;\n}\nbuffer.append((char) ('0' + value));\n}\n\nprivate static void pad3(StringBuffer buffer, int value) {\nint h = value / 100;\n+ if (h >= 100) {\n+ pad3(buffer, h);\n+ pad2(buffer, value % 100);\n+ return;\n+ }\nif (h == 0) {\nbuffer.append('0');\n} else {\nbuffer.append((char) ('0' + h));\nvalue -= (h * 100);\n}\npad2(buffer, value);\n}\n\nb) Or if you do not want to support such high years, then throw some sort of exception. E.g.:\n\nprotected void _format(TimeZone tz, Locale loc, Date date,\nStringBuffer buffer)\n{\nCalendar cal = _getCalendar(tz);\ncal.setTime(date);\n\n+ int year = cal.get(Calendar.YEAR);\n+ if (cal.get(Calendar.ERA) == 0) {\n+ year = -year + 1;\n+ }\n+ if (year < 0 || 9999 < year) {\n+ throw new IndexOutOfBoundsException(\"Year not within the range [0,9999]: \" + Integer.toString(year))\n+ }\n\n- pad4(buffer, cal.get(Calendar.YEAR));\n+ pad4(buffer, year);\nbuffer.append('-');\npad2(buffer, cal.get(Calendar.MONTH) + 1);\nbuffer.append('-');\npad2(buffer, cal.get(Calendar.DAY_OF_MONTH));"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes a concrete faulty behavior: StdDateFormat formats extreme dates into a non-numeric year and parse then fails."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the affected code path as com.fasterxml.jackson.databind.util.StdDateFormat.parse/format."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes a ParseException stack trace and a code snippet showing the failing testcase."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Provides a runnable Java testcase using StdDateFormat, Date(Long.MIN_VALUE), and Date(Long.MAX_VALUE)."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Points to StdDateFormat.java and even a specific line in the formatter implementation."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "A developer can understand that extreme years are formatted incorrectly and then cannot be parsed back."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The testcase and expected behavior are concrete enough to derive a failing test."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The sequence is explicit: format extreme Date values, then parse the result, which fails."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "StdDateFormat and the linked source location are named precisely."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Terminology is consistent: parse exception, formatting, year range, and padding logic are used appropriately."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific inputs are given: Date(Long.MIN_VALUE) and Date(Long.MAX_VALUE)."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report includes ordered reproduction steps in the Java main method."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment or version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Reports the exact ParseException text and the malformed date string."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The issue is distinguished by non-numeric year rendering for extreme dates and the specific parse failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Expected behavior is stated: dates should format correctly or throw an exception for unsupported years."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Observed behavior is explicit: parsing the formatted string throws ParseException."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy is clear: formatting should round-trip, but the produced year string is invalid."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The provided main method is sufficient to reproduce the failure."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No specific environment, runtime, or version constraints are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Proposes a specific cause: unsafe '0' + integer padding in StdDateFormat."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Links the padding logic to the malformed year string that causes parse failure."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with a code location and a concrete failing output."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "The explanation is coherent and matches the observed exception and sample code."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References exact artifacts such as pad4/pad2 logic, StdDateFormat.java, and the parse exception text."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Names StdDateFormat, parse, format, pad2, pad3, and pad4."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The affected module is identifiable as jackson-databind's util StdDateFormat."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes a stack trace and code snippet directly relevant to the failure."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "No external dependencies or versions are mentioned as relevant."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No OS, browser, framework, or runtime version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "The exact root cause is somewhat inferred from the suggested fix rather than fully demonstrated."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs and triggering conditions are concrete."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Expected behavior is stated clearly."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Version/environment information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "The report is internally consistent."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Describes the faulty behavior and the intended correction: support large years or reject them explicitly."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Identifies StdDateFormat._format and the padding helpers as the likely fix location."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Acceptance criterion is concrete: round-trip correctly or throw a clear exception for unsupported years."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "Mentions the edge case of years outside [0,9999] and negative dates."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "A developer could implement the suggested bounds check or padding fix from the report alone."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explicitly proposes that '0' + something is unsafe in the formatter."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References the specific padding code in StdDateFormat.java and pad4/pad2 logic."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Explains that incorrect year rendering produces a string parse cannot accept."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The testcase fully determines the reproduction scenario using extreme Date values and StdDateFormat."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "The affected concept is the StdDateFormat date formatting/parsing subsystem."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes symptom location in parse() from likely defect location in formatting/padding code."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Mentions formatting, parsing, calendar year handling, and padding helpers."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Names multiple technical concepts: StdDateFormat, parse, format, pad2, pad3, pad4, Calendar.YEAR."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report describes observable faulty behavior: ParseException when formatting/parsing dates with years > 9999, with non-numerical characters appearing in output."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specifically identifies StdDateFormat class and pad2/pad3 methods in jackson-databind with exact GitHub link to line 442."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes full stack trace showing ParseException, exact error message with malformed date string '\u75dd055-12-02T16:47:04.192+0000', and method names."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Provides complete test case (MyTestCase) that reproduces the issue using Long.MAX_VALUE, allowing immediate reproduction attempt."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Pinpoints exact class (StdDateFormat), methods (pad2, pad3, _format), and file location with GitHub link."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Clearly explains that years > 9999 are not rendered with sufficient digits, causing non-numerical characters to appear."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Provides explicit test case that could be used to write a failing test without clarification needed."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sequence is clear: format date with Long.MAX_VALUE \u2192 parse formatted string \u2192 ParseException. Single interpretation possible."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "All entities precisely identified: StdDateFormat class, pad2/pad3/pad4 methods, Calendar.YEAR, with exact file paths."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terminology used accurately: ParseException, StringBuffer, Calendar.ERA, year formatting, character arithmetic."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific inputs provided: Long.MIN_VALUE and Long.MAX_VALUE, which directly trigger the bug."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete reproduction steps: instantiate StdDateFormat, call format() with Long.MAX_VALUE date, then parse() the result."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No version information provided for jackson-databind or Java runtime; GitHub link suggests current master but exact version unclear."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Exact error message provided verbatim with malformed date string '\u75dd055-12-02T16:47:04.192+0000' showing the failure mode."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Details uniquely identify this issue: character arithmetic overflow in pad2/pad3 causing non-ASCII characters for years > 9999."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Expected behavior explicitly stated: dates should format correctly for years > 9999, or throw an exception."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Observed behavior explicitly stated: ParseException with non-numerical character in year field when parsing formatted Long.MAX_VALUE date."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy clear: expected successful round-trip format/parse, observed ParseException due to malformed output."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Reproduction steps are complete: create StdDateFormat, format Long.MAX_VALUE, parse result. No additional investigation needed."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No specific Java version, OS, or jackson-databind version documented; assumes standard environment but not explicitly stated."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes root cause: character arithmetic '0' + value overflows when value >= 10 in pad2/pad3 methods."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Directly links cause to symptom: arithmetic overflow produces non-ASCII characters, which parser cannot match against expected date formats."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Provides concrete evidence: exact code location (StdDateFormat.java line 442), method names (pad2, pad3), and test case demonstrating the issue."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Explanation is internally coherent: character arithmetic overflow \u2192 non-numerical output \u2192 parse failure. No contradictions."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "References specific artifacts: StdDateFormat.java line 442, pad2/pad3 methods, '0' + value operation, Calendar.YEAR, Calendar.ERA."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Specific classes named: StdDateFormat, Calendar; specific methods: pad2, pad3, pad4, _format, format, parse."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Affected subsystem precisely identified: jackson-databind date formatting utilities, with exact GitHub repository link."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Includes stack trace, error message, test code snippet, and GitHub link to exact code location."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References jackson-databind library by name; no specific version stated but GitHub link provided."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No OS, Java version, or runtime environment details provided; assumes standard Java environment."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No vague references; all entities (StdDateFormat, pad2, pad3, line 442) are precisely specified."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Inputs are concrete: Long.MAX_VALUE and Long.MIN_VALUE; conditions are unambiguous."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior clearly stated: correct formatting of years > 9999 or explicit exception."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Version information for jackson-databind and Java runtime is missing, which could affect reproduction."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No contradictory statements; report is internally consistent throughout."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Faulty behavior precisely described: character arithmetic overflow in pad2/pad3. Correct behavior: handle years > 9999 or throw exception."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Specific components identified: StdDateFormat class, pad2/pad3/pad4 methods, _format method, with exact line numbers."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "Expected behavior stated concretely: successful round-trip format/parse for all dates, or IndexOutOfBoundsException for unsupported years."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Constraints documented: year range [0, 9999] mentioned; edge cases (Long.MIN_VALUE, Long.MAX_VALUE) identified."
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report provides two concrete fix suggestions with code snippets; developer could implement either approach directly."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Explicitly proposes root cause: character arithmetic '0' + value overflows when value >= 10 in pad2/pad3 methods."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific code constructs: '0' + value operation, pad2/pad3 methods, character arithmetic overflow."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Causal chain articulated: arithmetic overflow \u2192 non-ASCII character output \u2192 parser cannot match format \u2192 ParseException."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Concrete scenario provided: format Date(Long.MAX_VALUE) with StdDateFormat, then parse result. Steps are fully determinable and unambiguous."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Specific subsystem identified: StdDateFormat class in jackson-databind date formatting module."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Distinguishes symptom (ParseException during parse) from defect location (pad2/pad3 character arithmetic in format)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Identifies multiple impacted areas: date formatting, parsing, year handling, character encoding; though not exhaustively detailed."
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Names multiple technical concepts: StdDateFormat, pad2, pad3, pad4, Calendar.YEAR, Calendar.ERA, StringBuffer, character arithmetic."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.93
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.94
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.96
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.94
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.96
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.93
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.92
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.96
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.93
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.16999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.8
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.94
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.93
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.96
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.98
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.97
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.22999999999999998,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.75
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.24,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.96
+      },
+      "M2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "M3": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.93
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.94
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.92
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.91
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.96
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.07000000000000006,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.93
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.009999999999999898,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.94
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.96
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.94
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.85
+      },
+      "I4": {
+        "agreement": true,
+        "confidence_diff": 0.029999999999999916,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.92
+      }
+    }
+  },
+  "percent_agreement": 0.9583333333333334,
+  "cohens_kappa": 0.8327526132404183,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "agreement"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.99 > 0.9)"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.96 > 0.72)"
+      },
+      "M2": {
+        "selected": "agreement"
+      },
+      "M3": {
+        "selected": "agreement"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "agreement"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      },
+      "I4": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.99,
+        "reason": "Selected judge1 (higher confidence: 0.99 > 0.9)"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge2 (higher confidence: 0.96 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "I4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    },
+    "derived": {
+      "repair_difficulty": 0,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 4
+    },
+    "zscore": {
+      "Actionability": 0.9370425713316364,
+      "Clarity": 0.9370425713316364,
+      "Specificity": 0.07808688094430297,
+      "Reproducibility": 0.07808688094430297,
+      "ReasoningQuality": 0.9370425713316364,
+      "TechnicalContext": -0.7808688094430304,
+      "Ambiguity": 0.07808688094430297,
+      "RepairReadiness": 0.9370425713316364,
+      "RootCauseEvidence": -0.7808688094430304,
+      "HiddenReproducibility": -2.498780190217697,
+      "ImpactScope": 0.07808688094430297
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 4
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v2",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Haiku",
+        "type": "anthropic",
+        "model_version": "claude-haiku-4-5-20251001",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

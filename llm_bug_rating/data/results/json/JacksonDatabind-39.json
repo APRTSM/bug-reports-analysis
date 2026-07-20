@@ -1,0 +1,1437 @@
+{
+  "bug": {
+    "bug_id": "JacksonDatabind-39",
+    "project": "JacksonDatabind",
+    "summary": "No title",
+    "description": "After FAIL_ON_INVALID_SUBTYPE error, jackson should continue to parse, but seems jackson doesn't.\n\nThe output:\n\nCallRecord [version=0.0, application=123, ] // doesn't read item2 which is valid\nCallRecord [version=0.0, application=123, ]\nCallRecord [version=0.0, ] // doesn't read application after invalid item.\n\n@JsonInclude(Include.NON_NULL)\npublic class CallRecord {\npublic float version;\npublic String application;\npublic Item item;\npublic Item item2;\npublic CallRecord() {}\n\npublic static void main(final String[] args) throws IOException {\nfinal ObjectMapper objectMapper = new ObjectMapper().disable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE,\nDeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES);\nfinal CallRecord call = new CallRecord();\n\nfinal Event event = new Event();\nevent.location = \"location1\";\ncall.item = event;\ncall.item2 = event;\ncall.application = \"123\";\n// System.out.println(objectMapper.writeValueAsString(call));\nString json =\n\"{\\\"version\\\":0.0,\\\"application\\\":\\\"123\\\",\\\"item\\\":{\\\"type\\\":\\\"xevent\\\",\\\"location\\\":\\\"location1\\\"},\\\"item2\\\":{\\\"type\\\":\\\"event\\\",\\\"location\\\":\\\"location1\\\"}}\";\n// can't read item2 - which is valid\nSystem.out.println(objectMapper.readValue(json, CallRecord.class));\n\njson = \"{\\\"version\\\":0.0,\\\"application\\\":\\\"123\\\"},{\\\"item\\\":{\\\"type\\\":\\\"xevent\\\",\\\"location\\\":\\\"location1\\\"}\";\nSystem.out.println(objectMapper.readValue(json, CallRecord.class));\n\njson = \"{\\\"item\\\":{\\\"type\\\":\\\"xevent\\\",\\\"location\\\":\\\"location1\\\"}, \\\"version\\\":0.0,\\\"application\\\":\\\"123\\\"}\";\n// order matters: move item to the fornt, now it can't read application property\nSystem.out.println(objectMapper.readValue(json, CallRecord.class));\n}\n@Override\npublic String toString() {\nfinal StringBuilder builder = new StringBuilder();\nbuilder.append(\"CallRecord [version=\").append(version).append(\", \");\nif (application != null) {\nbuilder.append(\"application=\").append(application).append(\", \");\n}\nif (item != null) {\nbuilder.append(\"item=\").append(item);\n}\nbuilder.append(\"]\");\nreturn builder.toString();\n}\n}\n\n@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = \"type\", visible = true)\n@JsonSubTypes({@Type(value = Event.class, name = Event.TYPE)})\npublic interface Item {\n}\n\npublic final class Event implements Item {\npublic String location;\npublic static final String TYPE = \"event\";\npublic Event() {}\n}"
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Describes observable faulty deserialization behavior: valid fields are skipped after an invalid subtype."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Identifies the affected functionality as Jackson JSON deserialization of CallRecord/Item."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Includes code, JSON inputs, and printed outputs showing the failure."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Provides enough class definitions and example JSON to start investigating."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Points to Jackson polymorphic subtype handling and property parsing."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report is understandable despite minor grammar issues."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The problem is clearly a deserialization bug after FAIL_ON_INVALID_SUBTYPE."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "It presents setup, code, inputs, and observed outputs in a mostly logical order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "References to CallRecord, Item, Event, and Jackson features are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.89,
+        "reason": "Jackson and annotation terminology is used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific triggering inputs are given, including JSON with invalid subtype and field order changes."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The main method and example JSON effectively provide reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No environment, library, or version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Shows concrete incorrect outputs from System.out.println."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.87,
+        "reason": "The issue is distinguished by invalid subtype handling causing later valid properties to be skipped."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "Expected behavior is implied but not stated explicitly."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Observed behavior is explicitly stated in comments and outputs."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The discrepancy is clear: Jackson should continue parsing, but it stops reading later fields."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.84,
+        "reason": "The code and JSON examples are sufficient to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No required environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No explicit root cause is proposed."
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "There is no proposed explanation to link to symptoms."
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No evidence-backed cause is provided."
+      },
+      "Q4": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "No causal explanation is given to assess coherence."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "The report references Jackson annotations, FAIL_ON_INVALID_SUBTYPE, and specific JSON fields."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Mentions ObjectMapper, DeserializationFeature, JsonTypeInfo, JsonSubTypes, CallRecord, and Event."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The affected subsystem is Jackson polymorphic deserialization."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Includes code snippets and printed output, though no stack trace."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No external dependencies or services are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "No OS, browser, framework, or version details are given."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are vague, such as 'jackson doesn't' and 'continue to parse'."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Conditions around the invalid subtype and parsing behavior are not fully specified."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Expected behavior is implied rather than clearly defined."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Version and environment information are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "The report is consistent and does not contain contradictions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The faulty behavior is specific enough to identify the parsing failure after an invalid subtype."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "The likely area is Jackson's polymorphic deserialization code path, though not a precise code location."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "The expected correct behavior is not explicitly stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.76,
+        "reason": "Edge cases are shown, including invalid subtype and property order effects."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "A developer would likely need more investigation because the report lacks version and root-cause detail."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "No root cause is explicitly proposed."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No specific code construct or logic error is identified as the cause."
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No causal relationship is articulated beyond the observed failure."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "The narrative and main method imply reproducible cases using the provided JSON strings."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.91,
+        "reason": "The affected concept is Jackson polymorphic subtype deserialization."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "The report shows symptom and likely area, but does not distinguish underlying defect location from manifestation."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Only one subsystem is implicated; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Report shows observable faulty behavior: fields after an invalid subtype are not parsed."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Affected functionality is Jackson deserialization with FAIL_ON_INVALID_SUBTYPE disabled and @JsonTypeInfo."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Code snippets, output, and JSON strings are provided to aid debugging."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Sufficient context including code, JSON, and output is provided to begin investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Jackson deserialization subsystem, specifically polymorphic type handling, is identified."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report is mostly understandable despite lacking a title and having minor grammatical issues."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Problem is clear: after encountering an invalid subtype, Jackson stops parsing remaining fields."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Output is shown first, then code, which is slightly non-standard but still logical."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "References to classes, fields, and JSON properties are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Technical terms like FAIL_ON_INVALID_SUBTYPE, @JsonTypeInfo, @JsonSubTypes are used consistently."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Specific JSON inputs and triggering condition (invalid subtype 'xevent') are described."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Code with main method provides concrete reproduction steps."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No Jackson version, Java version, or OS information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Specific output showing missing fields is reported with inline comments."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Report distinguishes multiple cases (field order matters, item2 not read) making it specific."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is stated: Jackson should continue parsing after FAIL_ON_INVALID_SUBTYPE error."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Observed behavior is shown via output: fields after invalid subtype are missing."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Discrepancy is clear: expected continued parsing vs. actual truncated parsing."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Self-contained code with main method allows reproduction attempt."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No version or environment details are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Report implies Jackson stops consuming the token stream after an invalid subtype, causing subsequent fields to be skipped."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The implied cause (stream not advanced past invalid subtype token) is linked to missing fields in output."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Three test cases with different field orders provide evidence of the pattern."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "The explanation is coherent: invalid subtype leaves parser in bad state, skipping subsequent tokens."
+      },
+      "Q5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No stack traces, logs, or specific code locations in Jackson source are referenced."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Classes (CallRecord, Event, Item), annotations (@JsonTypeInfo, @JsonSubTypes), and DeserializationFeature enums are mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Jackson deserialization with polymorphic type handling is clearly the affected subsystem."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Code snippets and output are included; no stack traces or logs."
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Jackson ObjectMapper and its configuration are referenced as the external library."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "No OS, Java version, or Jackson version is specified."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "References are mostly specific; classes, JSON, and behavior are clearly described."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "JSON inputs and conditions are well described with concrete strings."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior (continue parsing) is stated explicitly."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Jackson version and Java/environment details are missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No contradictory or inconsistent statements found in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Faulty behavior (parser stops after invalid subtype) is described precisely enough."
+      },
+      "P2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific Jackson source class or method is identified as needing a fix."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Expected correct behavior (continue parsing remaining fields) is stated."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Field ordering as an edge case affecting the bug is documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "A developer would need to investigate Jackson internals further; no specific fix location is given."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Root cause is implied: Jackson does not properly skip/consume tokens after an invalid subtype, leaving the parser in a bad state."
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific Jackson method, API call, or code construct is cited as the root cause."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.75,
+        "reason": "The causal link (invalid subtype \u2192 parser state corrupted \u2192 subsequent fields skipped) is implied by the three test cases."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The main method with three JSON test cases provides inferrable reproduction steps even without numbered steps."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Jackson polymorphic deserialization with @JsonTypeInfo is clearly the affected subsystem."
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "Report does not distinguish between where symptom manifests (output) and where defect resides (Jackson internals)."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "Only one subsystem (Jackson deserialization) is identified; no cross-cutting concerns are mentioned."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.95
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.9
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.9
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.85
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.9
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.89,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.95
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.9
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.17999999999999994,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.8
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.87,
+        "judge2_confidence": 0.9
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.06000000000000005,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.9
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.21999999999999997,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.75
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.85
+      },
+      "Q2": {
+        "agreement": false,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.85
+      },
+      "Q3": {
+        "agreement": false,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      },
+      "Q4": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.85
+      },
+      "Q5": {
+        "agreement": false,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.7
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "T3": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "T4": {
+        "agreement": false,
+        "confidence_diff": 0.0,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.9
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.85
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.08000000000000007,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.8
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.85
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.85
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.9
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P2": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.82,
+        "judge2_confidence": 0.7
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.050000000000000044,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.85
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.76,
+        "judge2_confidence": 0.8
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.13,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.75
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": false,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.25,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.7
+      },
+      "RC3": {
+        "agreement": false,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.75
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.019999999999999907,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.91,
+        "judge2_confidence": 0.95
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.18999999999999995,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.84,
+        "judge2_confidence": 0.65
+      },
+      "I3": {
+        "agreement": true,
+        "confidence_diff": 0.20000000000000007,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.7
+      }
+    }
+  },
+  "percent_agreement": 0.7021276595744681,
+  "cohens_kappa": 0.3202479338842975,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.85)"
+      },
+      "Q2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.94 > 0.85)"
+      },
+      "Q3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "Q4": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.97 > 0.85)"
+      },
+      "Q5": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.78 > 0.7)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "agreement"
+      },
+      "T4": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.8 > 0.72)"
+      },
+      "M2": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.82 > 0.7)"
+      },
+      "P3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.95 > 0.75)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "agreement"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.85)"
+      },
+      "Q2": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "Selected judge1 (higher confidence: 0.94 > 0.85)"
+      },
+      "Q3": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "Q4": {
+        "value": false,
+        "confidence": 0.97,
+        "reason": "Selected judge1 (higher confidence: 0.97 > 0.85)"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.78,
+        "reason": "Selected judge1 (higher confidence: 0.78 > 0.7)"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T4": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "Selected judge2 (higher confidence: 0.8 > 0.72)"
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Close confidences; merged truth by OR"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.82,
+        "reason": "Selected judge1 (higher confidence: 0.82 > 0.7)"
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge1 (higher confidence: 0.9 > 0.85)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "RC2": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "Selected judge1 (higher confidence: 0.95 > 0.75)"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": false,
+        "confidence": 0.84,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 1,
+      "TechnicalContext": 4,
+      "Ambiguity": 3,
+      "RepairReadiness": 3,
+      "RootCauseEvidence": 0,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 1
+    },
+    "derived": {
+      "repair_difficulty": 2,
+      "ambiguity_count": 3,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 0,
+      "impact_scope": 1
+    },
+    "zscore": {
+      "Actionability": 1.374142698712394,
+      "Clarity": 1.374142698712394,
+      "Specificity": 0.792774633872535,
+      "Reproducibility": 0.792774633872535,
+      "ReasoningQuality": -0.9513295606470419,
+      "TechnicalContext": 0.792774633872535,
+      "Ambiguity": -0.3699614958071829,
+      "RepairReadiness": -0.3699614958071829,
+      "RootCauseEvidence": -1.532697625486901,
+      "HiddenReproducibility": -0.9513295606470419,
+      "ImpactScope": -0.9513295606470419
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}

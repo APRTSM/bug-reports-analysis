@@ -1,0 +1,1430 @@
+{
+  "bug": {
+    "bug_id": "Codec-5",
+    "project": "Codec",
+    "summary": "Base64InputStream causes NullPointerException on some input",
+    "description": "Certain (malformed?) input to \nBase64InputStream\ncauses a \nNullPointerException\nin \nBase64.decode\n.\n\nThe exception occurs when \nBase64.decode\nis entered with the following conditions:\n\nbuffer\nis \nnull\n\nmodulus\nis \n3\nfrom a previous entry.\n\ninAvail\nis \n-1\nbecause \nBase64InputStream.read\nreached EOF on line 150.\n\nUnder these conditions, \nBase64.decode\nreaches line 581 with \nbuffer\nstill \nnull\nand throws a \nNullPointerException\n.\n\nHere is some input data that will trigger it:\n\nH4sIAAAAAAAAAFvzloG1uIhBKiuxLFGvODW5tCizpFIvODM9LzXFPykrNbmE8//eDC2bq/+ZGJij\nGdiT8/NKUvNKShiYop2iGTiLgQoTS0qLUgsZ6hgYfRh4SjJSE3PS84GmZOSWMAj5gMzVz0nMS9cP\nLinKzEu3rigoLQJpXvNZ/AcbR8gDJgaGigIGBqbLayAuMUxNKdVLTyxJTc7QS07WSyzKLC7JL8lJ\n1StJLErMKynNSdTLyUxOzStO1fOB0AwQwMjEwOrJwJMbn+mSWFkclpiTmeID4joml2SWpYZk5qaW\nMEj45Bel62flpyTqlwAF9F2A9oBkrMEqnYtSoXyob1hy4z1dShgEIL4oLcnM0Q8N9XQBqubKjYfa\nDjTV1AfoZn2Im/WTk/XhbtaHu1kf6mZ9T5g2YED8BwKgj8WAbtIDuUkP5CY9mJt22FSkZEXf/QkK\noCIGeVRFSYlA/zsBCZjq//9/PvSP1VvMxMDkxcCe6ZuZk5NZ7MPAnemcUZSfl5+Tn15ZwiCF5n2E\nnDUoDhjVfhrpNABdpI5qWTJYmZ5nsD9Cg0pwSWnSyhOCaYXmAerMoDgsxnAkzG1R+XmpYPXL9Bln\n1RhJPQarL+dgYNM1MLUyMKioKAYFOCvIBb8vl8qCOFxA4/jAiRIU7HqgYN8zk/n7jNxWfbAXeXJS\nE4tLgOnUKbOk2IuBOzcfzqso6M1QmrzKkedPzcYO3QZu129As4xITlZI6QqYFNhz44v9EkFpCGua\nLmEQdkktS83JL8gF5g4FqBGlIJ+wAI1gKJtZEvTws/j3FluPu4lcr7ra9OfHKXIZNTa4FPd8n33J\nQXPFLte9AZe5uBaJvGrKVl+rbrTaXDZO6NwU7gnHOVgzzsmnGX2Y5GDqrst8wcTear0Ab1yj6PrD\nF977vL/5iUMg773My5qLLK8OVAu6Tz7Xcyjy9Uym02Z/+xY7m85nYo/t4E93FXFKOf9/a3X78neS\njE5Tu066K3Mdf17m66mbpXN9y34ZZ3ErRobfn+RfzVBIWj0vc82vY7YPvM5eLHHOulV77M6CoB4h\nxb/FjHWHRR+ldb6QmSP1ROGwGs+nx2quwitN7+mIpsRFhU37JPRoZe2ZjiX/70j7CS1tz51YP/3W\n/xfnV2i/4rAoYeAN9nA0NTQqBxYMQcGOAG5\n\nSay this is read from file with a \nbyte[]\nof size \n1024\nusing \nBase64InputStream.read(byte[])\n. In the first iteration, all \n1190\nbytes get read into \nbuf\n, then it enters \nBase64.setInitialBuffer\nand assigns the \nbyte\n[1024]\nto \nbuffer\nand does a round of decoding. When it then enters \nBase64.readResults\non line \n162\nin \nBase64InputStream\n, it sets \nbuffer\nto \nnull\n, \nmodulus\nhas the left-over value \n3\n, and the NPE occurs the next iteration.\n\nBase64InputStream\ncould avoid this by returning right away on EOF (\n-1\n), but I think the real fix needs to happen in \nBase64\nsince it this same situation could be created by direct use. My guess is either more needs to happen in the body of the \nif\non line \n542\n(set \nmodulus\nto \n0\n?) or the condition on line \n573\nis flawed and needs adjusting."
+  },
+  "judge1": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Describes a NullPointerException occurring on specific input."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Identifies Base64InputStream and Base64.decode as the affected components."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Includes exception details, line references, and a triggering input sample."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Provides enough context about the read path, EOF, buffer state, and modulus state to investigate."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Points to the Base64 decoding logic as the likely subsystem."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The report is understandable and mostly grammatically coherent."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem is clearly a NullPointerException during Base64 decoding."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "It follows a logical sequence from input, to read path, to failure."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.93,
+        "reason": "References to Base64InputStream, Base64.decode, buffer, modulus, and inAvail are specific."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Technical terms are used consistently across the report."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Gives a malformed input string and EOF-related conditions."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Describes the read(byte[]) scenario and the sequence leading to failure."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No OS, version, or runtime environment is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Reports a NullPointerException and the exact state when it occurs."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Includes state details like buffer=null, modulus=3, and inAvail=-1 that distinguish it from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": false,
+        "confidence": 0.78,
+        "reason": "Expected behavior is implied but not stated explicitly."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly a NullPointerException in Base64.decode."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "The report contrasts expected EOF handling with the observed NPE."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The input and read path are detailed enough to attempt reproduction."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "No required environment or dependency conditions are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Proposes a likely fix in Base64, including modulus handling or a flawed condition."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.94,
+        "reason": "Links the proposed cause to the NPE after EOF with buffer still null."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Supports the explanation with line references and state transitions."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The explanation is internally consistent with the described control flow."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "References technical artifacts such as line numbers, buffer state, and methods."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Mentions Base64InputStream.read, Base64.decode, Base64.setInitialBuffer, and Base64.readResults."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The Base64 decoding subsystem is clearly identifiable."
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Includes line references and exception behavior, though no full stack trace."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "No external dependencies or integrations are mentioned."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "No OS, browser, framework, or version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": true,
+        "confidence": 0.72,
+        "reason": "Some references are tentative, such as 'malformed?' and 'my guess'."
+      },
+      "M2": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Triggering conditions are described, but not as a minimal exact reproduction recipe."
+      },
+      "M3": {
+        "value": true,
+        "confidence": 0.7,
+        "reason": "Expected behavior is implied rather than explicitly stated."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Environment/version information is missing."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "The report is consistent and does not contain contradictions."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The faulty behavior and triggering state are described precisely."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Base64.decode and related line numbers are identifiable as the likely fix location."
+      },
+      "P3": {
+        "value": false,
+        "confidence": 0.74,
+        "reason": "The correct behavior is suggested but not stated as a concrete expected result."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.86,
+        "reason": "Documents the EOF and leftover modulus conditions that affect the fix."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "A developer would likely still need to inspect the code to confirm the exact fix."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Explicitly proposes that the fix may be in Base64 logic."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "References specific code locations and conditions around line 542 and 573."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Explains how buffer remaining null with modulus 3 leads to the NPE."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "A reproduction can be inferred from reading the provided input through Base64InputStream.read(byte[])."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "The Base64 decoding module is the identifiable affected concept."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Distinguishes the symptom in Base64InputStream from the underlying defect in Base64.decode."
+      },
+      "I3": {
+        "value": false,
+        "confidence": 0.88,
+        "reason": "Only one main subsystem is discussed; no multiple impacted areas are identified."
+      }
+    }
+  },
+  "judge2": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Report describes a NullPointerException thrown by Base64.decode on specific input."
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Affected components are Base64InputStream and Base64.decode, clearly identified."
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Report includes specific line numbers (150, 162, 542, 573, 581), conditions (buffer=null, modulus=3, inAvail=-1), and sample input data."
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Detailed conditions, input data, and code flow are provided, giving sufficient context to begin investigation."
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Base64InputStream and Base64 classes are explicitly identified as the affected subsystem."
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Report is well-written, grammatically coherent, and technically precise."
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The problem\u2014NullPointerException in Base64.decode caused by specific state conditions\u2014is clearly stated."
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Information flows logically: conditions, triggering input, code flow, and proposed fix are presented in order."
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References to buffer, modulus, inAvail, and specific line numbers are unambiguous."
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Technical terms (buffer, modulus, inAvail, EOF, NPE) are used consistently throughout."
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Specific triggering conditions (buffer=null, modulus=3, inAvail=-1) and input data are described."
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Steps are described narratively: read from file with byte[1024], first iteration reads 1190 bytes, then NPE on next iteration."
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No OS, Java version, or library version information is provided."
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "NullPointerException at Base64.decode line 581 is the specific failure reported."
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "The specific state combination (buffer=null, modulus=3) and the exact input bytes distinguish this from a generic failure."
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected behavior is implied: no NPE should occur; report also suggests modulus should be reset to 0."
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Observed behavior is explicitly stated: NullPointerException at Base64.decode line 581."
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "The discrepancy (NPE vs. successful decode) is clearly identifiable from the report."
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "Input data and read pattern (byte[1024]) are provided, enabling reproduction attempts."
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "No specific library version, Java version, or OS dependencies are documented."
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Report explicitly proposes two potential fixes: resetting modulus to 0 on line 542 or adjusting condition on line 573."
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "Proposed causes (stale modulus=3, buffer=null after readResults) are directly linked to the NPE symptom."
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The code flow trace (setInitialBuffer, readResults setting buffer=null, next iteration NPE) supports the explanation."
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The explanation is internally coherent: leftover modulus causes decode to proceed past null buffer check."
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "References specific line numbers (542, 573, 581, 150, 162) and method names (setInitialBuffer, readResults)."
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Base64InputStream, Base64.decode, Base64.setInitialBuffer, Base64.readResults, and specific line numbers are mentioned."
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "The Base64 encoding/decoding subsystem (Apache Commons Codec or similar) is clearly identifiable."
+      },
+      "T3": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No stack trace or logs are included, though code line references and input data are provided."
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.75,
+        "reason": "No external libraries or dependencies beyond the Base64 classes themselves are referenced."
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.8,
+        "reason": "No OS, JVM version, or library version details are provided."
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "References are specific: named classes, line numbers, variable names, and conditions are all clearly stated."
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Input data, buffer size (1024), and state conditions are well-described."
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Expected behavior (no NPE, possibly modulus reset) is reasonably clear from context."
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.8,
+        "reason": "Library version and Java/OS environment are not specified, which could be relevant."
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "No contradictory or inconsistent statements are present in the report."
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "The faulty behavior (NPE due to stale modulus with null buffer) is precisely described."
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Base64.decode at lines 542/573/581 and Base64InputStream line 150/162 are identified as fix locations."
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Expected fix targets are stated: reset modulus to 0 or adjust condition on line 573."
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "The specific state conditions (buffer=null, modulus=3, inAvail=-1) that trigger the bug are documented."
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.65,
+        "reason": "A developer would still need to examine the actual source code to confirm the fix, as no code snippets are included."
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Root cause is explicitly proposed: stale modulus=3 after buffer is set to null by readResults causes NPE in next decode call."
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "References specific code constructs: if-condition on line 542, condition on line 573, readResults setting buffer=null."
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "Causal chain is articulated: readResults nulls buffer but leaves modulus=3, causing decode to reach line 581 with null buffer."
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "Narrative describes: use the provided Base64 input, read with byte[1024] via Base64InputStream.read(byte[]), which triggers the NPE on the second iteration."
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "Base64 decoding subsystem (Base64InputStream and Base64 class) is clearly identified as affected."
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Report distinguishes symptom (NPE in Base64.decode line 581) from defect location (stale modulus or condition on line 542/573)."
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.85,
+        "reason": "Both Base64InputStream (line 150/162) and Base64 core class (lines 542/573/581) are identified as impacted areas."
+      }
+    }
+  },
+  "per_item_agreement": {
+    "Actionability": {
+      "A1": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "A3": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.97
+      },
+      "A4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.98
+      },
+      "A5": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "C2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "C3": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.98
+      },
+      "C4": {
+        "agreement": true,
+        "confidence_diff": 0.039999999999999925,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.97
+      },
+      "C5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.97
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "S2": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "S3": {
+        "agreement": true,
+        "confidence_diff": 0.19999999999999996,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.75
+      },
+      "S4": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "S5": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.98
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "agreement": false,
+        "confidence_diff": 0.12,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.78,
+        "judge2_confidence": 0.9
+      },
+      "R2": {
+        "agreement": true,
+        "confidence_diff": 0.0,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.99,
+        "judge2_confidence": 0.99
+      },
+      "R3": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.95
+      },
+      "R4": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.92
+      },
+      "R5": {
+        "agreement": true,
+        "confidence_diff": 0.2300000000000001,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.93,
+        "judge2_confidence": 0.7
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "Q2": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.98
+      },
+      "Q3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "Q4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "Q5": {
+        "agreement": true,
+        "confidence_diff": 0.05999999999999994,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.92,
+        "judge2_confidence": 0.98
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.98,
+        "judge2_confidence": 0.99
+      },
+      "T2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.99
+      },
+      "T3": {
+        "agreement": false,
+        "confidence_diff": 0.15999999999999992,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.8
+      },
+      "T4": {
+        "agreement": true,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.75
+      },
+      "T5": {
+        "agreement": true,
+        "confidence_diff": 0.1399999999999999,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.94,
+        "judge2_confidence": 0.8
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "agreement": false,
+        "confidence_diff": 0.18000000000000005,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.72,
+        "judge2_confidence": 0.9
+      },
+      "M2": {
+        "agreement": false,
+        "confidence_diff": 0.09999999999999998,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.8,
+        "judge2_confidence": 0.9
+      },
+      "M3": {
+        "agreement": false,
+        "confidence_diff": 0.15000000000000002,
+        "judge1_value": true,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.85
+      },
+      "M4": {
+        "agreement": true,
+        "confidence_diff": 0.07999999999999996,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.8
+      },
+      "M5": {
+        "agreement": true,
+        "confidence_diff": 0.010000000000000009,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.95
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.97
+      },
+      "P2": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      },
+      "P3": {
+        "agreement": false,
+        "confidence_diff": 0.16000000000000003,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.74,
+        "judge2_confidence": 0.9
+      },
+      "P4": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.86,
+        "judge2_confidence": 0.88
+      },
+      "P5": {
+        "agreement": true,
+        "confidence_diff": 0.04999999999999993,
+        "judge1_value": false,
+        "judge2_value": false,
+        "judge1_confidence": 0.7,
+        "judge2_confidence": 0.65
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "agreement": true,
+        "confidence_diff": 0.040000000000000036,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.95,
+        "judge2_confidence": 0.99
+      },
+      "RC2": {
+        "agreement": true,
+        "confidence_diff": 0.08999999999999997,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.97
+      },
+      "RC3": {
+        "agreement": true,
+        "confidence_diff": 0.06999999999999995,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.97
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.97,
+        "judge2_confidence": 0.95
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "agreement": true,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.96,
+        "judge2_confidence": 0.99
+      },
+      "I2": {
+        "agreement": true,
+        "confidence_diff": 0.020000000000000018,
+        "judge1_value": true,
+        "judge2_value": true,
+        "judge1_confidence": 0.9,
+        "judge2_confidence": 0.88
+      },
+      "I3": {
+        "agreement": false,
+        "confidence_diff": 0.030000000000000027,
+        "judge1_value": false,
+        "judge2_value": true,
+        "judge1_confidence": 0.88,
+        "judge2_confidence": 0.85
+      }
+    }
+  },
+  "percent_agreement": 0.851063829787234,
+  "cohens_kappa": 0.5385694249649369,
+  "adjudication": {
+    "Actionability": {
+      "A1": {
+        "selected": "agreement"
+      },
+      "A2": {
+        "selected": "agreement"
+      },
+      "A3": {
+        "selected": "agreement"
+      },
+      "A4": {
+        "selected": "agreement"
+      },
+      "A5": {
+        "selected": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "selected": "agreement"
+      },
+      "C2": {
+        "selected": "agreement"
+      },
+      "C3": {
+        "selected": "agreement"
+      },
+      "C4": {
+        "selected": "agreement"
+      },
+      "C5": {
+        "selected": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "selected": "agreement"
+      },
+      "S2": {
+        "selected": "agreement"
+      },
+      "S3": {
+        "selected": "agreement"
+      },
+      "S4": {
+        "selected": "agreement"
+      },
+      "S5": {
+        "selected": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "R2": {
+        "selected": "agreement"
+      },
+      "R3": {
+        "selected": "agreement"
+      },
+      "R4": {
+        "selected": "agreement"
+      },
+      "R5": {
+        "selected": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "selected": "agreement"
+      },
+      "Q2": {
+        "selected": "agreement"
+      },
+      "Q3": {
+        "selected": "agreement"
+      },
+      "Q4": {
+        "selected": "agreement"
+      },
+      "Q5": {
+        "selected": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "selected": "agreement"
+      },
+      "T2": {
+        "selected": "agreement"
+      },
+      "T3": {
+        "selected": "judge1",
+        "rationale": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "T4": {
+        "selected": "agreement"
+      },
+      "T5": {
+        "selected": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "M3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M4": {
+        "selected": "agreement"
+      },
+      "M5": {
+        "selected": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "selected": "agreement"
+      },
+      "P2": {
+        "selected": "agreement"
+      },
+      "P3": {
+        "selected": "judge2",
+        "rationale": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "P4": {
+        "selected": "agreement"
+      },
+      "P5": {
+        "selected": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "selected": "agreement"
+      },
+      "RC2": {
+        "selected": "agreement"
+      },
+      "RC3": {
+        "selected": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "selected": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "selected": "agreement"
+      },
+      "I2": {
+        "selected": "agreement"
+      },
+      "I3": {
+        "selected": "both_partial",
+        "rationale": "Close confidences; merged truth by OR"
+      }
+    }
+  },
+  "final_checklist": {
+    "Actionability": {
+      "A1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "A3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A4": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "A5": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      }
+    },
+    "Clarity": {
+      "C1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "C3": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "C4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "C5": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "Specificity": {
+      "S1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S2": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S3": {
+        "value": false,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "S4": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "S5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "Reproducibility": {
+      "R1": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.78)"
+      },
+      "R2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "R3": {
+        "value": true,
+        "confidence": 0.95,
+        "reason": "agreement"
+      },
+      "R4": {
+        "value": true,
+        "confidence": 0.92,
+        "reason": "agreement"
+      },
+      "R5": {
+        "value": false,
+        "confidence": 0.93,
+        "reason": "agreement"
+      }
+    },
+    "ReasoningQuality": {
+      "Q1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "Q2": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      },
+      "Q3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q4": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "Q5": {
+        "value": true,
+        "confidence": 0.98,
+        "reason": "agreement"
+      }
+    },
+    "TechnicalContext": {
+      "T1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T2": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "T3": {
+        "value": true,
+        "confidence": 0.96,
+        "reason": "Selected judge1 (higher confidence: 0.96 > 0.8)"
+      },
+      "T4": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "T5": {
+        "value": false,
+        "confidence": 0.94,
+        "reason": "agreement"
+      }
+    },
+    "Ambiguity": {
+      "M1": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.72)"
+      },
+      "M2": {
+        "value": false,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.8)"
+      },
+      "M3": {
+        "value": false,
+        "confidence": 0.85,
+        "reason": "Selected judge2 (higher confidence: 0.85 > 0.7)"
+      },
+      "M4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "M5": {
+        "value": false,
+        "confidence": 0.96,
+        "reason": "agreement"
+      }
+    },
+    "RepairReadiness": {
+      "P1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "P3": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "Selected judge2 (higher confidence: 0.9 > 0.74)"
+      },
+      "P4": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "agreement"
+      },
+      "P5": {
+        "value": false,
+        "confidence": 0.7,
+        "reason": "agreement"
+      }
+    },
+    "RootCauseEvidence": {
+      "RC1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "RC2": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      },
+      "RC3": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "HiddenReproducibility": {
+      "H1": {
+        "value": true,
+        "confidence": 0.97,
+        "reason": "agreement"
+      }
+    },
+    "ImpactScope": {
+      "I1": {
+        "value": true,
+        "confidence": 0.99,
+        "reason": "agreement"
+      },
+      "I2": {
+        "value": true,
+        "confidence": 0.9,
+        "reason": "agreement"
+      },
+      "I3": {
+        "value": true,
+        "confidence": 0.88,
+        "reason": "Close confidences; merged truth by OR"
+      }
+    }
+  },
+  "aggregated": {
+    "raw": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 4,
+      "Reproducibility": 4,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 3,
+      "Ambiguity": 1,
+      "RepairReadiness": 4,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    },
+    "derived": {
+      "repair_difficulty": 1,
+      "ambiguity_count": 1,
+      "hidden_s2r_present": true,
+      "root_cause_evidence": 3,
+      "impact_scope": 3
+    },
+    "zscore": {
+      "Actionability": 1.1258525035052873,
+      "Clarity": 1.1258525035052873,
+      "Specificity": 0.39735970711951313,
+      "Reproducibility": 0.39735970711951313,
+      "ReasoningQuality": 1.1258525035052873,
+      "TechnicalContext": -0.331133089266261,
+      "Ambiguity": 0.39735970711951313,
+      "RepairReadiness": -1.7881186820378092,
+      "RootCauseEvidence": -0.331133089266261,
+      "HiddenReproducibility": -1.7881186820378092,
+      "ImpactScope": -0.331133089266261
+    },
+    "total_possible_per_dimension": {
+      "Actionability": 5,
+      "Clarity": 5,
+      "Specificity": 5,
+      "Reproducibility": 5,
+      "ReasoningQuality": 5,
+      "TechnicalContext": 5,
+      "Ambiguity": 5,
+      "RepairReadiness": 5,
+      "RootCauseEvidence": 3,
+      "HiddenReproducibility": 1,
+      "ImpactScope": 3
+    }
+  },
+  "prompt_tracking": {
+    "prompt_version": "v1",
+    "models": {
+      "judge1": {
+        "name": "GPT-5.4 mini",
+        "type": "openai",
+        "model_version": "gpt-5.4-mini-2026-03-17",
+        "temperature": 0.1
+      },
+      "judge2": {
+        "name": "Claude Sonnet",
+        "type": "anthropic",
+        "model_version": "claude-sonnet-4-6",
+        "temperature": 0.1
+      },
+      "adjudicator": {
+        "name": "Gemini 3.1 Flash Lite",
+        "type": "gemini",
+        "model_version": "gemini-3.1-flash-lite",
+        "temperature": 0.1
+      }
+    }
+  }
+}
