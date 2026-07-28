@@ -147,23 +147,106 @@ Literal keyword scan (no regex) on lowercased text: `observed`, `actual`, `got`,
 
 `has_expected_observed = has_expected AND has_observed` → contributes +1.0 to completeness score.
 
----
-
-## Gemini LLM Annotation Scripts
-
-This document describes the three Python scripts used to annotate Defects4J bug reports via the Google Gemini API. Each script reads bug reports from XML files (`defects4j_xml/`), issues a structured prompt to Gemini, and writes results incrementally to a CSV file. All scripts use `gemini-2.0-flash` or `gemini-2.5-flash` as the primary model with automatic fallback.
 
 ---
 
-## Overview of Scripts
+## LLM Bug Rating Pipeline (`llm_bug_rating/`)
 
-| Script | Input | Output CSV | Purpose |
-|---|---|---|---|
-| `gemini_bug_categorization_overall.py` | `defects4j_xml/*.xml` | `gemini_bug_categorization.csv` | Assigns each bug report one of 9 coarse-grained categories |
-| `fine_grained_gemini_catg.py` | `defects4j_xml/*.xml` + `gemini_bug_categorization.csv` | `fine_grained_gemini_categorization.csv` | Assigns fine-grained sub-category to bugs classified as "Functional Issue" |
-| `gemini_bug_ratings.py` | `defects4j_xml/*.xml` | `gemini_bug_ratings.csv` | Rates each bug report across 13 quality and content dimensions |
+### Overview
 
----
+This is the **current source** of every rating-related column in `final_feature_set_bug_reports.csv` (`percent_agreement`, `cohens_kappa`, the 11 raw dimension scores, their `z_*` counterparts, and the derived composites).
+
+This pipeline evaluates bug reports against a fixed **checklist of binary (true/false) items**, grouped into 9 quality dimensions, using two independent LLM judges plus an adjudication step for disagreements.
+
+- **Judge 1:** GPT-5.4-mini (`gpt-5.4-mini-2026-03-17`, temperature 0.1)
+- **Judge 2:** Claude Haiku (`claude-haiku-4-5-20251001`, temperature 0.1)
+- **Adjudicator (configured):** Gemini 3.1 Flash Lite (`gemini-3.1-flash-lite`) — see the caveat under [Adjudication](#adjudication) below; the adjudication logic actually invoked in `main.py` is a deterministic confidence-comparison fallback, not an LLM call.
+- Config: `llm_bug_rating/config/settings.json`. Checklist: `llm_bug_rating/config/checklists_v2.json` (`prompt_version: "v2"`).
+
+### Prompt (`llm_bug_rating/prompts/checklist_prompt.txt`)
+
+```
+You are given a bug report (summary and description) and a checklist of binary items.
+For each checklist item, return a JSON object with the fields:
+ - value: boolean (true/false)
+ - confidence: float between 0.0 and 1.0
+ - reason: concise explanation for the judgment
+
+Constraints:
+- Use deterministic behavior (temperature=0.1).
+- Output valid JSON only (no surrounding commentary).
+- Use short, factual reasons referencing the report.
+
+Checklist:
+{checklist}
+
+Bug Report:
+Summary:
+{summary}
+
+Description:
+{description}
+
+Produce a JSON mapping from dimension -> item -> {"value", "confidence", "reason"}.
+```
+
+Both judges receive the identical prompt (same template, same checklist, same bug text) — only the underlying model differs. `{checklist}` is the full dimension → item → description listing below, formatted as plain text (`Dimension:\n  CODE: description text`).
+
+### Checklist (`llm_bug_rating/config/checklists_v2.json`, v2)
+
+9 dimensions, 43 binary items total. Each dimension's raw score (the CSV's `actionability`, `clarity`, etc.) is the **count of items judged `true`** (0–5 for most dimensions, 0–3 for `RootCauseEvidence`, 0–1 for `HiddenReproducibility`, 0–4 for `ImpactScope`).
+
+| Dimension → CSV column | Items |
+|---|---|
+| **Actionability** → `actionability` | A1: observable faulty behavior with enough detail to distinguish from expected behavior · A2: affected class/method/API/code path specifically identified · A3: concrete debugging artifacts (traces, errors, snippets, logs) implicating the fault location · A4: developer could immediately attempt to reproduce/investigate without clarification · A5: pinpoints a specific module/class/component precisely enough to know where to start reading code |
+| **Clarity** → `clarity` | C1: precise enough for an unfamiliar developer to understand without guessing · C2: precise enough to write a failing test case without clarification · C3: sequence of events/conditions presented unambiguously (no multiple interpretations) · C4: referenced entities identified precisely enough to locate in the codebase · C5: technical terminology used accurately/consistently, not misleading about nature or location of the fault |
+| **Specificity** → `specificity` | S1: specific inputs/conditions/triggers concrete enough for a test case · S2: concrete, ordered reproduction steps · S3: environment/version info specific enough to rule out version ambiguity · S4: specific outputs/failures/exceptions/error messages verbatim or detailed enough to identify the exact failure mode · S5: details uniquely distinguish this issue from superficially similar bugs |
+| **Reproducibility** → `reproducibility` | R1: expected behavior explicitly stated as a concrete correctness criterion · R2: observed behavior explicitly stated with enough detail to recognize the failure · R3: discrepancy between expected/observed unambiguously identifiable · R4: reproduction steps complete and sufficient without additional investigation · R5: required environmental conditions/dependencies documented specifically enough to set up reproduction |
+| **ReasoningQuality** → `reasoning_quality` | Q1: explicitly proposes a specific potential cause (not just symptoms) · Q2: proposed explanation directly/specifically linked to symptoms with a plausible mechanism · Q3: concrete evidence (code refs, traces, logs, data) supporting the explanation · Q4: internally coherent and logically consistent · Q5: references specific technical artifacts (exact log lines, method names, code locations, config values) |
+| **TechnicalContext** → `technical_context` | T1: specific classes/methods/files/APIs named, not just general terms · T2: affected subsystem/module identifiable enough to locate relevant source files · T3: technical artifacts (traces, logs, screenshots, snippets) included and directly relevant · T4: external dependencies/libraries/services referenced by name+version when relevant · T5: environment details (OS, browser, framework version, hardware, runtime) specific enough to reconstruct the environment |
+| **Ambiguity** → `ambiguity` (inverted for `z_ambiguity` — see below) | M1: vague/underspecified references needing resolution before investigating · M2: inputs/parameters/conditions insufficiently described to attempt reproduction · M3: expected behavior unclear/underspecified · M4: environment/version info materially affecting reproduction is missing · M5: contradictory or inconsistent statements that would mislead a developer |
+| **RepairReadiness** → `repair_readiness` (also feeds `repair_difficulty`, `repair_feasibility`, `p5_fix_feasible`) | P1: faulty behavior precise enough to determine correct behavior and what change would achieve it · P2: specific component/class/method/location requiring a fix identifiable directly · P3: expected correct behavior concrete enough to serve as an acceptance criterion · P4: relevant constraints/edge cases/conditions affecting the fix documented explicitly · P5: developer could implement a plausible fix using only this report ("most direct APR signal by design" per `update_feature_set_with_llm_ratings.py`) |
+| **RootCauseEvidence** → `root_cause_evidence` | RC1: specific potential root cause explicitly proposed, not merely implied · RC2: proposed root cause references a specific code construct/operation/API/data condition/logic error by name · RC3: causal chain from root cause to observed failure articulated clearly enough to verify |
+| **HiddenReproducibility** → `hidden_reproducibility` | H1: a specific, concrete scenario from which complete and unambiguous reproduction steps can be *directly derived* — must be fully determinable, not merely suggested |
+| **ImpactScope** → `impact_scope` | I1: a specific subsystem/module/class/code concept likely affected is identifiable, not just a broad functional area · I2: distinguishes where the symptom manifests from where the underlying defect likely resides · I3: multiple impacted areas/cross-cutting concerns identified with enough specificity to understand fix scope · I4: names three or more distinct technical concepts/classes/methods/components relevant to understanding or fixing the bug |
+
+(`llm_bug_rating/config/checklists.json`, the v1 checklist, exists alongside `checklists_v2.json` but is superseded — `settings.json` pins `prompt_version: "v2"`.)
+
+### Aggregation (`llm_bug_rating/scoring/aggregator.py`)
+
+For each bug, per dimension:
+
+- **`raw`** — count of items judged `true` (this is the CSV's raw column, e.g. `actionability`, `clarity`).
+- **`derived`** — semantically relabelled scores:
+  - `repair_difficulty` = (max items in RepairReadiness) − raw RepairReadiness count (inverted: more repair-ready ⇒ lower difficulty)
+  - `ambiguity_count` = raw Ambiguity count
+  - `hidden_s2r_present` = `True` iff the single HiddenReproducibility item is true
+  - `root_cause_evidence`, `impact_scope` = raw counts (pass-through)
+- **`zscore`** — ⚠️ **not a per-feature, cross-bug standardization.** For each bug independently, the 9 dimension raw counts (with `Ambiguity` sign-flipped so "higher = better" on every axis) are treated as a 9-value sample, and each dimension's z-score is computed *relative to that same bug's other 8 dimension scores* (`(value − mean_of_this_bugs_9_dimensions) / stdev_of_this_bugs_9_dimensions`). It answers "did this report score unusually well/poorly on dimension X *relative to how it scored on its own other dimensions*", not "how does this report's dimension-X score compare to other bug reports' dimension-X scores." This is why `z_actionability` correlates only ~0.3–0.7 (not ~1.0) with raw `actionability` in the final data — confirmed empirically during the 2026-07 redundancy analysis. Keep this in mind when interpreting or writing up the `z_*` columns.
+
+Item-level composites (`causal_reasoning_score`, `repair_feasibility`, `repro_capability`, `p5_fix_feasible`) are computed separately in `update_feature_set_with_llm_ratings.py` directly from specific checklist items in the per-bug JSON (`final_checklist`), not from the aggregator's dimension sums — see that script's docstring for the exact item selections and rationale (chosen for low ceiling/saturation rate).
+
+### Agreement (`llm_bug_rating/analysis/agreement.py`)
+
+Computed per bug across all 43 checklist items, judge1 vs. judge2:
+
+- **`percent_agreement`** — fraction of the 43 items where both judges gave the same boolean value.
+- **`cohens_kappa`** — Cohen's κ treating each of the 43 items as one binary observation (standard 2×2 formula, corrected for chance agreement from each judge's marginal "true" rate).
+
+### Adjudication (`llm_bug_rating/adjudication/adjudicator.py`)
+
+Only invoked for items where judge1 and judge2 disagree (`main.py` skips adjudication entirely on agreement, keeping either judge's value).
+
+⚠️ **Discrepancy worth knowing:** `config/settings.json` configures an `adjudicator` model (Gemini 3.1 Flash Lite), but `adjudicator.py`'s own docstring calls it "a deterministic fallback adjudicator... In production, this should call an adjudicator LLM" — and `main.py` calls exactly this deterministic function, not a Gemini API call. The actual adjudication rule used to produce the current data is:
+
+- If judges' confidences differ by < 0.05: take the **OR** of both judges' boolean values ("close confidences; merged truth by OR").
+- Otherwise: take the value from whichever judge reported **higher confidence**.
+
+So despite the settings file listing a third model, the pipeline that produced `final_feature_set_bug_reports.csv`'s ratings is effectively **2-judge with a rule-based tiebreaker**, not a true 3-model adjudicated ensemble. Worth correcting in any methodology write-up.
+
+### Input / invocation
+
+Reads bug reports via `--csv bug_id,project,summary,description` or `--json` (array of `{issue_id, title, description}`, e.g. `apr-tool-comparison/defects4j/defects4j_cleaned_issues.json` — see the note on that file's known Mockito data-quality issue, fixed in `defects4j_xml/` this session but not necessarily in that external copy). Resumable: if a bug's output JSON already exists in `data/results_v2/json/`, it's skipped and the cached result reused.
 
 ## Script 1: `gemini_bug_categorization_overall.py`
 
@@ -320,166 +403,4 @@ Strict Rules:
 
 ---
 
-## Script 3: `gemini_bug_ratings.py`
 
-### Purpose
-
-Rates each bug report across 13 quality and content dimensions, producing numeric scores, boolean flags, and free-text annotations. All bug reports are processed regardless of category.
-
-### Prompt
-
-```
-You are an expert software engineer evaluating a bug report. Please analyze the following bug report and provide ratings in JSON format.
-Bug Report Title: {title}
-Bug Report Description:
-{description}
-Please evaluate this bug report on the following dimensions and return ONLY a valid JSON object with these exact fields:
-{{
-    "actionability": <integer 0-5>,
-    // How actionable is this bug report for a developer attempting to fix it?
-    // 0 = No actionable information; cannot determine what to fix or where to start.
-    // 1 = Minimal context; bug is vaguely described with no reproduction path.
-    // 2 = Some context but missing key details (e.g., no steps, unclear component).
-    // 3 = Moderately actionable; affected component is identifiable but steps are incomplete.
-    // 4 = Mostly actionable; reproduction path is present but minor details are missing.
-    // 5 = Fully actionable; all necessary context (component, steps, environment, expected behavior) is present.
-
-    "clarity": <integer 0-5>,
-    // How unambiguous and logically structured is the bug description?
-    // 0 = Incoherent, contradictory, or completely unintelligible prose.
-    // 1 = Difficult to follow; key information is buried or inconsistently described.
-    // 2 = Partially clear; the general issue is guessable but reasoning is muddled.
-    // 3 = Mostly clear; problem is understandable but some ambiguity remains.
-    // 4 = Clear and well-structured; minor phrasing issues only.
-    // 5 = Immediately comprehensible; problem, context, and behavior are unambiguous.
-
-    "specificity": <integer 0-5>,
-    // How specific and precise are the details provided (versions, inputs, steps, environment)?
-    // 0 = No specific details whatsoever; entirely generic description.
-    // 1 = Very few specifics; missing versions, inputs, and environment information.
-    // 2 = Some specifics present but incomplete (e.g., version mentioned, steps missing).
-    // 3 = Moderate specificity; key details present but not exhaustive.
-    // 4 = Highly specific; most relevant details (versions, inputs, steps) are provided.
-    // 5 = Exhaustively specific; all relevant technical details are precisely stated.
-
-    "expected_observed_alignment": <integer 0-5>,
-    // How clearly does the report distinguish what was expected versus what actually occurred?
-    // 0 = No distinction made; expected and observed behavior are not described.
-    // 1 = One side described (e.g., only observed behavior, no expectation stated).
-    // 2 = Both present but conflated or inconsistently described.
-    // 3 = Both described but the contrast is implicit rather than explicit.
-    // 4 = Clear distinction with minor gaps in either expected or observed description.
-    // 5 = Explicit, precise contrast between expected and observed behavior.
-
-    "root_cause_guess": "<string>",
-    // Your best guess at the root cause based on the report content.
-    // Examples: "null pointer dereference", "type mismatch", "race condition",
-    // "off-by-one error", "configuration issue", "unhandled exception", "memory leak".
-    // Use "unknown" if the report provides insufficient information.
-
-    "technical_depth": <integer 0-5>,
-    // How technically detailed is the report in terms of diagnostic evidence?
-    // 0 = No technical content; purely narrative with no code, traces, or technical context.
-    // 1 = Minimal technical content; at most a brief mention of a class or method name.
-    // 2 = Some technical content; e.g., an exception type mentioned but no stack trace.
-    // 3 = Moderate depth; stack trace or code snippet present but incomplete.
-    // 4 = Good depth; stack trace and/or code present with relevant technical context.
-    // 5 = Comprehensive; full stack trace, code snippet, environment details, and version info all present.
-
-    "ambiguity_types": ["<string>", ...],
-    // List all ambiguity types present in the report. Use empty list [] if none.
-    // Choose from: "missing steps", "vague inputs", "unclear error messages",
-    // "missing context", "unclear reproduction", "missing environment info",
-    // "contradictory information", "unclear expected behavior", "vague component reference".
-
-    "hidden_s2r_present": <boolean>,
-    // Are there implicit steps to reproduce embedded in the narrative
-    // (i.e., reproducible sequence is inferable but not explicitly listed as steps)?
-
-    "causal_reasoning_quality": <integer 0-5>,
-    // How well does the reporter explain cause-and-effect relationships?
-    // 0 = No causal explanation; symptoms reported with no reasoning.
-    // 1 = Weak causal hint; vague connection implied but not articulated.
-    // 2 = Partial reasoning; cause is suggested but not logically connected to effect.
-    // 3 = Moderate reasoning; causal chain is present but incomplete or imprecise.
-    // 4 = Good reasoning; cause and effect are clearly linked with supporting evidence.
-    // 5 = Strong reasoning; coherent, complete causal explanation with evidence.
-
-    "contradiction_present": <boolean>,
-    // Are there any internal contradictions or conflicting statements in the report
-    // (e.g., says bug occurs always but later says it is intermittent)?
-
-    "repair_difficulty": <integer 0-5>,
-    // How difficult would this bug be to fix based solely on the information provided?
-    // 0 = Trivial; fix is immediately obvious from the report (e.g., typo, config value).
-    // 1 = Easy; root cause is clear and fix is straightforward.
-    // 2 = Moderate; root cause is identifiable but fix requires some investigation.
-    // 3 = Difficult; root cause is unclear or fix requires significant code changes.
-    // 4 = Very difficult; report is vague, root cause is deeply buried, or fix is complex.
-    // 5 = Intractable from report alone; insufficient information to diagnose or fix.
-
-    "likely_impacted_code_concepts": ["<string>", ...]
-    // List of code concepts or subsystems likely affected based on report content.
-    // Examples: "JSON parsing", "UI rendering", "database queries", "authentication",
-    // "file I/O", "concurrency", "memory management", "API integration", "type conversion".
-}}
-
-Important:
-- Return ONLY the JSON object, no markdown formatting, no code blocks, no explanations
-- All integer fields must be integers (0-5)
-- All boolean fields must be true/false (lowercase)
-- All string fields must be valid strings
-- Arrays must be valid JSON arrays
-- If a field cannot be determined, use reasonable defaults (0 for integers, false for booleans, empty string/array for strings/arrays)
-```
-
-### Output Fields
-
-| Field | Type | Scale / Values | Description |
-|---|---|---|---|
-| `id` | string | — | Bug report identifier |
-| `title` | string | — | Bug report summary/title |
-| `description` | string | — | Full bug report description text |
-| `description_length` | integer | — | Character length of the description |
-| `actionability` | integer | 0–5 | How actionable is the report? Can a developer immediately start fixing it? |
-| `clarity` | integer | 0–5 | How clear and well-written is the description? |
-| `specificity` | integer | 0–5 | How specific are the details (versions, steps, inputs, etc.)? |
-| `expected_observed_alignment` | integer | 0–5 | How well does the report describe expected vs. observed behavior? |
-| `root_cause_guess` | string | free text | Model's best guess at the root cause (e.g., "null pointer", "race condition"). |
-| `technical_depth` | integer | 0–5 | How technically detailed is the report (code, stack traces, technical context)? |
-| `ambiguity_types` | string[] | see below | List of ambiguity types present; empty if none. |
-| `hidden_s2r_present` | boolean | true/false | Are implicit steps to reproduce hidden in the description (not explicitly listed)? |
-| `causal_reasoning_quality` | integer | 0–5 | How well does the reporter explain cause-and-effect relationships? |
-| `contradiction_present` | boolean | true/false | Are there any contradictions or conflicting information in the report? |
-| `repair_difficulty` | integer | 0–5 | Estimated difficulty to fix based on available information (0 = very easy, 5 = very difficult). |
-| `likely_impacted_code_concepts` | string[] | free text | Code concepts likely impacted (e.g., "JSON parsing", "authentication"). |
-
-#### Ambiguity Type Vocabulary
-
-The model is instructed to draw from (but not limited to) these labels:
-
-- `missing steps`
-- `vague inputs`
-- `unclear error messages`
-- `missing context`
-- `unclear reproduction`
-- `missing environment info`
-
----
-
-## Common Implementation Notes
-
-**Model selection.** All scripts attempt models in priority order, falling back automatically if a model is unavailable or quota-exhausted:
-1. `gemini-2.0-flash`
-2. `gemini-2.5-flash`
-3. `gemini-2.0-flash-lite`
-4. `gemini-2.5-pro`
-5. `gemini-pro-latest`
-
-**Rate limiting.** Scripts impose a configurable inter-call delay (`API_DELAY`): 2 seconds for the categorization scripts and 5 seconds for the ratings script. Exponential backoff and respect for Retry-After headers are implemented for 429 errors.
-
-**Incremental writes.** Each script writes one row to the output CSV immediately after processing, allowing safe interruption and resume without data loss.
-
-**Input format.** Bug reports are read from `defects4j_xml/*.xml`. Bug IDs are normalized from the filename (e.g., `Lang_19.xml` → `Lang-19`).
-
-**Response parsing.** All scripts strip markdown code fences if present before JSON parsing. Invalid or unrecognized category strings fall back to a default (`Other (Logic)` for fine-grained, `Functional Issue` for coarse-grained).
