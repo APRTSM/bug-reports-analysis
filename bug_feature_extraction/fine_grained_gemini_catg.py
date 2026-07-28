@@ -40,9 +40,15 @@ except ImportError:
 # Configuration
 # ---------------------------------------------------------------------------
 
-DATA_DIR = "defects4j_xml"  # Changed from "bug_reports/Defects4J" to use XML files
-OUTPUT_FILE = "fine_grained_gemini_categorization.csv"  # Different output file
-FUNCTIONAL_ISSUES_CSV = "gemini_bug_categorization.csv"  # CSV with functional issue categories
+import os as _os
+_ROOT_DIR = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+DATA_DIR = _os.path.join(_ROOT_DIR, "defects4j_xml")  # Changed from "bug_reports/Defects4J" to use XML files
+# Written into / read from gemini_ratings/ so it lands where
+# tool_feature_analysis/merge_features_and_performance.py expects it, and lines up with
+# gemini_bug_categorization_overall.py's output (must be run first).
+_os.makedirs(_os.path.join(_ROOT_DIR, "gemini_ratings"), exist_ok=True)
+OUTPUT_FILE = _os.path.join(_ROOT_DIR, "gemini_ratings", "fine_grained_gemini_categorization.csv")  # Different output file
+FUNCTIONAL_ISSUES_CSV = _os.path.join(_ROOT_DIR, "gemini_ratings", "gemini_bug_categorization.csv")  # CSV with functional issue categories
 USE_XML = True  # Set to True to use XML files, False to use JSON files
 
 # Try these model names in order (fallback if one doesn't work)

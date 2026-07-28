@@ -9,10 +9,15 @@ import math
 from pathlib import Path
 from collections import defaultdict
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
 # Configuration
 # Use full dataset which has original values before standardization
-INPUT_FILE = Path("full_feature_preproccessed_fixed/experimentA_full_dataset.csv")
-OUTPUT_FILE = Path("results/feature_statistics.tex")
+# NOTE: experimentA_full_dataset.csv is from the OLD merge_features_and_performance.py
+# pipeline (single-Gemini-judge schema) -- it does not reflect the current
+# final_feature_set_bug_reports.csv (multi-judge schema + this session's added features).
+INPUT_FILE = ROOT_DIR / "full_feature_preproccessed_fixed" / "experimentA_full_dataset.csv"
+OUTPUT_FILE = ROOT_DIR / "results" / "feature_statistics.tex"
 
 def escape_latex(text):
     """Escape special LaTeX characters."""

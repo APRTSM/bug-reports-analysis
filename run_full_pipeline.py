@@ -40,14 +40,24 @@ def main() -> int:
     args = parser.parse_args()
 
     extraction_dir = ROOT / "bug_feature_extraction"
-    extraction_scripts = sorted(extraction_dir.glob("*.py"))
-    if not extraction_scripts:
-        raise FileNotFoundError(f"No .py scripts found in {extraction_dir}")
+    # NOT alphabetical: fine_grained_gemini_catg.py reads gemini_bug_categorization_overall.py's
+    # output (FUNCTIONAL_ISSUES_CSV), so categorization must run before fine-grained categorization.
+    extraction_order = [
+        "extract_bug_features.py",
+        "gemini_bug_categorization_overall.py",
+        "fine_grained_gemini_catg.py",
+        "gemini_bug_ratings.py",
+    ]
+    extraction_scripts = [extraction_dir / name for name in extraction_order]
+    missing_extraction = [p for p in extraction_scripts if not p.exists()]
+    if missing_extraction:
+        missing_rel = ", ".join(str(p.relative_to(ROOT)) for p in missing_extraction)
+        raise FileNotFoundError(f"Missing extraction scripts: {missing_rel}")
 
     fixed_steps = [
-        ROOT / "merge_features_and_performance.py",
-        ROOT / "unified_analysis.py",
-        ROOT / "predictor.py",
+        ROOT / "tool_feature_analysis" / "merge_features_and_performance.py",
+        ROOT / "rq2_3_analysis" / "unified_analysis.py",
+        ROOT / "delta_score_outputs" / "predictor.py",
     ]
 
     missing = [p for p in fixed_steps if not p.exists()]

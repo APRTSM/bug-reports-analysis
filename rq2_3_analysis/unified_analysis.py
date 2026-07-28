@@ -46,11 +46,12 @@ except ImportError:
 # ======================================
 # CONFIGURATION
 # ======================================
+ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(".")
 
 # Input files - UPDATED to use enhanced preprocessed data
-IN_FILE = DATA_DIR / "final_feature_set.csv"
-IN_FILE_TOOL_COMPARISON = DATA_DIR / "tool_comparison_summary.csv"
+IN_FILE = ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports.csv"
+IN_FILE_TOOL_COMPARISON = ROOT_DIR / "tool_feature_analysis" / "tool_comparison_summary.csv"
 
 # Dataset filtering: Set to filter by dataset if needed
 # Defects4J projects: All projects from Defects4J dataset
@@ -62,7 +63,7 @@ DEFECTS4J_PROJECTS = [
 FILTER_DEFECTS4J_ONLY = True  # Set to True to analyze only Defects4J bugs
 
 # Output directory
-OUT_DIR = DATA_DIR / "tool_comparison_results_fixed"
+OUT_DIR = ROOT_DIR / "tool_comparison_results_fixed"
 OUT_DIR.mkdir(exist_ok=True)
 
 # Analysis settings
@@ -77,47 +78,65 @@ EXPECTED_TOOLS = ["buglocator", "flexfl", "locus", "boostnsift", "brain"]
 # Rank thresholds to analyze
 THRESHOLDS = [1, 5, 10]  # Top-1, Top-5, Top-10
 
-# NEW: Feature categorization for targeted analysis
+# Feature categorization for targeted analysis.
+# Updated to match the multi-judge LLM rating schema (percent_agreement, cohens_kappa,
+# reproducibility, technical_context, reasoning_quality, ...) that replaced the old
+# single-Gemini-judge schema (actionability, technical_depth, causal_reasoning_quality, ...)
+# via update_feature_set_with_llm_ratings.py. A few old categories (ambiguity_types'
+# per-type booleans, concepts' concept-network features) have no equivalent in the new
+# data at all -- see notes below.
 FEATURE_CATEGORIES = {
     'syntactic': [
-        'n_tokens', 'n_words', 'n_sentences', 'flesch_reading_ease', 'smog_index',
+        'txt_title_word_count', 'txt_description_line_count',
+        'txt_description_avg_sentence_len', 'txt_description_uniq_word_ratio',
+        'flesch', 'fog', 'lix', 'kincaid', 'ari', 'coleman_liau', 'smog',
         'has_stacktrace', 'has_code', 'has_patch', 'has_enumeration',
-        'num_causal_markers', 'num_temporal_markers', 'completeness_score'
+        'num_causal_markers', 'num_temporal_markers'
     ],
     'semantic_diversity': [
-        'semantic_entropy', 'semantic_spread_pc1', 'semantic_spread_pc2',
-        'semantic_coherence', 'redundancy', 'ambiguity'
+        'semantic_entropy', 'semantic_coherence', 'ambiguity', 'ambiguity_count'
     ],
     'embedding': [
-        'embedding_norm', 'embedding_mean', 'embedding_std', 'embedding_sparsity',
-        'embedding_cluster', 'embedding_cluster_distance'
+        'embedding_pos_neg_ratio', 'embedding_cluster_distance', 'embedding_cluster_size'
     ],
     'exception': [
-        'primary_exception_type', 'num_exception_types', 'stacktrace_depth',
-        'exc_cat_null_pointer', 'exc_cat_type_error', 'exc_cat_io_error',
-        'exception_user_frame_ratio'
+        'num_exception_types', 'stacktrace_depth', 'exception_user_frames'
     ],
     'llm_quality': [
-        'actionability', 'clarity', 'specificity', 'technical_depth',
-        'quality_composite', 'technical_completeness'
+        'actionability', 'clarity', 'specificity', 'reproducibility',
+        'technical_context', 'repair_readiness', 'quality_composite',
+        'technical_completeness'
     ],
     'llm_reasoning': [
-        'causal_reasoning_quality', 'reasoning_composite', 'hidden_s2r_present',
-        'causal_reasoning_consistency'
+        'reasoning_quality', 'reasoning_composite', 'hidden_s2r_present',
+        'causal_consistency', 'causal_reasoning_score'
     ],
+    # NOTE: the old per-type booleans (has_reproduction_ambiguity, has_input_ambiguity, ...)
+    # don't exist in the multi-judge schema -- only an aggregate ambiguity_count is available.
     'ambiguity_types': [
-        'has_reproduction_ambiguity', 'has_input_ambiguity', 'has_error_ambiguity',
-        'ambiguity_type_count', 'ambiguity_category_coverage'
+        'ambiguity_count'
     ],
-    'concepts': [
-        'concept_network_concept_diversity', 'concept_network_has_cross_layer_concepts',
-        'concept_network_concept_breadth'
-    ],
+    # NOTE: 'concepts' had no replacement -- the multi-judge schema doesn't produce a raw
+    # concept list, so this category is intentionally omitted (was concept_network_*).
     'bug_category': [
-        'fg_cat__Processing', 'fg_cat__Other (Logic)', 
-        'fg_cat__Exception handling', 'fg_cat__Null pointer dereference',
-        'fg_cat___other__', 'fg_cat__Missing case',
-        'cat___other__'
+        'fg_cat_Dependency', 'fg_cat_Exception handling', 'fg_cat_Missing case',
+        'fg_cat_Null pointer dereference', 'fg_cat_Other (Logic)', 'fg_cat_Processing',
+        'fg_cat___missing__', 'fg_cat___other__',
+        'cat_Functional Issue', 'cat___other__'
+    ],
+    # NEW categories for features added this session (code-vocab overlap, project scale,
+    # JIRA metadata) -- see final_feature_set_bug_reports.csv changelog.
+    'code_vocab_overlap': [
+        'num_buggy_files', 'buggy_vocab_size', 'report_vocab_size',
+        'code_vocab_overlap_count', 'code_vocab_overlap_ratio',
+        'report_code_specificity_ratio', 'code_vocab_jaccard'
+    ],
+    'project_scale': [
+        'project_num_java_files', 'project_java_bytes'
+    ],
+    'jira_metadata': [
+        'jira_num_components', 'jira_num_attachments',
+        'jira_has_patch_attachment', 'jira_has_test_attachment'
     ]
 }
 
@@ -378,7 +397,7 @@ def load_data():
                 print(f"    Examples of other dropped: {features_to_drop[:5]}")
             
             # Log all_features_to_drop to removed_features_log.txt
-            log_file = Path("removed_features_log.txt")
+            log_file = ROOT_DIR / "removed_features_log.txt"
             with open(log_file, 'a', encoding='utf-8') as f:
                 f.write("\n\n")
                 f.write("=" * 60 + "\n")

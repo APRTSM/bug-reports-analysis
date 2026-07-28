@@ -46,12 +46,14 @@ from scipy.stats import mannwhitneyu, spearmanr
 
 warnings.filterwarnings('ignore')
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode',         default='internal',
                     choices=['internal','external'])
-parser.add_argument('--features',     default='final_feature_set.csv')
-parser.add_argument('--tools',        default='tool_comparison_summary.csv')
+parser.add_argument('--features',     default=str(ROOT_DIR / 'full_feature_preproccessed_fixed' / 'final_feature_set_bug_reports.csv'))
+parser.add_argument('--tools',        default=str(ROOT_DIR / 'tool_feature_analysis' / 'tool_comparison_summary.csv'))
 parser.add_argument('--new_features', default=None,
                     help='Feature CSV for external dataset')
 parser.add_argument('--new_tools',    default=None,
@@ -59,7 +61,7 @@ parser.add_argument('--new_tools',    default=None,
 args = parser.parse_args()
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-OUT_DIR  = Path('delta_score_outputs')
+OUT_DIR  = ROOT_DIR / 'delta_score_outputs'
 PLOT_DIR = OUT_DIR / 'plots'
 OUT_DIR.mkdir(exist_ok=True)
 PLOT_DIR.mkdir(exist_ok=True)
@@ -826,8 +828,8 @@ warnings.filterwarnings('ignore')
 parser = argparse.ArgumentParser()
 parser.add_argument('--mode',         default='internal',
                     choices=['internal', 'external'])
-parser.add_argument('--features',     default='final_feature_set.csv')
-parser.add_argument('--tools',        default='tool_comparison_summary.csv')
+parser.add_argument('--features',     default=str(ROOT_DIR / 'full_feature_preproccessed_fixed' / 'final_feature_set_bug_reports.csv'))
+parser.add_argument('--tools',        default=str(ROOT_DIR / 'tool_feature_analysis' / 'tool_comparison_summary.csv'))
 parser.add_argument('--new_features', default=None,
                     help='Feature CSV for external dataset')
 parser.add_argument('--new_tools',    default=None,
@@ -835,7 +837,7 @@ parser.add_argument('--new_tools',    default=None,
 args = parser.parse_args()
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-OUT_DIR  = Path('delta_score_outputs')
+OUT_DIR  = ROOT_DIR / 'delta_score_outputs'
 PLOT_DIR = OUT_DIR / 'plots'
 OUT_DIR.mkdir(exist_ok=True)
 PLOT_DIR.mkdir(exist_ok=True)

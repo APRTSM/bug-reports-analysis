@@ -7,9 +7,9 @@ from pathlib import Path
 # CONFIG
 # ============================
 
-DATA_DIR = Path(".")
+DATA_DIR = Path(__file__).resolve().parent
 IN_FILE = DATA_DIR / "tool_comparison_summary.csv"
-MAP_COMPARISON_FILE = DATA_DIR / "map_calculation_comparison.csv"
+MAP_COMPARISON_FILE = DATA_DIR / "map_calculation_comparison.csv"  # optional; not present, handled gracefully below
 OUT_DIR = DATA_DIR / "tool_performance_charts"
 OUT_DIR.mkdir(exist_ok=True, parents=True)
 

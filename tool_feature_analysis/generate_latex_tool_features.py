@@ -6,9 +6,11 @@ import pandas as pd
 from pathlib import Path
 import re
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
 # Configuration
-INPUT_DIR = Path("tool_comparison_results_fixed")
-OUTPUT_DIR = Path("results")
+INPUT_DIR = ROOT_DIR / "tool_comparison_results_fixed"
+OUTPUT_DIR = ROOT_DIR / "results"
 THRESHOLDS = [1, 5, 10]
 TOP_N_FEATURES = 12
 

@@ -12,11 +12,15 @@ Output:
 
 import pandas as pd
 import numpy as np
+from pathlib import Path
 from scipy import stats
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+OUT_DIR = Path(__file__).resolve().parent
 
 # ── 1. Load toolDict and build binary success matrix ──────────────────────────
 
-tool_raw = pd.read_csv("toolDict.csv", index_col=0)
+tool_raw = pd.read_csv(ROOT_DIR / "tool_feature_analysis" / "toolDict.csv", index_col=0)
 
 # Column layout: Identifier, Active, Deprecated, <tool_1>, ..., <tool_n>
 meta_cols = ["Identifier", "Active", "Deprecated"]
@@ -40,15 +44,19 @@ print(f"Median tools per fixable bug: {binary.loc[binary['any_tool_fixed']==1,'n
 
 # ── 2. Load features ──────────────────────────────────────────────────────────
 
-feat = pd.read_csv("final_feature_set.csv")
+feat = pd.read_csv(ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports.csv")
 feat = feat.set_index("id")
 print(f"\nFeature matrix: {feat.shape[0]} bugs × {feat.shape[1]} features")
 
-# Identify numeric feature columns (exclude fault-localization performance cols)
-exclude_prefixes = ("mrr_", "rank_", "top@", "project", "bug_id")
+# Identify numeric feature columns (exclude fault-localization performance cols
+# and identifier columns -- exact-match, not prefix-match, so features like
+# project_num_java_files/project_java_bytes aren't accidentally swept up)
+exclude_prefixes = ("mrr_", "rank_", "top@")
+exclude_exact = {"project", "bug_id"}
 feature_cols = [
     c for c in feat.columns
-    if not any(c.startswith(p) for p in exclude_prefixes)
+    if c not in exclude_exact
+    and not any(c.startswith(p) for p in exclude_prefixes)
     and feat[c].dtype in [np.float64, np.int64, np.float32, np.int32, bool]
 ]
 # Coerce boolean cols to int
@@ -89,7 +97,7 @@ for feat_col in feature_cols:
         })
 
 corr_df = pd.DataFrame(rows)
-corr_df.to_csv("correlation_features_vs_tools.csv", index=False)
+corr_df.to_csv(OUT_DIR / "correlation_features_vs_tools.csv", index=False)
 print(f"\nSaved {len(corr_df)} (feature, tool) pairs → correlation_features_vs_tools.csv")
 
 # ── 5. Summary: top correlations with num_tools_fixed ─────────────────────────
@@ -99,7 +107,7 @@ ntf = (
     .sort_values("spearman_rho", key=abs, ascending=False)
     .reset_index(drop=True)
 )
-ntf.to_csv("correlation_features_vs_num_tools.csv", index=False)
+ntf.to_csv(OUT_DIR / "correlation_features_vs_num_tools.csv", index=False)
 
 # ── 6. Human-readable report ──────────────────────────────────────────────────
 
@@ -143,7 +151,7 @@ for tool, cnt in sig_counts.items():
     lines.append(f"  {tool:<25} {cnt:>3} significant features")
 
 report = "\n".join(lines)
-with open("top_correlations_report.txt", "w") as f:
+with open(OUT_DIR / "top_correlations_report.txt", "w") as f:
     f.write(report)
 print("\n" + report)
 print("\nSaved report → top_correlations_report.txt")

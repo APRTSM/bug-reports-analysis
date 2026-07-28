@@ -16,11 +16,16 @@ import nltk
 nltk.download("punkt", quiet=True)
 
 # ----------------- CONFIG -------------------
-DATA_DIR = "defects4j_xml"
-OUTPUT_FILE = "bug_features_enhanced_fixed.csv"
+import os as _os
+ROOT_DIR = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+DATA_DIR = _os.path.join(ROOT_DIR, "defects4j_xml")
+OUTPUT_FILE = _os.path.join(ROOT_DIR, "bug_features_enhanced_fixed.csv")
 EMBED_MODEL = "all-MiniLM-L6-v2"
 USE_XML = True
-BEE_RESULTS_FILE = "bee_results.jsonl"
+# NOTE: previously "bee_results.jsonl" (bare relative path) never resolved when run via
+# run_full_pipeline.py or from this script's own directory -- it silently fell back to
+# regex-based completeness scoring. The real file lives under full_feature_preproccessed_fixed/.
+BEE_RESULTS_FILE = _os.path.join(ROOT_DIR, "full_feature_preproccessed_fixed", "bee_results.jsonl")
 
 # Minimum text length for reliable readability metrics
 MIN_TEXT_LENGTH = 100

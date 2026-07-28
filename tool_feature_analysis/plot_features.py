@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
 KEY_COLS = ("project", "bug_id")
 
 # Map final_feature_set column -> column name in experimentA_full_dataset.csv (pre-standardization).
@@ -347,13 +349,20 @@ def main() -> None:
     ap.add_argument(
         "--csv",
         type=Path,
-        default=Path("final_feature_set.csv"),
+        default=ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports.csv",
         help="CSV with one row per bug (modeling features; may include z-scored columns).",
     )
     ap.add_argument(
         "--raw-csv",
         type=Path,
-        default=Path("full_feature_preproccessed_fixed/experimentA_full_dataset.csv"),
+        default=ROOT_DIR / "full_feature_preproccessed_fixed" / "experimentA_full_dataset.csv",
+        # NOTE: experimentA_full_dataset.csv comes from the OLD merge_features_and_performance.py
+        # pipeline (single-Gemini-judge schema). final_feature_set_bug_reports.csv now comes from
+        # a different, undocumented pipeline (multi-judge llm_bug_rating schema) -- they are no
+        # longer a matched pre/post-standardization pair. RAW_FULL_COLUMN_MAP and
+        # STILL_STANDARDIZED_IN_FINAL below are still written against the OLD schema and were not
+        # updated as part of this path fix; --raw-csv merging is likely unreliable until someone
+        # revisits which raw/standardized pairing (if any) actually applies to the current file.
         help="Pre-standardization merge file used to recover raw LLM scores, counts, etc.",
     )
     ap.add_argument(

@@ -200,8 +200,9 @@ def create_llm_composite_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
-    feat_path = "features_collected/final_feature_set_bug_reports.csv"
-    agg_path = "llm_bug_rating/data/results_v2/csv/aggregated_features.csv"
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    feat_path = os.path.join(root_dir, "full_feature_preproccessed_fixed", "final_feature_set_bug_reports.csv")
+    agg_path = os.path.join(root_dir, "llm_bug_rating", "data", "results_v2", "csv", "aggregated_features.csv")
 
     feat = pd.read_csv(feat_path)
     agg = pd.read_csv(agg_path)
