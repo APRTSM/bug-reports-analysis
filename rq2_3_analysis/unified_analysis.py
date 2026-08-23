@@ -50,7 +50,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(".")
 
 # Input files - UPDATED to use enhanced preprocessed data
-IN_FILE = ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports.csv"
+IN_FILE = ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports_post_redundancy.csv"
 IN_FILE_TOOL_COMPARISON = ROOT_DIR / "tool_feature_analysis" / "tool_comparison_summary.csv"
 
 # Dataset filtering: Set to filter by dataset if needed
@@ -72,7 +72,7 @@ PRACTICAL_SIG_DELTA = 0.2  # Minimum Cliff's delta to consider meaningful
 MIN_GROUP_SIZE = 8  # Minimum bugs per group for reliable comparison
 
 # Tool names (will be auto-detected but can be specified)
-EXPECTED_TOOLS = ["buglocator", "flexfl", "locus", "boostnsift", "brain"]
+EXPECTED_TOOLS = ["buglocator", "FlexFL", "locus", "blia", "BRaIn", "bluir"]
 
 
 # Rank thresholds to analyze
@@ -435,6 +435,14 @@ def load_data():
     # Load tool comparison data
     df_tools_raw = pd.read_csv(IN_FILE_TOOL_COMPARISON)
     print(f"\nLoaded tool comparison: {df_tools_raw.shape}")
+
+    # Restrict to the tools currently in scope (matches final_feature_set_bug_reports.csv):
+    # boostnsift excluded on request; blia held back until its CleanBaselines run actually
+    # produces non-empty output (currently only Chart + 2 Math bugs have real results).
+    if "tool" in df_tools_raw.columns:
+        initial_tool_count = len(df_tools_raw)
+        df_tools_raw = df_tools_raw[df_tools_raw["tool"].isin(EXPECTED_TOOLS)]
+        print(f"  Filtered to {EXPECTED_TOOLS}: {len(df_tools_raw)} rows (removed {initial_tool_count - len(df_tools_raw)} rows from other tools)")
     
     # Filter to Defects4J only if requested
     if FILTER_DEFECTS4J_ONLY:
@@ -605,11 +613,12 @@ def create_upset_diagram(df_tools, tools, threshold, suffix=""):
 
         
         fig = plt.figure(figsize=(12, 6))
-        upset = UpSet(upset_data, 
+        upset = UpSet(upset_data,
                      subset_size='count',
                      show_counts=True,
                      sort_by='cardinality',
-                     sort_categories_by='cardinality')
+                     sort_categories_by='cardinality',
+                     totals_plot_elements=0)
         #upset.style_subsets(width=0.5)
         axes = upset.plot(fig=fig)
 

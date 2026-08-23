@@ -7,19 +7,34 @@ Three angles:
   3. Tool comparison: rank distributions and closest-tool analysis
 """
 
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from scipy import stats
 import warnings
 warnings.filterwarnings('ignore')
 
+ROOT_DIR = Path(__file__).resolve().parent.parent
+OUT_DIR = Path(__file__).resolve().parent
+
+# Tools currently in scope: boostnsift excluded on request, blia held back until its
+# CleanBaselines run produces non-empty output for more than Chart + 2 Math bugs.
+TOOLS = ['BRaIn', 'FlexFL', 'bluir', 'buglocator', 'locus']
+
 # ── Load data ──────────────────────────────────────────────────────────────────
-summary = pd.read_csv('tool_comparison_summary.csv')
-features = pd.read_csv('final_feature_set.csv')
+summary = pd.read_csv(ROOT_DIR / "tool_feature_analysis" / "tool_comparison_summary.csv")
+features = pd.read_csv(ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports.csv")
 
-TOOLS = ['BRaIn', 'FlexFL', 'boostnsift', 'buglocator', 'locus']
+# Restrict to the 5 in-scope tools before anything else, so "unlocalizable" is
+# defined over the same tool set as the rest of the current analysis.
+summary = summary[summary['tool'].isin(TOOLS)]
 
-# ── Identify 117 unlocalizable bugs (top@10 == 0 for all tools in summary) ───
+# Restrict to the canonical 835-bug population (final_feature_set_bug_reports.csv);
+# tool_comparison_summary.csv has ~24 extra project/bug_id rows outside this set.
+canonical_keys = set(zip(features['project'], features['bug_id']))
+summary = summary[summary.apply(lambda r: (r['project'], r['bug_id']) in canonical_keys, axis=1)]
+
+# ── Identify unlocalizable bugs (top@10 == 0 for all 5 in-scope tools) ───────
 # final_feature_set only has top@1 and top@5; use tool_comparison_summary for top@10
 top10_per_bug = (
     summary.groupby(['project', 'bug_id'])['top@10']
@@ -27,7 +42,8 @@ top10_per_bug = (
 )
 unloc_ids = top10_per_bug[top10_per_bug].reset_index()[['project', 'bug_id']]
 
-assert len(unloc_ids) == 117, f"Expected 117, got {len(unloc_ids)}"
+print(f"Unlocalizable bugs (top@10==0 across {TOOLS}): {len(unloc_ids)}")
+print("(Prior baseline under the old 5-tool set incl. boostnsift was 117 -- expect this to differ.)")
 
 # Build a boolean mask aligned to features dataframe
 features['_key'] = features['project'] + '-' + features['bug_id'].astype(str)
@@ -89,10 +105,12 @@ print("\n" + "=" * 70)
 print("2. CHARACTERIZATION: UNLOCALIZABLE vs. LOCALIZABLE BUGS")
 print("=" * 70)
 
-TOOL_COLS   = [c for c in features.columns if any(t in c for t in ['BRaIn','FlexFL','boostnsift','buglocator','locus','mrr_','rank_','top@'])]
+# Prefix-based, not tool-name-based: catches rank_/mrr_/mrr@k_/map_/map@k_/top@k_ for any
+# tool, current or future, instead of needing a hardcoded tool-name list kept in sync.
+TOOL_COLS   = [c for c in features.columns if c.startswith(('mrr', 'rank_', 'top@', 'map'))]
 FEAT_COLS   = [c for c in features.columns if c not in TOOL_COLS + ['project', 'bug_id', 'id']]
 BOOL_FEATS  = ['has_stacktrace', 'has_code', 'has_patch', 'has_enumeration',
-               'hidden_s2r_present', 'contradiction_present',
+               'hidden_s2r_present',
                'has_OB', 'has_EB', 'has_S2R', 'missing_OB', 'missing_EB', 'missing_S2R']
 CAT_FEATS   = [c for c in FEAT_COLS if c.startswith('fg_cat_') or c.startswith('cat_')]
 NUM_FEATS   = [c for c in FEAT_COLS if c not in BOOL_FEATS + CAT_FEATS]
@@ -231,8 +249,8 @@ print(proj_breakdown.sort_values('Total', ascending=False).to_string())
 # ═══════════════════════════════════════════════════════════════════════════════
 # SAVE OUTPUTS
 # ═══════════════════════════════════════════════════════════════════════════════
-unloc_ids.to_csv('unlocalizable_bugs_classified.csv', index=False)
-res_df.to_csv('unlocalizable_feature_comparison.csv', index=False)
+unloc_ids.to_csv(OUT_DIR / 'unlocalizable_bugs_classified.csv', index=False)
+res_df.to_csv(OUT_DIR / 'unlocalizable_feature_comparison.csv', index=False)
 print("\n\nSaved:")
 print("  unlocalizable_bugs_classified.csv   – 117 bugs with Hard/Soft label")
 print("  unlocalizable_feature_comparison.csv – feature comparison results")

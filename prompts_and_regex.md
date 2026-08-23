@@ -194,7 +194,7 @@ Both judges receive the identical prompt (same template, same checklist, same bu
 
 ### Checklist (`llm_bug_rating/config/checklists_v2.json`, v2)
 
-9 dimensions, 43 binary items total. Each dimension's raw score (the CSV's `actionability`, `clarity`, etc.) is the **count of items judged `true`** (0–5 for most dimensions, 0–3 for `RootCauseEvidence`, 0–1 for `HiddenReproducibility`, 0–4 for `ImpactScope`).
+9 dimensions, 48 binary items total (5+5+5+5+5+5+5+5 = 40 across the eight 5-item dimensions, +3 RootCauseEvidence, +1 HiddenReproducibility, +4 ImpactScope). Each dimension's raw score (the CSV's `actionability`, `clarity`, etc.) is the **count of items judged `true`** (0–5 for most dimensions, 0–3 for `RootCauseEvidence`, 0–1 for `HiddenReproducibility`, 0–4 for `ImpactScope`).
 
 | Dimension → CSV column | Items |
 |---|---|
@@ -228,10 +228,10 @@ Item-level composites (`causal_reasoning_score`, `repair_feasibility`, `repro_ca
 
 ### Agreement (`llm_bug_rating/analysis/agreement.py`)
 
-Computed per bug across all 43 checklist items, judge1 vs. judge2:
+Computed per bug across all 48 checklist items, judge1 vs. judge2:
 
-- **`percent_agreement`** — fraction of the 43 items where both judges gave the same boolean value.
-- **`cohens_kappa`** — Cohen's κ treating each of the 43 items as one binary observation (standard 2×2 formula, corrected for chance agreement from each judge's marginal "true" rate).
+- **`percent_agreement`** — fraction of the 48 items where both judges gave the same boolean value.
+- **`cohens_kappa`** — Cohen's κ treating each of the 48 items as one binary observation (standard 2×2 formula, corrected for chance agreement from each judge's marginal "true" rate).
 
 ### Adjudication (`llm_bug_rating/adjudication/adjudicator.py`)
 
