@@ -69,7 +69,7 @@ OUT_DIR.mkdir(exist_ok=True)
 # Analysis settings
 ALPHA = 0.05
 PRACTICAL_SIG_DELTA = 0.2  # Minimum Cliff's delta to consider meaningful
-MIN_GROUP_SIZE = 8  # Minimum bugs per group for reliable comparison
+MIN_GROUP_SIZE = 5  # Minimum bugs per group for reliable comparison
 
 # Tool names (will be auto-detected but can be specified)
 EXPECTED_TOOLS = ["buglocator", "FlexFL", "locus", "blia", "BRaIn", "bluir"]
