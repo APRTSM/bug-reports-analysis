@@ -50,7 +50,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(".")
 
 # Input files - UPDATED to use enhanced preprocessed data
-IN_FILE = ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports_post_redundancy.csv"
+IN_FILE = ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports_analysis.csv"
 IN_FILE_TOOL_COMPARISON = ROOT_DIR / "tool_feature_analysis" / "tool_comparison_summary.csv"
 
 # Dataset filtering: Set to filter by dataset if needed
@@ -89,12 +89,12 @@ FEATURE_CATEGORIES = {
     'syntactic': [
         'txt_title_word_count', 'txt_description_line_count',
         'txt_description_avg_sentence_len', 'txt_description_uniq_word_ratio',
-        'flesch', 'fog', 'lix', 'kincaid', 'ari', 'coleman_liau', 'smog',
+        'flesch', 'fog', 'lix', 'kincaid', 'ari', 'smog',
         'has_stacktrace', 'has_code', 'has_patch', 'has_enumeration',
         'num_causal_markers', 'num_temporal_markers'
     ],
     'semantic_diversity': [
-        'semantic_entropy', 'semantic_coherence', 'ambiguity', 'ambiguity_count'
+        'semantic_entropy', 'semantic_coherence', 'z_ambiguity'
     ],
     'embedding': [
         'embedding_pos_neg_ratio', 'embedding_cluster_distance', 'embedding_cluster_size'
@@ -102,20 +102,24 @@ FEATURE_CATEGORIES = {
     'exception': [
         'num_exception_types', 'stacktrace_depth', 'exception_user_frames'
     ],
+    # Raw actionability/clarity/specificity/reproducibility/technical_context/repair_readiness
+    # aren't in final_feature_set_bug_reports_analysis.csv -- that file keeps only the z_
+    # versions (raw dropped in favor of z_, per the raw-vs-z decision from this session).
     'llm_quality': [
-        'actionability', 'clarity', 'specificity', 'reproducibility',
-        'technical_context', 'repair_readiness', 'quality_composite',
-        'technical_completeness'
+        'z_actionability', 'z_clarity', 'z_specificity', 'z_reproducibility',
+        'z_technical_context', 'z_repair_readiness', 'z_impact_scope',
+        'quality_composite', 'technical_completeness'
     ],
+    # reasoning_composite and causal_reasoning_score were already dropped by the redundancy
+    # pass itself (near-duplicates of reasoning_quality) -- not present in any of the three
+    # final_feature_set_bug_reports*.csv variants, not just this one.
     'llm_reasoning': [
-        'reasoning_quality', 'reasoning_composite', 'hidden_s2r_present',
-        'causal_consistency', 'causal_reasoning_score'
+        'z_reasoning_quality', 'hidden_s2r_present', 'causal_consistency'
     ],
-    # NOTE: the old per-type booleans (has_reproduction_ambiguity, has_input_ambiguity, ...)
-    # don't exist in the multi-judge schema -- only an aggregate ambiguity_count is available.
-    'ambiguity_types': [
-        'ambiguity_count'
-    ],
+    # NOTE: the old per-type ambiguity booleans (has_reproduction_ambiguity, ...) and the
+    # ambiguity_count aggregate don't survive into this schema/file at all -- see z_ambiguity
+    # under 'semantic_diversity' instead. 'ambiguity_types' as a category is intentionally
+    # omitted rather than left pointing at a nonexistent column.
     # NOTE: 'concepts' had no replacement -- the multi-judge schema doesn't produce a raw
     # concept list, so this category is intentionally omitted (was concept_network_*).
     'bug_category': [
@@ -135,7 +139,7 @@ FEATURE_CATEGORIES = {
         'project_num_java_files', 'project_java_bytes'
     ],
     'jira_metadata': [
-        'jira_num_components', 'jira_num_attachments',
+        'jira_num_attachments',
         'jira_has_patch_attachment', 'jira_has_test_attachment'
     ]
 }
@@ -250,8 +254,10 @@ def load_data():
     print(f"Loaded feature data: {df_features.shape}")
     
     # Extract feature columns (numeric, excluding performance metrics)
+    # Prefix-based (mrr, rank_, top@, map), not just mrr_/top@/rank_: also catches
+    # mrr@1_/mrr@5_/mrr@10_/map_/map@k_ columns for any tool, current or future.
     id_cols = [c for c in ["project", "bug_id", "id"] if c in df_features.columns]
-    perf_cols = [c for c in df_features.columns if c.startswith("mrr_") or c.startswith("top@") or c.startswith("rank_")]
+    perf_cols = [c for c in df_features.columns if c.startswith(("mrr", "rank_", "top@", "map"))]
     numeric_cols = df_features.select_dtypes(include=[np.number]).columns.tolist()
     feature_cols = [c for c in numeric_cols if c not in perf_cols + id_cols]
     

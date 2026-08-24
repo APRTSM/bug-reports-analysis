@@ -67,36 +67,52 @@ OUT_DIR.mkdir(exist_ok=True)
 PLOT_DIR.mkdir(exist_ok=True)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-TOOLS = ['FlexFL', 'BRaIn', 'boostnsift', 'buglocator', 'locus']
-DISPLAY = {'FlexFL':'FlexFL', 'BRaIn':'BRaIn', 'boostnsift':'BoostNSift',
+# boostnsift excluded (per this session's decision), bluir added (real, complete data).
+# blia held back until its CleanBaselines run produces non-empty output for more than
+# Chart + 2 Math bugs.
+TOOLS = ['FlexFL', 'BRaIn', 'bluir', 'buglocator', 'locus']
+DISPLAY = {'FlexFL':'FlexFL', 'BRaIn':'BRaIn', 'bluir':'BLUiR',
            'buglocator':'BugLocator', 'locus':'Locus'}
 THRESHOLDS = [1, 5]
 N_SPLITS   = 5
 RANDOM_STATE = 42
 
-# Features to use per task
-# Tool-specific: from tool-vs-rest analysis
+# Features to use per task, rebuilt from tool_comparison_results_fixed/tool_vs_rest_top5.csv
+# and all_vs_none_top5.csv (regenerated post-refresh, current 5-tool set + current schema).
+# The previous lists referenced columns dropped by the redundancy pass (repair_difficulty,
+# reasoning_composite, coleman_liau) or from the old single-Gemini-judge schema entirely
+# (expected_observed_alignment, ambiguity_type_count, concept_network_concept_breadth) --
+# compute_deltas() silently zero-weights any feature not in df.columns, so most of these
+# were contributing nothing without erroring. Selection: significant (Holm-adjusted p<0.05)
+# AND practically significant (|Cliff's delta|>=0.2) features per tool, ranked by |delta|,
+# capped at 8; tools with fewer than 4 qualifying features (FlexFL, buglocator -- both have
+# small unique-bug counts, so corrected significance is hard to reach) are backfilled by
+# |delta| alone up to 4.
 TOOL_FEATURES = {
-    'FlexFL':     ['repair_difficulty','txt_description_line_count',
-                   'reasoning_composite','actionability','clarity',
-                   'ari','coleman_liau','txt_title_digit_density'],
-    'BRaIn':      ['ari','txt_description_line_count','technical_completeness','clarity'],
-    'boostnsift': ['repair_difficulty','expected_observed_alignment',
-                   'ari','coleman_liau'],
-    'buglocator': ['repair_difficulty','txt_description_line_count',
-                   'txt_title_avg_sentence_len'],
-    'locus':      ['repair_difficulty','txt_title_digit_density',
-                   'txt_title_avg_sentence_len','expected_observed_alignment',
-                   'concept_network_concept_breadth','embedding_cluster_size'],
+    'FlexFL':     ['z_clarity', 'causal_consistency', 'code_vocab_overlap_count',
+                   'embedding_cluster_distance'],
+    'BRaIn':      ['code_vocab_jaccard', 'project_java_bytes', 'project_num_java_files',
+                   'txt_description_line_count', 'z_hidden_reproducibility',
+                   'description_length', 'technical_completeness', 'embedding_cluster_size'],
+    'bluir':      ['z_specificity', 'project_num_java_files', 'project_java_bytes',
+                   'z_hidden_reproducibility', 'txt_title_avg_sentence_len',
+                   'txt_description_line_count', 'technical_completeness',
+                   'txt_title_digit_density'],
+    'buglocator': ['txt_description_line_count', 'description_length',
+                   'project_java_bytes', 'project_num_java_files'],
+    'locus':      ['txt_title_avg_sentence_len', 'txt_description_avg_sentence_len',
+                   'txt_description_line_count', 'z_specificity', 'z_clarity'],
 }
-# All-vs-none: from all-vs-none Cliff's delta analysis
+# All-vs-none: from all_vs_none_top5.csv, significant AND practically significant, by |delta|.
 AVN_FEATURES = [
-    'reasoning_composite','actionability','txt_description_line_count',
-    'txt_title_digit_density','txt_title_avg_sentence_len','clarity',
-    'expected_observed_alignment','technical_completeness',
-    'embedding_cluster_distance','description_length','num_versions',
-    'repair_difficulty','coleman_liau','ari','ambiguity_type_count',
-    'flesch','kincaid','embedding_cluster_size',
+    'project_num_java_files', 'project_java_bytes', 'txt_description_line_count',
+    'description_length', 'ari', 'txt_title_avg_sentence_len',
+    'txt_description_avg_sentence_len', 'txt_title_digit_density', 'embedding_cluster_size',
+    'embedding_cluster_distance', 'z_ambiguity', 'flesch', 'z_repair_readiness', 'kincaid',
+    'z_specificity', 'z_hidden_reproducibility', 'code_vocab_jaccard',
+    'code_vocab_overlap_count', 'technical_completeness', 'z_actionability',
+    'z_reproducibility', 'z_clarity', 'num_versions', 'z_root_cause_evidence',
+    'num_causal_markers', 'spec_reasoning_product', 'cohens_kappa',
 ]
 
 INTERACTION_FEATURES = [
@@ -247,47 +263,54 @@ df = pd.read_csv(args.features)
 # ── Interaction features derived from significant feature patterns ───────────
 
 def add_interaction_features(df):
+    # NOTE: substituted z_-scored / currently-available equivalents for the original
+    # repair_difficulty/reasoning_composite/actionability/clarity/coleman_liau/
+    # ambiguity_type_count -- none of those survive in the current schema (redundancy-
+    # pruned or from the old single-Gemini-judge schema), so every guard below used to
+    # silently fail and this function was a no-op.
 
-    # Core interaction: complexity × reasoning
-    if {'repair_difficulty','reasoning_composite'}.issubset(df.columns):
+    # Core interaction: repair readiness x reasoning quality
+    if {'z_repair_readiness','z_reasoning_quality'}.issubset(df.columns):
         df['complexity_reasoning'] = (
-            df['repair_difficulty'] * df['reasoning_composite']
+            df['z_repair_readiness'] * df['z_reasoning_quality']
         )
 
-    # Complexity × description structure
-    if {'repair_difficulty','txt_description_line_count'}.issubset(df.columns):
+    # Repair readiness × description structure
+    if {'z_repair_readiness','txt_description_line_count'}.issubset(df.columns):
         df['complexity_description'] = (
-            df['repair_difficulty'] * df['txt_description_line_count']
+            df['z_repair_readiness'] * df['txt_description_line_count']
         )
 
-    # Complexity × readability (FlexFL pattern)
-    if {'repair_difficulty','ari'}.issubset(df.columns):
+    # Repair readiness × readability (FlexFL pattern)
+    if {'z_repair_readiness','ari'}.issubset(df.columns):
         df['complexity_readability'] = (
-            df['repair_difficulty'] * df['ari']
+            df['z_repair_readiness'] * df['ari']
         )
 
     # Reasoning × clarity
-    if {'reasoning_composite','clarity'}.issubset(df.columns):
+    if {'z_reasoning_quality','z_clarity'}.issubset(df.columns):
         df['reasoning_clarity'] = (
-            df['reasoning_composite'] * df['clarity']
+            df['z_reasoning_quality'] * df['z_clarity']
         )
 
     # Structure × actionability
-    if {'txt_description_line_count','actionability'}.issubset(df.columns):
+    if {'txt_description_line_count','z_actionability'}.issubset(df.columns):
         df['structure_actionability'] = (
-            df['txt_description_line_count'] * df['actionability']
+            df['txt_description_line_count'] * df['z_actionability']
         )
 
-    # Readability cluster (BoostNSift pattern)
-    if {'ari','coleman_liau','flesch'}.issubset(df.columns):
+    # Readability cluster (BoostNSift pattern; coleman_liau dropped by redundancy pass,
+    # substituted with fog -- same "higher = harder" direction as ari, unlike flesch)
+    if {'ari','fog','flesch'}.issubset(df.columns):
         df['readability_combo'] = (
-            df['ari'] + df['coleman_liau'] - df['flesch']
+            df['ari'] + df['fog'] - df['flesch']
         )
 
-    # Semantic ambiguity × reasoning
-    if {'ambiguity_type_count','reasoning_composite'}.issubset(df.columns):
+    # Semantic ambiguity × reasoning (ambiguity_type_count never existed in this schema;
+    # substituted with the overall z_ambiguity dimension score)
+    if {'z_ambiguity','z_reasoning_quality'}.issubset(df.columns):
         df['ambiguity_reasoning'] = (
-            df['ambiguity_type_count'] * df['reasoning_composite']
+            df['z_ambiguity'] * df['z_reasoning_quality']
         )
 
     return df
@@ -329,9 +352,10 @@ if Path(args.tools).exists():
 N = len(df)
 print(f"  N = {N} bugs")
 
-# Exclude leakage / metadata columns
+# Exclude leakage / metadata columns (prefix-based: also catches mrr@k_/map_/map@k_
+# columns, not just mrr_/rank_/top@ -- those didn't exist when this filter was written)
 leakage = [c for c in df.columns
-           if c.startswith('mrr_') or c.startswith('rank_') or 'top@' in c]
+           if c.startswith(('mrr', 'rank_', 'map')) or 'top@' in c]
 exclude  = ['project','bug_id'] + leakage
 ALL_FEAT = (df.drop(columns=[c for c in exclude if c in df.columns])
               .select_dtypes(include=[np.number]).columns.tolist())
@@ -843,37 +867,53 @@ OUT_DIR.mkdir(exist_ok=True)
 PLOT_DIR.mkdir(exist_ok=True)
 
 # ── Config ────────────────────────────────────────────────────────────────────
-TOOLS = ['FlexFL', 'BRaIn', 'boostnsift', 'buglocator', 'locus']
-DISPLAY = {'FlexFL': 'FlexFL', 'BRaIn': 'BRaIn', 'boostnsift': 'BoostNSift',
+# boostnsift excluded (per this session's decision), bluir added (real, complete data).
+# blia held back until its CleanBaselines run produces non-empty output for more than
+# Chart + 2 Math bugs.
+TOOLS = ['FlexFL', 'BRaIn', 'bluir', 'buglocator', 'locus']
+DISPLAY = {'FlexFL': 'FlexFL', 'BRaIn': 'BRaIn', 'bluir': 'BLUiR',
            'buglocator': 'BugLocator', 'locus': 'Locus'}
 THRESHOLDS   = [1, 5]
 N_SPLITS     = 5
 RANDOM_STATE = 42
 
-# Features to use per task (tool-vs-rest analysis)
+# Features to use per task, rebuilt from tool_comparison_results_fixed/tool_vs_rest_top5.csv
+# and all_vs_none_top5.csv (regenerated post-refresh, current 5-tool set + current schema).
+# The previous lists referenced columns dropped by the redundancy pass (repair_difficulty,
+# reasoning_composite, coleman_liau) or from the old single-Gemini-judge schema entirely
+# (expected_observed_alignment, ambiguity_type_count, concept_network_concept_breadth) --
+# compute_deltas() silently zero-weights any feature not in df.columns, so most of these
+# were contributing nothing without erroring. Selection: significant (Holm-adjusted p<0.05)
+# AND practically significant (|Cliff's delta|>=0.2) features per tool, ranked by |delta|,
+# capped at 8; tools with fewer than 4 qualifying features (FlexFL, buglocator -- both have
+# small unique-bug counts, so corrected significance is hard to reach) are backfilled by
+# |delta| alone up to 4.
 TOOL_FEATURES = {
-    'FlexFL':     ['repair_difficulty', 'txt_description_line_count',
-                   'reasoning_composite', 'actionability', 'clarity',
-                   'ari', 'coleman_liau', 'txt_title_digit_density'],
-    'BRaIn':      ['ari', 'txt_description_line_count',
-                   'technical_completeness', 'clarity'],
-    'boostnsift': ['repair_difficulty', 'expected_observed_alignment',
-                   'ari', 'coleman_liau'],
-    'buglocator': ['repair_difficulty', 'txt_description_line_count',
-                   'txt_title_avg_sentence_len'],
-    'locus':      ['repair_difficulty', 'txt_title_digit_density',
-                   'txt_title_avg_sentence_len', 'expected_observed_alignment',
-                   'concept_network_concept_breadth', 'embedding_cluster_size'],
+    'FlexFL':     ['z_clarity', 'causal_consistency', 'code_vocab_overlap_count',
+                   'embedding_cluster_distance'],
+    'BRaIn':      ['code_vocab_jaccard', 'project_java_bytes', 'project_num_java_files',
+                   'txt_description_line_count', 'z_hidden_reproducibility',
+                   'description_length', 'technical_completeness', 'embedding_cluster_size'],
+    'bluir':      ['z_specificity', 'project_num_java_files', 'project_java_bytes',
+                   'z_hidden_reproducibility', 'txt_title_avg_sentence_len',
+                   'txt_description_line_count', 'technical_completeness',
+                   'txt_title_digit_density'],
+    'buglocator': ['txt_description_line_count', 'description_length',
+                   'project_java_bytes', 'project_num_java_files'],
+    'locus':      ['txt_title_avg_sentence_len', 'txt_description_avg_sentence_len',
+                   'txt_description_line_count', 'z_specificity', 'z_clarity'],
 }
 
-# All-vs-none features
+# All-vs-none: from all_vs_none_top5.csv, significant AND practically significant, by |delta|.
 AVN_FEATURES = [
-    'reasoning_composite', 'actionability', 'txt_description_line_count',
-    'txt_title_digit_density', 'txt_title_avg_sentence_len', 'clarity',
-    'expected_observed_alignment', 'technical_completeness',
-    'embedding_cluster_distance', 'description_length', 'num_versions',
-    'repair_difficulty', 'coleman_liau', 'ari', 'ambiguity_type_count',
-    'flesch', 'kincaid', 'embedding_cluster_size',
+    'project_num_java_files', 'project_java_bytes', 'txt_description_line_count',
+    'description_length', 'ari', 'txt_title_avg_sentence_len',
+    'txt_description_avg_sentence_len', 'txt_title_digit_density', 'embedding_cluster_size',
+    'embedding_cluster_distance', 'z_ambiguity', 'flesch', 'z_repair_readiness', 'kincaid',
+    'z_specificity', 'z_hidden_reproducibility', 'code_vocab_jaccard',
+    'code_vocab_overlap_count', 'technical_completeness', 'z_actionability',
+    'z_reproducibility', 'z_clarity', 'num_versions', 'z_root_cause_evidence',
+    'num_causal_markers', 'spec_reasoning_product', 'cohens_kappa',
 ]
 
 INTERACTION_FEATURES = [
@@ -998,27 +1038,35 @@ df = pd.read_csv(args.features)
 
 # ── Interaction features ──────────────────────────────────────────────────────
 def add_interaction_features(df):
-    if {'repair_difficulty', 'reasoning_composite'}.issubset(df.columns):
+    # NOTE: substituted z_-scored / currently-available equivalents for the original
+    # repair_difficulty/reasoning_composite/actionability/clarity/coleman_liau/
+    # ambiguity_type_count -- none of those survive in the current schema (redundancy-
+    # pruned or from the old single-Gemini-judge schema), so every guard below used to
+    # silently fail and this function was a no-op.
+    if {'z_repair_readiness', 'z_reasoning_quality'}.issubset(df.columns):
         df['complexity_reasoning'] = (
-            df['repair_difficulty'] * df['reasoning_composite'])
-    if {'repair_difficulty', 'txt_description_line_count'}.issubset(df.columns):
+            df['z_repair_readiness'] * df['z_reasoning_quality'])
+    if {'z_repair_readiness', 'txt_description_line_count'}.issubset(df.columns):
         df['complexity_description'] = (
-            df['repair_difficulty'] * df['txt_description_line_count'])
-    if {'repair_difficulty', 'ari'}.issubset(df.columns):
+            df['z_repair_readiness'] * df['txt_description_line_count'])
+    if {'z_repair_readiness', 'ari'}.issubset(df.columns):
         df['complexity_readability'] = (
-            df['repair_difficulty'] * df['ari'])
-    if {'reasoning_composite', 'clarity'}.issubset(df.columns):
+            df['z_repair_readiness'] * df['ari'])
+    if {'z_reasoning_quality', 'z_clarity'}.issubset(df.columns):
         df['reasoning_clarity'] = (
-            df['reasoning_composite'] * df['clarity'])
-    if {'txt_description_line_count', 'actionability'}.issubset(df.columns):
+            df['z_reasoning_quality'] * df['z_clarity'])
+    if {'txt_description_line_count', 'z_actionability'}.issubset(df.columns):
         df['structure_actionability'] = (
-            df['txt_description_line_count'] * df['actionability'])
-    if {'ari', 'coleman_liau', 'flesch'}.issubset(df.columns):
+            df['txt_description_line_count'] * df['z_actionability'])
+    # coleman_liau dropped by redundancy pass, substituted with fog (same "higher = harder"
+    # direction as ari, unlike flesch)
+    if {'ari', 'fog', 'flesch'}.issubset(df.columns):
         df['readability_combo'] = (
-            df['ari'] + df['coleman_liau'] - df['flesch'])
-    if {'ambiguity_type_count', 'reasoning_composite'}.issubset(df.columns):
+            df['ari'] + df['fog'] - df['flesch'])
+    # ambiguity_type_count never existed in this schema, substituted with z_ambiguity
+    if {'z_ambiguity', 'z_reasoning_quality'}.issubset(df.columns):
         df['ambiguity_reasoning'] = (
-            df['ambiguity_type_count'] * df['reasoning_composite'])
+            df['z_ambiguity'] * df['z_reasoning_quality'])
     return df
 
 
@@ -1055,9 +1103,10 @@ if Path(args.tools).exists():
 N = len(df)
 print(f"  N = {N} bugs")
 
-# Exclude leakage / metadata columns
+# Exclude leakage / metadata columns (prefix-based: also catches mrr@k_/map_/map@k_
+# columns, not just mrr_/rank_/top@ -- those didn't exist when this filter was written)
 leakage = [c for c in df.columns
-           if c.startswith('mrr_') or c.startswith('rank_') or 'top@' in c]
+           if c.startswith(('mrr', 'rank_', 'map')) or 'top@' in c]
 exclude  = ['project', 'bug_id'] + leakage
 ALL_FEAT = (df.drop(columns=[c for c in exclude if c in df.columns])
               .select_dtypes(include=[np.number]).columns.tolist())
@@ -1478,10 +1527,10 @@ Metric definitions:
                  over the single ground-truth file per bug)
 
   "Best rank" = min rank across the tools available in the assigned tier:
-    Tier 1 (IR only):   min(rank_boostnsift, rank_buglocator, rank_locus)
-    Tier 2 (BRaIn):     min(rank_boostnsift, rank_buglocator, rank_locus,
+    Tier 1 (IR only):   min(rank_bluir, rank_buglocator, rank_locus)
+    Tier 2 (BRaIn):     min(rank_bluir, rank_buglocator, rank_locus,
                              rank_BRaIn)
-    Tier 3 (FlexFL):    min(rank_boostnsift, rank_buglocator, rank_locus,
+    Tier 3 (FlexFL):    min(rank_bluir, rank_buglocator, rank_locus,
                              rank_BRaIn, rank_FlexFL)
 
 Drop this block in place of the old THREE-TIER CASCADE ROUTING section.
@@ -1504,7 +1553,8 @@ print("Hit Rate@K  |  MRR  |  MAP   —   K ∈ {1, 5, 10}")
 print("="*70)
 
 # ── Tier definitions ──────────────────────────────────────────────────────────
-IR_TOOLS_CASCADE = ['boostnsift', 'buglocator', 'locus']
+# boostnsift -> bluir: both are pure IR-based FL tools, same role in Tier 1.
+IR_TOOLS_CASCADE = ['bluir', 'buglocator', 'locus']
 K_VALUES         = [1, 5, 10]
 SCORER_K         = 5   # K used to define IR success when training the scorer
 
@@ -1522,7 +1572,7 @@ def load_rank(tool_name: str) -> np.ndarray:
     return ranks.values
 
 rank_arrays = {
-    'boostnsift': load_rank('boostnsift'),
+    'bluir':       load_rank('bluir'),
     'buglocator':  load_rank('buglocator'),
     'locus':       load_rank('locus'),
     'BRaIn':       load_rank('BRaIn'),
@@ -1625,6 +1675,14 @@ fold_map       = {s: [] for s in SWEEP}
 fold_flex_frac = {s: [] for s in SWEEP}
 fold_auc_casc  = []
 
+# Random-routing baseline: same tier sizes as the scorer-based routing (matched budget),
+# just randomly assigned instead of score-based -- tests whether the IR-success scorer is
+# actually doing anything, vs. blindly sending the same fraction of bugs to each tier.
+rand_rng = np.random.RandomState(RANDOM_STATE)
+fold_hit_rate_rand = {s: {k: [] for k in K_VALUES} for s in SWEEP}
+fold_mrr_rand      = {s: [] for s in SWEEP}
+fold_map_rand      = {s: [] for s in SWEEP}
+
 for fold, (tr_idx, te_idx) in enumerate(
         skf.split(df, df['_ir_success'])):
 
@@ -1686,6 +1744,36 @@ for fold, (tr_idx, te_idx) in enumerate(
         fold_mrr[s].append(mrr_from_ranks(routed_ranks))
         fold_map[s].append(map_from_ranks(routed_ranks))
 
+        # ── Random-routing baseline (same tier sizes, blind assignment) ────
+        n1, n2, n3 = int(tier1.sum()), int(tier2.sum()), int(tier3.sum())
+        perm = rand_rng.permutation(n_te)
+        rtier1 = np.zeros(n_te, dtype=bool)
+        rtier2 = np.zeros(n_te, dtype=bool)
+        rtier3 = np.zeros(n_te, dtype=bool)
+        rtier1[perm[:n1]] = True
+        rtier2[perm[n1:n1 + n2]] = True
+        rtier3[perm[n1 + n2:n1 + n2 + n3]] = True
+
+        for k in K_VALUES:
+            ir_te    = ir_success[k][te_idx]
+            brain_te = brain_success[k][te_idx]
+            flex_te  = flex_success[k][te_idx]
+
+            rhits1 = rtier1 & (ir_te == 1)
+            rhits2 = rtier2 & (brain_te == 1)
+            rhits3 = rtier3 & (flex_te == 1)
+
+            rand_hit_rate = (rhits1.sum() + rhits2.sum() + rhits3.sum()) / n_te
+            fold_hit_rate_rand[s][k].append(rand_hit_rate)
+
+        rrouted_ranks = np.full(n_te, np.nan)
+        rrouted_ranks[rtier1] = tier_rank[1][te_idx][rtier1]
+        rrouted_ranks[rtier2] = tier_rank[2][te_idx][rtier2]
+        rrouted_ranks[rtier3] = tier_rank[3][te_idx][rtier3]
+
+        fold_mrr_rand[s].append(mrr_from_ranks(rrouted_ranks))
+        fold_map_rand[s].append(map_from_ranks(rrouted_ranks))
+
 # ── Results tables ────────────────────────────────────────────────────────────
 mean_auc_c = np.mean(fold_auc_casc) if fold_auc_casc else float('nan')
 std_auc_c  = np.std(fold_auc_casc)  if fold_auc_casc else float('nan')
@@ -1694,12 +1782,13 @@ print(f"\nIR-success scorer (Top-{SCORER_K}) AUC: "
 
 routing_rows = []
 
-# Print combined table
+# Print combined table (scorer-routed vs. random-routed at the same tier sizes)
 print(f"\n{'IR%':>5} {'BRaIn%':>7} {'FlexFL%':>8} | "
       f"{'HR@1':>6} {'HR@5':>6} {'HR@10':>6} | "
       f"{'MRR':>6} {'MAP':>6} | "
+      f"{'rndHR@5':>8} {'rndMRR':>7} {'rndMAP':>7} | "
       f"{'FlexFL':>7}")
-print("-" * 75)
+print("-" * 100)
 
 for s in SWEEP:
     pct_ir, pct_brain, pct_flex = s
@@ -1710,9 +1799,16 @@ for s in SWEEP:
     mapp  = np.mean(fold_map[s])
     flex  = np.mean(fold_flex_frac[s])
 
+    rhr1  = np.mean(fold_hit_rate_rand[s][1])
+    rhr5  = np.mean(fold_hit_rate_rand[s][5])
+    rhr10 = np.mean(fold_hit_rate_rand[s][10])
+    rmrr  = np.mean(fold_mrr_rand[s])
+    rmapp = np.mean(fold_map_rand[s])
+
     print(f"{pct_ir:>4}%  {pct_brain:>6}%  {pct_flex:>7}% | "
           f"{hr1:>6.3f} {hr5:>6.3f} {hr10:>6.3f} | "
           f"{mrr:>6.3f} {mapp:>6.3f} | "
+          f"{rhr5:>8.3f} {rmrr:>7.3f} {rmapp:>7.3f} | "
           f"{flex:>6.2f}")
 
     routing_rows.append({
@@ -1730,6 +1826,14 @@ for s in SWEEP:
         'map_mean':         round(mapp, 4),
         'map_std':          round(np.std(fold_map[s]),          4),
         'flexfl_frac_mean': round(flex, 4),
+        # Random-routing baseline, same tier sizes each fold (matched budget)
+        'random_hr@1_mean':  round(rhr1,  4),
+        'random_hr@5_mean':  round(rhr5,  4),
+        'random_hr@10_mean': round(rhr10, 4),
+        'random_mrr_mean':   round(rmrr,  4),
+        'random_map_mean':   round(rmapp, 4),
+        'lift_hr@5_vs_random': round(hr5 - rhr5, 4),
+        'lift_mrr_vs_random':  round(mrr - rmrr, 4),
     })
 
 # ── Best operating points ─────────────────────────────────────────────────────
