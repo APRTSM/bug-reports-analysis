@@ -1,0 +1,1636 @@
+"""
+Enhanced Focused Tool Comparison Feature Analysis
+
+This script analyzes features that distinguish between different tool performance patterns:
+1. Bugs ALL tools find vs bugs NONE can find
+2. Bugs only BugLocator finds vs bugs only FlexFL finds (pairwise comparisons)
+3. Bugs uniquely found by each tool vs bugs found by all others
+4. Tool complementarity patterns with UpSet diagrams
+
+ENHANCEMENTS:
+- Support for enhanced semantic features (embeddings, clustering)
+- Support for LLM interaction features
+- UpSet diagrams for Top-1, Top-5, Top-10
+- Better feature categorization and filtering
+"""
+
+import re
+import warnings
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pathlib import Path
+from scipy.stats import mannwhitneyu, spearmanr
+from itertools import combinations
+
+warnings.filterwarnings('ignore', category=RuntimeWarning)
+
+# statsmodels is only needed for some analyses; keep optional so UpSet can run.
+try:
+    from statsmodels.stats.multitest import multipletests  # type: ignore
+    MULTITEST_AVAILABLE = True
+except ImportError:
+    multipletests = None  # type: ignore
+    MULTITEST_AVAILABLE = False
+
+# Try to import upsetplot for UpSet diagrams
+try:
+    from upsetplot import UpSet, from_memberships
+    UPSET_AVAILABLE = True
+except ImportError:
+    print("Warning: upsetplot not installed. UpSet diagrams will be skipped.")
+    print("Install with: pip install upsetplot")
+    UPSET_AVAILABLE = False
+
+# ======================================
+# CONFIGURATION
+# ======================================
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = Path(".")
+
+# Input files - UPDATED to use enhanced preprocessed data
+IN_FILE = ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports_analysis.csv"
+IN_FILE_TOOL_COMPARISON = ROOT_DIR / "tool_feature_analysis" / "tool_comparison_summary.csv"
+
+# Dataset filtering: Set to filter by dataset if needed
+# Defects4J projects: All projects from Defects4J dataset
+DEFECTS4J_PROJECTS = [
+    "Chart", "Cli", "Closure", "Codec", "Collections", "Compress", "Csv", "Gson",
+    "JacksonCore", "JacksonDatabind", "JacksonXml", "Jsoup", "JxPath",
+    "Lang", "Math", "Mockito", "Time"
+]
+FILTER_DEFECTS4J_ONLY = True  # Set to True to analyze only Defects4J bugs
+
+# Output directory
+OUT_DIR = ROOT_DIR / "tool_comparison_results_fixed"
+OUT_DIR.mkdir(exist_ok=True)
+
+# Analysis settings
+ALPHA = 0.05
+PRACTICAL_SIG_DELTA = 0.2  # Minimum Cliff's delta to consider meaningful
+MIN_GROUP_SIZE = 5  # Minimum bugs per group for reliable comparison
+
+# Tool names (will be auto-detected but can be specified)
+EXPECTED_TOOLS = ["buglocator", "FlexFL", "locus", "blia", "BRaIn", "bluir"]
+DISPLAY = {"BRaIn": "BRaIn", "bluir": "BLUiR", "buglocator": "BugLocator",
+           "locus": "Locus", "FlexFL": "FlexFL"}
+
+
+# Rank thresholds to analyze
+THRESHOLDS = [1, 5, 10]  # Top-1, Top-5, Top-10
+
+# Feature categorization for targeted analysis.
+# Updated to match the multi-judge LLM rating schema (percent_agreement, cohens_kappa,
+# reproducibility, technical_context, reasoning_quality, ...) that replaced the old
+# single-Gemini-judge schema (actionability, technical_depth, causal_reasoning_quality, ...)
+# via update_feature_set_with_llm_ratings.py. A few old categories (ambiguity_types'
+# per-type booleans, concepts' concept-network features) have no equivalent in the new
+# data at all -- see notes below.
+FEATURE_CATEGORIES = {
+    'syntactic': [
+        'txt_title_word_count', 'txt_description_line_count',
+        'txt_description_avg_sentence_len', 'txt_description_uniq_word_ratio',
+        'flesch', 'fog', 'lix', 'kincaid', 'ari', 'smog',
+        'has_stacktrace', 'has_code', 'has_patch', 'has_enumeration',
+        'num_causal_markers', 'num_temporal_markers'
+    ],
+    'semantic_diversity': [
+        'semantic_entropy', 'semantic_coherence', 'z_ambiguity'
+    ],
+    'embedding': [
+        'embedding_pos_neg_ratio', 'embedding_cluster_distance', 'embedding_cluster_size'
+    ],
+    'exception': [
+        'num_exception_types', 'stacktrace_depth', 'exception_user_frames'
+    ],
+    # Raw actionability/clarity/specificity/reproducibility/technical_context/repair_readiness
+    # aren't in final_feature_set_bug_reports_analysis.csv -- that file keeps only the z_
+    # versions (raw dropped in favor of z_, per the raw-vs-z decision from this session).
+    'llm_quality': [
+        'z_actionability', 'z_clarity', 'z_specificity', 'z_reproducibility',
+        'z_technical_context', 'z_repair_readiness', 'z_impact_scope',
+        'quality_composite', 'technical_completeness'
+    ],
+    # reasoning_composite and causal_reasoning_score were already dropped by the redundancy
+    # pass itself (near-duplicates of reasoning_quality) -- not present in any of the three
+    # final_feature_set_bug_reports*.csv variants, not just this one.
+    'llm_reasoning': [
+        'z_reasoning_quality', 'hidden_s2r_present', 'causal_consistency'
+    ],
+    # NOTE: the old per-type ambiguity booleans (has_reproduction_ambiguity, ...) and the
+    # ambiguity_count aggregate don't survive into this schema/file at all -- see z_ambiguity
+    # under 'semantic_diversity' instead. 'ambiguity_types' as a category is intentionally
+    # omitted rather than left pointing at a nonexistent column.
+    # NOTE: 'concepts' had no replacement -- the multi-judge schema doesn't produce a raw
+    # concept list, so this category is intentionally omitted (was concept_network_*).
+    'bug_category': [
+        'fg_cat_Dependency', 'fg_cat_Exception handling', 'fg_cat_Missing case',
+        'fg_cat_Null pointer dereference', 'fg_cat_Other (Logic)', 'fg_cat_Processing',
+        'fg_cat___missing__', 'fg_cat___other__',
+        'cat_Functional Issue', 'cat___other__'
+    ],
+    # NEW categories for features added this session (code-vocab overlap, project scale,
+    # JIRA metadata) -- see final_feature_set_bug_reports.csv changelog.
+    'code_vocab_overlap': [
+        'num_buggy_files', 'buggy_vocab_size', 'report_vocab_size',
+        'code_vocab_overlap_count', 'code_vocab_overlap_ratio',
+        'report_code_specificity_ratio', 'code_vocab_jaccard'
+    ],
+    'project_scale': [
+        'project_num_java_files', 'project_java_bytes'
+    ],
+    'jira_metadata': [
+        'jira_num_attachments',
+        'jira_has_patch_attachment', 'jira_has_test_attachment'
+    ]
+}
+
+# ======================================
+# HELPER FUNCTIONS
+# ======================================
+
+def safe_name(s: str) -> str:
+    """Convert string to safe filename."""
+    if not isinstance(s, str):
+        s = str(s)
+    s = re.sub(r"[^a-zA-Z0-9_]+", "_", s)
+    return s.strip("_").lower()
+
+def get_tools(df, prefix="mrr"):
+    """Extract tool names from columns with given prefix."""
+    cols = [c for c in df.columns if c.startswith(prefix + "_")]
+    cols = [c for c in cols if not (c.endswith("__is_missing") or c.endswith("_is_missing"))]
+    tools = sorted({c.split("_", 1)[1] for c in cols})
+    return tools
+
+def cliffs_delta(x, y):
+    """Compute Cliff's delta effect size."""
+    x, y = np.asarray(x), np.asarray(y)
+    x, y = x[~np.isnan(x)], y[~np.isnan(y)]
+    if len(x) == 0 or len(y) == 0:
+        return np.nan
+    
+    n_x, n_y = len(x), len(y)
+    dominance = sum(1 for xi in x for yi in y if xi > yi)
+    subordinance = sum(1 for xi in x for yi in y if xi < yi)
+    
+    delta = (dominance - subordinance) / (n_x * n_y)
+    return delta
+
+def apply_holm(df_results, alpha=0.05, pval_col="p_value"):
+    """Apply Holm-Bonferroni correction for multiple testing."""
+    df_results = df_results.copy()
+    mask = df_results[pval_col].notna()
+    pvals = df_results.loc[mask, pval_col].values
+    
+    if len(pvals) == 0:
+        df_results["pval_adj"] = np.nan
+        df_results["reject"] = False
+        df_results["significant"] = False
+        return df_results
+
+    if not MULTITEST_AVAILABLE or multipletests is None:
+        # Allow script to run (e.g., generate UpSet diagrams) without statsmodels.
+        # We keep unadjusted p-values and mark significance as unavailable.
+        df_results["pval_adj"] = np.nan
+        df_results["reject"] = False
+        df_results["significant"] = False
+        return df_results
+    
+    reject, p_adj, _, _ = multipletests(pvals, alpha=alpha, method="holm")
+    df_results.loc[mask, "pval_adj"] = p_adj
+    df_results.loc[mask, "reject"] = reject
+    df_results.loc[mask, "significant"] = reject
+    df_results["reject"] = df_results["reject"].fillna(False).astype(bool)
+    df_results["significant"] = df_results["significant"].fillna(False).astype(bool)
+    
+    return df_results
+
+def effect_size_label(delta):
+    """Get effect size label for Cliff's delta."""
+    abs_delta = abs(delta)
+    if abs_delta < 0.147:
+        return "negligible"
+    elif abs_delta < 0.33:
+        return "small"
+    elif abs_delta < 0.474:
+        return "medium"
+    else:
+        return "large"
+
+def categorize_features(feature_cols, available_cols):
+    """
+    Categorize features into groups and detect which enhanced features are present.
+    Returns dict of {category: [features]}.
+    """
+    categorized = {}
+    uncategorized = []
+    
+    for feature in feature_cols:
+        if feature not in available_cols:
+            continue
+            
+        found_category = False
+        for category, patterns in FEATURE_CATEGORIES.items():
+            # Check if feature matches any pattern in category
+            if any(pattern in feature for pattern in patterns):
+                if category not in categorized:
+                    categorized[category] = []
+                categorized[category].append(feature)
+                found_category = True
+                break
+        
+        if not found_category:
+            uncategorized.append(feature)
+    
+    if uncategorized:
+        categorized['other'] = uncategorized
+    
+    return categorized
+
+def load_data():
+    """Load feature data and tool comparison data."""
+    # Load feature data
+    df_features = pd.read_csv(IN_FILE)
+    print(f"Loaded feature data: {df_features.shape}")
+    
+    # Extract feature columns (numeric, excluding performance metrics)
+    # Prefix-based (mrr, rank_, top@, map), not just mrr_/top@/rank_: also catches
+    # mrr@1_/mrr@5_/mrr@10_/map_/map@k_ columns for any tool, current or future.
+    id_cols = [c for c in ["project", "bug_id", "id"] if c in df_features.columns]
+    perf_cols = [c for c in df_features.columns if c.startswith(("mrr", "rank_", "top@", "map"))]
+    numeric_cols = df_features.select_dtypes(include=[np.number]).columns.tolist()
+    feature_cols = [c for c in numeric_cols if c not in perf_cols + id_cols]
+    
+    # CRITICAL: Exclude __orig columns (they're for reference only, redundant with standardized versions)
+    orig_cols = [c for c in feature_cols if '__orig' in c]
+    feature_cols = [c for c in feature_cols if '__orig' not in c]
+    if orig_cols:
+        print(f"  Excluded {len(orig_cols)} __orig reference columns from analysis")
+        print(f"    (These are redundant with standardized versions)")
+    
+    # Exclude missingness features
+    feature_cols = [c for c in feature_cols if not (c.endswith("_is_missing") or "__is_missing" in c)]
+    
+    # Exclude redundant features (identical to other features)
+    redundant = ['fine_grained_description_length', 'description_length_fine_grained']
+    feature_cols = [c for c in feature_cols if c not in redundant]
+    
+    # Exclude text-derived word_count and char_len features
+    text_stats_to_exclude = [c for c in feature_cols if c.startswith('txt_') and 
+                             (c.endswith('_word_count') or c.endswith('_char_len'))]
+    feature_cols = [c for c in feature_cols if c not in text_stats_to_exclude]
+    if text_stats_to_exclude:
+        print(f"  Excluded {len(text_stats_to_exclude)} text-derived word_count/char_len features from analysis")
+        print(f"    Examples: {text_stats_to_exclude[:5]}")
+    
+    # Exclude ratio features
+    ratio_features = [c for c in feature_cols if c.endswith('_ratio')]
+    feature_cols = [c for c in feature_cols if c not in ratio_features]
+    if ratio_features:
+        print(f"  Excluded {len(ratio_features)} ratio features from analysis")
+        print(f"    Examples: {ratio_features[:10]}")
+    
+    # AGGRESSIVE txt_ feature deduplication to avoid redundancy
+    # Problem: Multiple txt_*_avg_word_len features are nearly redundant (all measure word length)
+    txt_features = [c for c in feature_cols if c.startswith('txt_')]
+    
+    if txt_features:
+        print(f"\n  Deduplicating txt_ features to reduce redundancy...")
+        
+        # Step 1: For avg_word_len features, keep only title and reasoning (drop root_cause, impacted_code, etc.)
+        txt_word_len_feats = [c for c in txt_features if 'avg_word_len' in c]
+        if len(txt_word_len_feats) > 2:
+            keep_word_len = [f for f in txt_word_len_feats if 'title' in f or 'reasoning' in f][:2]
+            drop_word_len = [f for f in txt_word_len_feats if f not in keep_word_len]
+            feature_cols = [c for c in feature_cols if c not in drop_word_len]
+            txt_features = [c for c in feature_cols if c.startswith('txt_')]
+            print(f"    Reduced {len(txt_word_len_feats)} avg_word_len features to {len(keep_word_len)} (kept: title, reasoning)")
+        
+        # Step 2: For avg_sentence_len features, keep only title and reasoning
+        txt_sent_len_feats = [c for c in txt_features if 'avg_sentence_len' in c]
+        if len(txt_sent_len_feats) > 2:
+            keep_sent_len = [f for f in txt_sent_len_feats if 'title' in f or 'reasoning' in f][:2]
+            drop_sent_len = [f for f in txt_sent_len_feats if f not in keep_sent_len]
+            feature_cols = [c for c in feature_cols if c not in drop_sent_len]
+            txt_features = [c for c in feature_cols if c.startswith('txt_')]
+            print(f"    Reduced {len(txt_sent_len_feats)} avg_sentence_len features to {len(keep_sent_len)} (kept: title, reasoning)")
+        
+        # Step 3: For hedge_count/hedge_density features, keep only one pair (prefer reasoning section)
+        txt_hedge_feats = [c for c in txt_features if 'hedge' in c]
+        if len(txt_hedge_feats) > 2:
+            keep_hedge = [f for f in txt_hedge_feats if 'reasoning' in f or 'root_cause' in f][:2]
+            if not keep_hedge:
+                keep_hedge = txt_hedge_feats[:2]  # Fallback: keep first 2
+            drop_hedge = [f for f in txt_hedge_feats if f not in keep_hedge]
+            feature_cols = [c for c in feature_cols if c not in drop_hedge]
+            txt_features = [c for c in feature_cols if c.startswith('txt_')]
+            print(f"    Reduced {len(txt_hedge_feats)} hedge features to {len(keep_hedge)}")
+        
+        # Step 4: General deduplication - handle remaining pairs
+        # First, handle special case: avg_sentence_len vs avg_words_per_line
+        # Group by source (everything before _avg_)
+        sentence_line_pairs = {}
+        for feat in txt_features:
+            if '_avg_sentence_len' in feat:
+                source = feat.replace('_avg_sentence_len', '')
+                if source not in sentence_line_pairs:
+                    sentence_line_pairs[source] = {'sentence_len': None, 'words_per_line': None}
+                sentence_line_pairs[source]['sentence_len'] = feat
+            elif '_avg_words_per_line' in feat:
+                source = feat.replace('_avg_words_per_line', '')
+                if source not in sentence_line_pairs:
+                    sentence_line_pairs[source] = {'sentence_len': None, 'words_per_line': None}
+                sentence_line_pairs[source]['words_per_line'] = feat
+        
+        # For pairs where both exist, keep avg_sentence_len (drop avg_words_per_line)
+        features_to_drop_special = []
+        for source, pair in sentence_line_pairs.items():
+            if pair['sentence_len'] and pair['words_per_line']:
+                features_to_drop_special.append(pair['words_per_line'])
+        
+        # Remove the special case features from txt_features for the general deduplication
+        txt_features_filtered = [f for f in txt_features if f not in features_to_drop_special]
+        
+        # Group features by base name (everything except the last suffix)
+        feature_groups = {}
+        for feat in txt_features_filtered:
+            parts = feat.split('_')
+            if len(parts) >= 3:
+                base = '_'.join(parts[:-1])  # Everything except last part
+                suffix = parts[-1]
+                if base not in feature_groups:
+                    feature_groups[base] = []
+                feature_groups[base].append((feat, suffix))
+        
+        # For groups with multiple features, keep one based on priority
+        features_to_keep = set()
+        features_to_drop = []
+        
+        # Priority order: prefer density over count, then alphabetical
+        priority_order = ['density', 'count', 'ratio', 'avg', 'median', 'min', 'max']
+        
+        for base, features in feature_groups.items():
+            if len(features) > 1:
+                # Sort by priority
+                def get_priority(item):
+                    suffix = item[1]
+                    if suffix in priority_order:
+                        return priority_order.index(suffix)
+                    return len(priority_order)  # Lower priority for others
+                
+                features_sorted = sorted(features, key=get_priority)
+                # Keep the first (highest priority)
+                keep_feat = features_sorted[0][0]
+                features_to_keep.add(keep_feat)
+                # Drop the rest
+                for feat, _ in features_sorted[1:]:
+                    features_to_drop.append(feat)
+            else:
+                # Single feature, keep it
+                features_to_keep.add(features[0][0])
+        
+        # Combine all features to drop
+        all_features_to_drop = features_to_drop + features_to_drop_special
+        
+        # Update feature_cols: keep non-txt features and selected txt features
+        feature_cols = [c for c in feature_cols if not c.startswith('txt_')] + list(features_to_keep)
+        
+        if all_features_to_drop:
+            print(f"  Deduplicated text features: kept {len(features_to_keep)} txt_ features, dropped {len(all_features_to_drop)} duplicates")
+            if features_to_drop_special:
+                print(f"    Dropped avg_words_per_line features (kept avg_sentence_len): {features_to_drop_special}")
+            if features_to_drop:
+                print(f"    Examples of other dropped: {features_to_drop[:5]}")
+            
+            # Log all_features_to_drop to removed_features_log.txt
+            log_file = ROOT_DIR / "removed_features_log.txt"
+            with open(log_file, 'a', encoding='utf-8') as f:
+                f.write("\n\n")
+                f.write("=" * 60 + "\n")
+                f.write("FEATURES DROPPED BY UNIFIED_ANALYSIS.PY\n")
+                f.write("=" * 60 + "\n\n")
+                f.write(f"Text Feature Deduplication ({len(all_features_to_drop)} features):\n")
+                for feat in sorted(all_features_to_drop):
+                    f.write(f"  - {feat}\n")
+                f.write("\n")
+    
+    # Exclude confidence features from analysis (but keep in summary statistics)
+    confidence_features = [c for c in feature_cols if 'confidence' in c.lower()]
+    feature_cols = [c for c in feature_cols if c not in confidence_features]
+    if confidence_features:
+        print(f"  Excluded {len(confidence_features)} confidence features from analysis: {confidence_features}")
+    
+    # Categorize features
+    categorized_features = categorize_features(feature_cols, df_features.columns)
+    
+    print(f"Feature columns: {len(feature_cols)}")
+    print(f"\nFeature breakdown by category:")
+    for category, features in categorized_features.items():
+        print(f"  {category}: {len(features)} features")
+    
+    # Check for enhanced features
+    enhanced_indicators = ['semantic_', 'embedding_', 'exc_cat_', 'quality_composite', 
+                          'concept_network_', 'ambiguity_type']
+    enhanced_features = [f for f in feature_cols if any(ind in f for ind in enhanced_indicators)]
+    if enhanced_features:
+        print(f"\n✓ Enhanced features detected: {len(enhanced_features)} features")
+        print(f"  Examples: {enhanced_features[:5]}")
+    else:
+        print(f"\n⚠ No enhanced features detected. Consider using enhanced preprocessing.")
+    
+    # Load tool comparison data
+    df_tools_raw = pd.read_csv(IN_FILE_TOOL_COMPARISON)
+    print(f"\nLoaded tool comparison: {df_tools_raw.shape}")
+
+    # Restrict to the tools currently in scope (matches final_feature_set_bug_reports.csv):
+    # boostnsift excluded on request; blia held back until its CleanBaselines run actually
+    # produces non-empty output (currently only Chart + 2 Math bugs have real results).
+    if "tool" in df_tools_raw.columns:
+        initial_tool_count = len(df_tools_raw)
+        df_tools_raw = df_tools_raw[df_tools_raw["tool"].isin(EXPECTED_TOOLS)]
+        print(f"  Filtered to {EXPECTED_TOOLS}: {len(df_tools_raw)} rows (removed {initial_tool_count - len(df_tools_raw)} rows from other tools)")
+    
+    # Filter to Defects4J only if requested
+    if FILTER_DEFECTS4J_ONLY:
+        initial_count = len(df_tools_raw)
+        df_tools_raw = df_tools_raw[df_tools_raw["project"].isin(DEFECTS4J_PROJECTS)]
+        print(f"  Filtered to Defects4J only: {len(df_tools_raw)} rows (removed {initial_count - len(df_tools_raw)} non-Defects4J rows)")
+        print(f"  Defects4J unique bugs: {df_tools_raw[['project', 'bug_id']].drop_duplicates().shape[0]}")
+    
+    # Also filter feature data to match
+    if FILTER_DEFECTS4J_ONLY:
+        initial_feature_count = len(df_features)
+        df_features = df_features[df_features["project"].isin(DEFECTS4J_PROJECTS)]
+        print(f"  Filtered feature data to Defects4J: {len(df_features)} rows (removed {initial_feature_count - len(df_features)} non-Defects4J rows)")
+    
+    # Pivot from long to wide format if needed
+    if "tool" in df_tools_raw.columns:
+        # Data is in long format, pivot to wide
+        print("  Pivoting tool comparison data from long to wide format...")
+
+        # FIX 1: Some tools (e.g. BRaIn) store bug_id as "Project-N" instead of "N".
+        # Must split BEFORE numeric conversion or BRaIn rows silently become NaN.
+        _mask = df_tools_raw["bug_id"].astype(str).str.contains("-", na=False)
+        if _mask.any():
+            _split = df_tools_raw.loc[_mask, "bug_id"].str.split("-", n=1, expand=True)
+            df_tools_raw = df_tools_raw.copy()
+            df_tools_raw.loc[_mask, "project"] = _split[0]
+            df_tools_raw.loc[_mask, "bug_id"]  = _split[1]
+            print(f"  Fixed {_mask.sum()} rows with composite bug_id (e.g. 'Chart-1' -> project='Chart', bug_id='1')")
+
+        # FIX 2: Preserve original tool capitalisation (BRaIn, FlexFL) — no lowercasing
+        tools_raw = df_tools_raw["tool"].unique()
+        tools = sorted(tools_raw.tolist())
+        print(f"  Tools found: {tools}")
+        
+        # Pivot rank, mrr, and top@ columns
+        pivot_cols = ["rank", "mrr", "top@1", "top@5", "top@10"]
+        available_pivot_cols = [c for c in pivot_cols if c in df_tools_raw.columns]
+        
+        if not available_pivot_cols:
+            print("  [WARN] No pivotable columns found. Trying to use 'detected' column...")
+            # Fallback: use detected column
+            df_tools = df_tools_raw.pivot_table(
+                index=["project", "bug_id"],
+                columns="tool",
+                values="detected",
+                aggfunc="first"
+            )
+            df_tools.columns = [f"detected_{tool}" for tool in df_tools.columns]
+            df_tools = df_tools.reset_index()
+        else:
+            # Pivot available columns
+            df_tools = df_tools_raw.pivot_table(
+                index=["project", "bug_id"],
+                columns="tool",
+                values=available_pivot_cols,
+                aggfunc="first"
+            )
+            # Flatten: (metric, tool) -> metric_tool — preserve tool capitalisation
+            new_cols = []
+            for metric, tool_orig in df_tools.columns:
+                metric_clean = metric.replace("@", "_")
+                new_cols.append(f"{metric_clean}_{tool_orig}")
+            df_tools.columns = new_cols
+            df_tools = df_tools.reset_index()
+        
+        print(f"  Pivoted shape: {df_tools.shape}")
+    else:
+        # Data is already in wide format
+        df_tools = df_tools_raw
+        # Get tool names from columns (try multiple prefixes)
+        tools = get_tools(df_tools, "rank")
+        if not tools:
+            tools = get_tools(df_tools, "mrr")
+        if not tools:
+            tools = get_tools(df_features, "mrr")
+        if not tools:
+            tools = list(EXPECTED_TOOLS)  # Preserve capitalisation
+    
+    # Preserve original tool name capitalisation
+    # tools = [t.lower() for t in tools]  # REMOVED
+    print(f"Tools detected: {tools}")
+    
+    # Ensure consistent data types for merge keys
+    # Convert bug_id to Int64 (nullable integer) in both dataframes
+    if "bug_id" in df_features.columns:
+        df_features["bug_id"] = pd.to_numeric(df_features["bug_id"], errors="coerce").astype("Int64")
+    if "bug_id" in df_tools.columns:
+        df_tools["bug_id"] = pd.to_numeric(df_tools["bug_id"], errors="coerce").astype("Int64")
+    
+    # Ensure project is string in both
+    if "project" in df_features.columns:
+        df_features["project"] = df_features["project"].astype(str)
+    if "project" in df_tools.columns:
+        df_tools["project"] = df_tools["project"].astype(str)
+    
+    return df_features, df_tools, feature_cols, categorized_features, tools, id_cols
+
+def create_success_flags(df_tools, tools, threshold):
+    """Create binary success flags for each tool at given threshold."""
+    result = df_tools[["project", "bug_id"]].copy()
+    
+    for tool in tools:
+        rank_col = f"rank_{tool}"
+        # Handle @ symbol in column names (pivoted columns use underscore)
+        top_col = f"top_{threshold}_{tool}" if threshold in [1, 5, 10] else None
+        mrr_col = f"mrr_{tool}"
+        detected_col = f"detected_{tool}"
+        
+        # Try multiple methods to determine if bug was found
+        found = None
+        
+        # Method 1: Use rank column if available
+        if rank_col in df_tools.columns:
+            found = df_tools[rank_col] <= threshold
+        # Method 2: Use top@N column if available
+        elif top_col and top_col in df_tools.columns:
+            found = df_tools[top_col] == 1
+        # Method 3: Calculate rank from MRR (rank = 1/mrr if mrr > 0)
+        elif mrr_col in df_tools.columns:
+            mrr = df_tools[mrr_col].fillna(0)
+            calculated_rank = np.where(mrr > 0, 1.0 / mrr, np.inf)
+            found = calculated_rank <= threshold
+        # Method 4: Use detected column if available
+        elif detected_col in df_tools.columns:
+            found = df_tools[detected_col].fillna("No").str.contains("Yes", case=False, na=False)
+        else:
+            print(f"[WARN] Missing column: {rank_col} (and no fallback columns found)")
+            result[f"found_{tool}"] = False
+            continue
+        
+        result[f"found_{tool}"] = found
+    
+    return result
+
+
+# ======================================
+# NEW: UPSET DIAGRAM FUNCTION
+# ======================================
+
+def create_upset_diagram(df_tools, tools, threshold, suffix=""):
+    """
+    Create UpSet diagram showing tool intersections.
+    """
+    if not UPSET_AVAILABLE:
+        print(f"Skipping UpSet diagram (upsetplot not installed)")
+        return
+    
+    print(f"\nCreating UpSet diagram for Top-{threshold}...")
+    
+    # Create success flags
+    flags = create_success_flags(df_tools, tools, threshold)
+    
+    # Create membership list for each bug (including bugs found by 0 tools)
+    memberships = []
+    for _, row in flags.iterrows():
+        bug_tools = tuple([tool for tool in tools if row[f"found_{tool}"]])
+        # Include all bugs, even those found by 0 tools (empty tuple)
+        memberships.append(bug_tools)
+    
+    if not memberships:
+        print(f"  No bugs in dataset at threshold {threshold}")
+        return
+    
+    # Create UpSet plot
+    try:
+        upset_data = from_memberships(memberships)
+
+
+        
+        fig = plt.figure(figsize=(12, 6))
+        upset = UpSet(upset_data,
+                     subset_size='count',
+                     show_counts=True,
+                     sort_by='cardinality',
+                     sort_categories_by='cardinality',
+                     totals_plot_elements=0)
+        #upset.style_subsets(width=0.5)
+        axes = upset.plot(fig=fig)
+
+        try:
+            ax_int = axes.get("intersections") or axes.get("subset_sizes")
+            if ax_int is not None:
+                for p in list(ax_int.patches):
+                    # Matplotlib default bar width is typically 0.8; push closer to 1.0.
+                    p.set_width(0.8)
+        except Exception:
+            # Styling should never break plot generation
+            pass
+
+        # ---- Style request: remove black set-size bars; labels like "Tool (N)" ----
+        # In upsetplot, the left axis (often "set_sizes" or "totals") holds both the horizontal bars
+        # and the category labels. We keep the axis for labels, but hide the bars + x-axis clutter.
+        #
+        # NOTE: with totals_plot_elements=0 (set per an earlier request to remove the totals
+        # bar), axes["totals"] is None -- not a missing key, an actual None value -- so the
+        # `ax_set is not None` branch below never ran and this whole block was a silent no-op.
+        # upsetplot moves the category labels onto the "matrix" axis instead in that case, so
+        # relabel that axis when there's no live set_sizes/totals axis to relabel.
+        try:
+            ax_set = axes.get("set_sizes") or axes.get("totals")
+            ax_matrix = axes.get("matrix")
+
+            # Compute per-tool set sizes (bugs found by tool within threshold)
+            tool_sizes_raw = {tool: sum(1 for m in memberships if tool in m) for tool in tools}
+            tool_sizes = {k.lower(): v for k, v in tool_sizes_raw.items()}
+
+            # Use the DISPLAY name map (module-level) instead of naive capitalization,
+            # so e.g. "bluir" reads as "BLUiR" and "buglocator" as "BugLocator".
+            def fmt_name(n: str) -> str:
+                n = n.strip()
+                if n in DISPLAY:
+                    return DISPLAY[n]
+                for raw, disp in DISPLAY.items():
+                    if raw.lower() == n.lower():
+                        return disp
+                return n[:1].upper() + n[1:] if n.islower() else n
+
+            if ax_set is not None:
+                # Hide the bar patches (the black bars)
+                for p in list(ax_set.patches):
+                    p.set_alpha(0.0)
+                    p.set_linewidth(0.0)
+
+                current = [t.get_text() for t in ax_set.get_yticklabels()]
+                new_labels = [f"{fmt_name(name)} ({tool_sizes.get(name.lower(), 0)})" for name in current]
+                ax_set.set_yticklabels(new_labels)
+
+                # Remove x-axis ticks/label and spines so it's "label-only"
+                ax_set.set_xlabel("")
+                ax_set.set_xticks([])
+                ax_set.tick_params(axis="x", which="both", bottom=False, top=False, labelbottom=False)
+                for spine in ax_set.spines.values():
+                    spine.set_visible(False)
+            elif ax_matrix is not None:
+                current = [t.get_text() for t in ax_matrix.get_yticklabels()]
+                new_labels = [f"{fmt_name(name)} ({tool_sizes.get(name.lower(), 0)})" for name in current]
+                ax_matrix.set_yticklabels(new_labels)
+        except Exception as _styling_err:
+            # Styling should never break plot generation
+            pass
+        
+        plt.suptitle(f'Tool Intersection Analysis (Top-{threshold})', 
+                    fontsize=14, fontweight='bold', y=0.98)
+        
+        out_file = OUT_DIR / f"upset_diagram_top{threshold}{suffix}.png"
+        plt.savefig(out_file, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved: {out_file}")
+        
+        # Print summary statistics
+        print(f"\n  UpSet Summary (Top-{threshold}):")
+        print(f"    Total bugs in dataset: {len(memberships)}")
+        
+        # Count bugs found by 0 tools (none)
+        zero_tools_bugs = sum(1 for m in memberships if len(m) == 0)
+        print(f"    Bugs found by 0 tools (none): {zero_tools_bugs}")
+        
+        # Count bugs found by at least one tool
+        at_least_one = sum(1 for m in memberships if len(m) > 0)
+        print(f"    Bugs found by at least one tool: {at_least_one}")
+        
+        # Verify total if filtering is enabled
+        if FILTER_DEFECTS4J_ONLY:
+            expected_total = 835  # Defects4J has 835 bugs
+            if len(memberships) > expected_total:
+                print(f"    [WARNING] Total bugs ({len(memberships)}) exceeds expected Defects4J total ({expected_total})")
+            else:
+                print(f"    Total bugs ({len(memberships)}) is within expected Defects4J total ({expected_total})")
+        
+        # Count bugs found by all tools
+        all_tools_bugs = sum(1 for m in memberships if len(m) == len(tools))
+        print(f"    Bugs found by all {len(tools)} tools: {all_tools_bugs}")
+        
+        # Count bugs found by only one tool (unique)
+        unique_bugs = sum(1 for m in memberships if len(m) == 1)
+        print(f"    Bugs found by only one tool: {unique_bugs}")
+        
+        # Per-tool statistics
+        for tool in tools:
+            tool_count = sum(1 for m in memberships if tool in m)
+            unique_count = sum(1 for m in memberships if m == (tool,))
+            print(f"    {tool}: {tool_count} total, {unique_count} unique")
+        
+    except Exception as e:
+        print(f"  Error creating UpSet diagram: {e}")
+
+
+# ======================================
+# ANALYSIS 1: ALL vs NONE
+# ======================================
+
+def analyze_all_vs_none(df_features, df_tools, feature_cols, tools, threshold, categorized_features=None):
+    """
+    Compare features of bugs that:
+    - ALL tools find (within threshold)
+    - NONE of the tools find (beyond threshold)
+    """
+    print(f"\n{'='*80}")
+    print(f"ANALYSIS 1: ALL TOOLS FIND vs NONE FIND (Top-{threshold})")
+    print(f"{'='*80}")
+    
+    # Create success flags
+    flags = create_success_flags(df_tools, tools, threshold)
+    
+    # Identify bug groups
+    found_cols = [f"found_{tool}" for tool in tools]
+    flags["num_found"] = flags[found_cols].sum(axis=1)
+    
+    all_bugs = flags[flags["num_found"] == len(tools)]
+    none_bugs = flags[flags["num_found"] == 0]
+    
+    print(f"Bugs found by ALL tools: {len(all_bugs)}")
+    print(f"Bugs found by NONE: {len(none_bugs)}")
+    
+    if len(all_bugs) < MIN_GROUP_SIZE or len(none_bugs) < MIN_GROUP_SIZE:
+        print(f"[SKIP] Insufficient bugs for reliable comparison (min={MIN_GROUP_SIZE})")
+        return None
+    
+    # Merge with features
+    merged = pd.merge(flags, df_features, on=["project", "bug_id"], how="inner")
+    
+    all_data = merged[merged["num_found"] == len(tools)]
+    none_data = merged[merged["num_found"] == 0]
+    
+    # Compare features
+    results = []
+    for feat in feature_cols:
+        if feat not in merged.columns:
+            continue
+        
+        x_all = all_data[feat].dropna()
+        x_none = none_data[feat].dropna()
+        
+        if len(x_all) < MIN_GROUP_SIZE or len(x_none) < MIN_GROUP_SIZE:
+            continue
+        
+        # Mann-Whitney U test
+        try:
+            u_stat, p_val = mannwhitneyu(x_all, x_none, alternative="two-sided")
+        except:
+            continue
+        
+        # Cliff's delta
+        delta = cliffs_delta(x_all.values, x_none.values)
+        
+        results.append({
+            "feature": feat,
+            "all_n": len(x_all),
+            "none_n": len(x_none),
+            "all_median": x_all.median(),
+            "none_median": x_none.median(),
+            "all_mean": x_all.mean(),
+            "none_mean": x_none.mean(),
+            "median_diff": x_all.median() - x_none.median(),
+            "u_statistic": u_stat,
+            "p_value": p_val,
+            "cliffs_delta": delta,
+            "effect_size": effect_size_label(delta)
+        })
+    
+    if not results:
+        print("[WARN] No valid comparisons")
+        return None
+    
+    results_df = pd.DataFrame(results)
+    results_df = apply_holm(results_df, alpha=ALPHA)
+    results_df["abs_delta"] = results_df["cliffs_delta"].abs()
+    
+    # Filter for practical significance
+    results_df["practically_significant"] = (
+        results_df["significant"] & 
+        (results_df["abs_delta"] >= PRACTICAL_SIG_DELTA)
+    )
+    
+    results_df = results_df.sort_values("abs_delta", ascending=False)
+    
+    # Save results
+    out_file = OUT_DIR / f"all_vs_none_top{threshold}.csv"
+    results_df.to_csv(out_file, index=False)
+    print(f"Saved: {out_file}")
+    
+    # Print top features by category if available
+    if categorized_features:
+        print(f"\nTop discriminative features by category:")
+        for category, cat_features in categorized_features.items():
+            cat_results = results_df[results_df['feature'].isin(cat_features)]
+            if len(cat_results) > 0:
+                top_feat = cat_results.iloc[0]
+                if top_feat['practically_significant']:
+                    print(f"  {category}: {top_feat['feature']} (δ={top_feat['cliffs_delta']:.3f}, p={top_feat['pval_adj']:.4f})")
+    
+    # Print overall top features
+    print(f"\nTop 10 discriminative features (ALL vs NONE):")
+    print("=" * 120)
+    for _, row in results_df.head(10).iterrows():
+        sig = "***" if row["practically_significant"] else ("*" if row["significant"] else "")
+        print(f"{row['feature']:<40} | δ={row['cliffs_delta']:>6.3f} ({row['effect_size']:<10}) | p={row['pval_adj']:.4f} {sig}")
+        print(f"  ALL:  median={row['all_median']:>8.2f}, mean={row['all_mean']:>8.2f} (n={row['all_n']})")
+        print(f"  NONE: median={row['none_median']:>8.2f}, mean={row['none_mean']:>8.2f} (n={row['none_n']})")
+    
+    return results_df
+
+
+    # ======================================
+# ANALYSIS: BUG DIFFICULTY SPECTRUM
+# ======================================
+
+def analyze_bug_difficulty_spectrum(df_features, df_tools, feature_cols, tools, threshold):
+    """
+    Analyze correlation between bug report features and number of tools that
+    successfully localize the bug (bug difficulty spectrum).
+    """
+
+    print(f"\n{'='*80}")
+    print(f"ANALYSIS: BUG DIFFICULTY SPECTRUM (Top-{threshold})")
+    print(f"{'='*80}")
+
+    flags = create_success_flags(df_tools, tools, threshold)
+
+    found_cols = [f"found_{tool}" for tool in tools]
+
+    flags["num_found"] = flags[found_cols].sum(axis=1)
+
+    # normalize
+    flags["tool_success_rate"] = flags["num_found"] / len(tools)
+
+    merged = pd.merge(flags, df_features, on=["project", "bug_id"], how="inner")
+
+    print(f"Bugs analyzed: {len(merged)}")
+
+    results = []
+
+    for feat in feature_cols:
+
+        if feat not in merged.columns:
+            continue
+
+        x = merged[feat]
+        y = merged["tool_success_rate"]
+
+        valid = (~x.isna()) & (~y.isna())
+
+        if valid.sum() < MIN_GROUP_SIZE:
+            continue
+
+        try:
+            rho, p_val = spearmanr(x[valid], y[valid])
+        except:
+            continue
+
+        results.append({
+            "feature": feat,
+            "spearman_rho": rho,
+            "p_value": p_val,
+            "n": valid.sum()
+        })
+
+    if not results:
+        print("[WARN] No valid correlations computed")
+        return None
+
+    results_df = pd.DataFrame(results)
+
+    results_df = apply_holm(results_df, alpha=ALPHA, pval_col="p_value")
+
+    results_df["abs_rho"] = results_df["spearman_rho"].abs()
+
+    results_df = results_df.sort_values("abs_rho", ascending=False)
+
+    out_file = OUT_DIR / f"bug_difficulty_spectrum_top{threshold}.csv"
+    results_df.to_csv(out_file, index=False)
+
+    print(f"Saved: {out_file}")
+
+    print("\nTop 10 features correlated with bug difficulty:")
+    print("=" * 100)
+
+    for _, row in results_df.head(10).iterrows():
+
+        direction = "easier bugs" if row["spearman_rho"] > 0 else "harder bugs"
+
+        print(
+            f"{row['feature']:<40} | ρ={row['spearman_rho']:.3f} ({direction}) | "
+            f"p={row['pval_adj']:.4f}"
+        )
+
+    return results_df
+
+
+
+# ======================================
+# ANALYSIS 2: TOOL vs REST
+# ======================================
+
+def analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold):
+    """
+    For each tool, compare bugs it uniquely finds vs bugs found by all OTHER tools.
+    """
+    print(f"\n{'='*80}")
+    print(f"ANALYSIS 3: EACH TOOL vs REST (Top-{threshold})")
+    print(f"{'='*80}")
+    
+    flags = create_success_flags(df_tools, tools, threshold)
+    merged = pd.merge(flags, df_features, on=["project", "bug_id"], how="inner")
+    
+    all_tool_results = []
+    
+    print(f"\nAnalyzing {len(tools)} tools: {', '.join(tools)}")
+    
+    for tool in tools:
+        found_col = f"found_{tool}"
+        other_cols = [f"found_{t}" for t in tools if t != tool]
+        
+        # Bugs this tool finds that others don't
+        mask_unique = flags[found_col] & ~flags[other_cols].any(axis=1)
+        unique_bugs = flags[mask_unique]
+        
+        # Bugs all other tools find (regardless of this tool)
+        # Try strict first: bugs found by ALL other tools
+        mask_others_strict = flags[other_cols].all(axis=1)
+        others_bugs_strict = flags[mask_others_strict]
+        
+        # Fallback: bugs found by at least one other tool (if strict doesn't meet minimum)
+        # For tools with many unique bugs, use a more lenient comparison group
+        if len(others_bugs_strict) < MIN_GROUP_SIZE:
+            mask_others = flags[other_cols].any(axis=1)
+            others_bugs = flags[mask_others]
+            print(f"\n{tool}:")
+            print(f"  Unique bugs: {len(unique_bugs)}")
+            print(f"  Bugs found by all others (strict): {len(others_bugs_strict)}")
+            print(f"  Bugs found by at least one other (fallback): {len(others_bugs)}")
+            if len(others_bugs) < MIN_GROUP_SIZE and len(unique_bugs) >= MIN_GROUP_SIZE * 2:
+                # Special case: if tool has many unique bugs (2x minimum) but few others,
+                # use bugs found by majority of other tools instead
+                num_other_tools = len(other_cols)
+                majority_threshold = (num_other_tools + 1) // 2  # At least half
+                mask_others = flags[other_cols].sum(axis=1) >= majority_threshold
+                others_bugs = flags[mask_others]
+                print(f"  Bugs found by majority of others (≥{majority_threshold}/{num_other_tools}): {len(others_bugs)}")
+        else:
+            others_bugs = others_bugs_strict
+            print(f"\n{tool}:")
+            print(f"  Unique bugs: {len(unique_bugs)}")
+            print(f"  Bugs found by all others: {len(others_bugs)}")
+        
+        # More lenient check: if tool has many unique bugs, allow smaller "others" group
+        min_others_required = MIN_GROUP_SIZE
+        if len(unique_bugs) >= MIN_GROUP_SIZE * 3:  # Tool has 3x minimum unique bugs
+            min_others_required = max(3, MIN_GROUP_SIZE // 2)  # Lower threshold for comparison group
+        elif len(unique_bugs) >= MIN_GROUP_SIZE * 2:  # Tool has 2x minimum unique bugs
+            min_others_required = max(3, int(MIN_GROUP_SIZE * 0.75))  # Slightly lower threshold
+        
+        # Very lenient: if tool has many unique bugs, allow even smaller comparison group
+        if len(unique_bugs) >= MIN_GROUP_SIZE * 5:  # Tool has 5x minimum unique bugs (e.g., 40+)
+            min_others_required = 3  # Very low threshold - just need a few for comparison
+        
+        if len(unique_bugs) < MIN_GROUP_SIZE:
+            print(f"  [SKIP] Insufficient unique bugs ({len(unique_bugs)} < {MIN_GROUP_SIZE})")
+            continue
+        
+        if len(others_bugs) < min_others_required:
+            # Proceed with smaller comparison group if we have enough unique bugs
+            # Only skip if comparison group is absolutely too small (< 3) AND unique bugs are also small
+            if len(others_bugs) < 3 and len(unique_bugs) < MIN_GROUP_SIZE * 2:
+                print(f"  [SKIP] Both groups too small (unique: {len(unique_bugs)}, others: {len(others_bugs)})")
+                continue
+            else:
+                print(f"  [WARN] Small comparison group ({len(others_bugs)} < {min_others_required}), but proceeding with {len(unique_bugs)} unique bugs")
+        
+        # Get feature data
+        data_unique = merged[merged[["project", "bug_id"]].apply(tuple, axis=1).isin(
+            unique_bugs[["project", "bug_id"]].apply(tuple, axis=1)
+        )]
+        data_others = merged[merged[["project", "bug_id"]].apply(tuple, axis=1).isin(
+            others_bugs[["project", "bug_id"]].apply(tuple, axis=1)
+        )]
+        
+        # Report missing values for each tool
+        features_with_missing_unique = []
+        features_with_missing_others = []
+        for feat in feature_cols:
+            if feat not in merged.columns:
+                continue
+            # Check for missing values in unique group
+            if data_unique[feat].isna().any():
+                missing_count = data_unique[feat].isna().sum()
+                missing_pct = (missing_count / len(data_unique)) * 100
+                features_with_missing_unique.append((feat, missing_count, missing_pct))
+            # Check for missing values in others group
+            if data_others[feat].isna().any():
+                missing_count = data_others[feat].isna().sum()
+                missing_pct = (missing_count / len(data_others)) * 100
+                features_with_missing_others.append((feat, missing_count, missing_pct))
+        
+        print(f"  Features with missing values:")
+        print(f"    Unique bugs group: {len(features_with_missing_unique)} features with missing values")
+        if features_with_missing_unique:
+            # Sort by missing percentage (descending)
+            features_with_missing_unique.sort(key=lambda x: x[2], reverse=True)
+            print(f"      Top 5 by missing %: {', '.join([f'{f[0]} ({f[2]:.1f}%)' for f in features_with_missing_unique[:5]])}")
+        print(f"    Others group: {len(features_with_missing_others)} features with missing values")
+        if features_with_missing_others:
+            # Sort by missing percentage (descending)
+            features_with_missing_others.sort(key=lambda x: x[2], reverse=True)
+            print(f"      Top 5 by missing %: {', '.join([f'{f[0]} ({f[2]:.1f}%)' for f in features_with_missing_others[:5]])}")
+        
+        results = []
+        for feat in feature_cols:
+            if feat not in merged.columns:
+                continue
+            
+            x_unique = data_unique[feat].dropna()
+            x_others = data_others[feat].dropna()
+            
+            if len(x_unique) < MIN_GROUP_SIZE or len(x_others) < MIN_GROUP_SIZE:
+                continue
+            
+            try:
+                u_stat, p_val = mannwhitneyu(x_unique, x_others, alternative="two-sided")
+            except:
+                continue
+            
+            delta = cliffs_delta(x_unique.values, x_others.values)
+            
+            results.append({
+                "tool": tool,
+                "feature": feat,
+                "unique_n": len(x_unique),
+                "others_n": len(x_others),
+                "unique_median": x_unique.median(),
+                "others_median": x_others.median(),
+                "unique_mean": x_unique.mean(),
+                "others_mean": x_others.mean(),
+                "median_diff": x_unique.median() - x_others.median(),
+                "u_statistic": u_stat,
+                "p_value": p_val,
+                "cliffs_delta": delta,
+                "effect_size": effect_size_label(delta)
+            })
+        
+        if not results:
+            continue
+        
+        tool_df = pd.DataFrame(results)
+        tool_df = apply_holm(tool_df, alpha=ALPHA)
+        tool_df["abs_delta"] = tool_df["cliffs_delta"].abs()
+        tool_df["practically_significant"] = (
+            tool_df["significant"] & 
+            (tool_df["abs_delta"] >= PRACTICAL_SIG_DELTA)
+        )
+        tool_df = tool_df.sort_values("abs_delta", ascending=False)
+        
+        all_tool_results.append(tool_df)
+        
+        # Print top 5 for this tool
+        print(f"\nTop 5 features distinguishing {tool}'s unique strengths:")
+        for _, row in tool_df.head(5).iterrows():
+            sig = "***" if row["practically_significant"] else ""
+            direction = "higher" if row["cliffs_delta"] > 0 else "lower"
+            print(f"  {row['feature']:<35} | δ={row['cliffs_delta']:>6.3f} ({direction}) | p={row['pval_adj']:.4f} {sig}")
+    
+    if not all_tool_results:
+        print("\n[WARN] No valid tool-vs-rest comparisons")
+        return None
+    
+    combined_df = pd.concat(all_tool_results, ignore_index=True)
+    combined_df = combined_df.sort_values(["tool", "abs_delta"], ascending=[True, False])
+    
+    out_file = OUT_DIR / f"tool_vs_rest_top{threshold}.csv"
+    combined_df.to_csv(out_file, index=False)
+    print(f"\nSaved: {out_file}")
+    
+    return combined_df
+
+# ======================================
+# ANALYSIS: PAIRWISE UNIQUE TOOL COMPARISON
+# ======================================
+
+def analyze_pairwise_unique_tools(df_features, df_tools, feature_cols, tools, threshold):
+    """
+    Compare bug reports uniquely localized by tool A vs uniquely localized by tool B.
+    """
+
+    print(f"\n{'='*80}")
+    print(f"ANALYSIS: PAIRWISE UNIQUE TOOL COMPARISON (Top-{threshold})")
+    print(f"{'='*80}")
+
+    flags = create_success_flags(df_tools, tools, threshold)
+    merged = pd.merge(flags, df_features, on=["project", "bug_id"], how="inner")
+
+    all_results = []
+
+    for tool_a, tool_b in combinations(tools, 2):
+
+        print(f"\nComparing {tool_a} vs {tool_b}")
+
+        found_a = f"found_{tool_a}"
+        found_b = f"found_{tool_b}"
+
+        other_cols = [f"found_{t}" for t in tools if t not in [tool_a, tool_b]]
+
+        # Bugs uniquely found by A
+        mask_a_only = merged[found_a] & ~merged[[found_b] + other_cols].any(axis=1)
+        a_only = merged[mask_a_only]
+
+        # Bugs uniquely found by B
+        mask_b_only = merged[found_b] & ~merged[[found_a] + other_cols].any(axis=1)
+        b_only = merged[mask_b_only]
+
+        print(f"  {tool_a}-only bugs: {len(a_only)}")
+        print(f"  {tool_b}-only bugs: {len(b_only)}")
+
+        if len(a_only) < MIN_GROUP_SIZE or len(b_only) < MIN_GROUP_SIZE:
+            print("  [SKIP] Not enough bugs for comparison")
+            continue
+
+        results = []
+
+        for feat in feature_cols:
+
+            if feat not in merged.columns:
+                continue
+
+            x_a = a_only[feat].dropna()
+            x_b = b_only[feat].dropna()
+
+            if len(x_a) < MIN_GROUP_SIZE or len(x_b) < MIN_GROUP_SIZE:
+                continue
+
+            try:
+                u_stat, p_val = mannwhitneyu(x_a, x_b, alternative="two-sided")
+            except:
+                continue
+
+            delta = cliffs_delta(x_a.values, x_b.values)
+
+            results.append({
+                "tool_a": tool_a,
+                "tool_b": tool_b,
+                "feature": feat,
+                "a_n": len(x_a),
+                "b_n": len(x_b),
+                "a_median": x_a.median(),
+                "b_median": x_b.median(),
+                "median_diff": x_a.median() - x_b.median(),
+                "u_statistic": u_stat,
+                "p_value": p_val,
+                "cliffs_delta": delta,
+                "effect_size": effect_size_label(delta)
+            })
+
+        if not results:
+            continue
+
+        pair_df = pd.DataFrame(results)
+        pair_df = apply_holm(pair_df, alpha=ALPHA)
+
+        pair_df["abs_delta"] = pair_df["cliffs_delta"].abs()
+        pair_df["practically_significant"] = (
+            pair_df["significant"] &
+            (pair_df["abs_delta"] >= PRACTICAL_SIG_DELTA)
+        )
+
+        pair_df = pair_df.sort_values("abs_delta", ascending=False)
+
+        print("\n  Top distinguishing features:")
+        for _, row in pair_df.head(5).iterrows():
+            direction = tool_a if row["cliffs_delta"] > 0 else tool_b
+            print(
+                f"    {row['feature']:<35} "
+                f"| δ={row['cliffs_delta']:.3f} "
+                f"| stronger for {direction}"
+            )
+
+        all_results.append(pair_df)
+
+    if not all_results:
+        print("[WARN] No valid pairwise comparisons")
+        return None
+
+    combined = pd.concat(all_results, ignore_index=True)
+
+    out_file = OUT_DIR / f"pairwise_unique_tools_top{threshold}.csv"
+    combined.to_csv(out_file, index=False)
+
+    print(f"\nSaved: {out_file}")
+
+    return combined
+
+def analyze_repair_difficulty_by_category(df_features, df_tools, tools, threshold):
+    """
+    Analyze repair difficulty across bug categories for bugs uniquely localized by each tool.
+    """
+
+    print(f"\n{'='*80}")
+    print(f"REPAIR DIFFICULTY × BUG CATEGORY ANALYSIS (Top-{threshold})")
+    print(f"{'='*80}")
+
+    flags = create_success_flags(df_tools, tools, threshold)
+
+    merged = pd.merge(flags, df_features, on=["project", "bug_id"], how="inner")
+    
+    print(f"Merged dataset shape: {merged.shape}")
+    print(f"Columns in merged dataset: {len(merged.columns)}")
+
+    if "repair_difficulty" not in merged.columns:
+        print("[ERROR] repair_difficulty column not found")
+        print(f"  Available columns containing 'repair': {[c for c in merged.columns if 'repair' in c.lower()]}")
+        return
+
+    # Detect category columns - use the explicit category columns from the preprocessed dataset
+    desired_category_cols = [
+        "fg_cat_Dependency",
+        "fg_cat_Exception handling",
+        "fg_cat_Missing case",
+        "fg_cat_Null pointer dereference",
+        "fg_cat_Other (Logic)",
+        "fg_cat_Processing",
+        "fg_cat___missing__",
+        "fg_cat___other__",
+        "cat_Functional Issue",
+        "cat___other__",
+    ]
+
+    # Keep only those that actually exist in the merged dataframe
+    category_cols = [c for c in desired_category_cols if c in merged.columns]
+
+    print(f"Found {len(category_cols)} category columns (from explicit list)")
+    if category_cols:
+        print(f"  Using category columns: {category_cols}")
+
+    missing_cats = [c for c in desired_category_cols if c not in merged.columns]
+    if missing_cats:
+        print(f"  Note: the following expected category columns were not found and will be skipped: {missing_cats}")
+
+    if not category_cols:
+        print("[ERROR] No bug category columns detected from the explicit list")
+        print(f"  Available columns containing 'cat': {[c for c in merged.columns if 'cat' in c.lower()][:20]}")
+        return
+
+    results = []
+
+    for tool in tools:
+
+        found_col = f"found_{tool}"
+        other_cols = [f"found_{t}" for t in tools if t != tool]
+
+        # unique successes
+        mask_unique = merged[found_col] & ~merged[other_cols].any(axis=1)
+        tool_unique = merged[mask_unique]
+
+        print(f"\n{tool}: {len(tool_unique)} unique bugs")
+
+        if len(tool_unique) < MIN_GROUP_SIZE:
+            continue
+
+        for cat in category_cols:
+
+            subset = tool_unique[tool_unique[cat] == 1]
+
+            if len(subset) < MIN_GROUP_SIZE:
+                continue
+
+            results.append({
+                "tool": tool,
+                "category": cat,
+                "n": len(subset),
+                "mean_repair_difficulty": subset["repair_difficulty"].mean(),
+                "median_repair_difficulty": subset["repair_difficulty"].median(),
+                "std_repair_difficulty": subset["repair_difficulty"].std()
+            })
+
+    if not results:
+        print(f"[WARN] No sufficient category samples found.")
+        print(f"  This means no tool had at least {MIN_GROUP_SIZE} unique bugs with at least {MIN_GROUP_SIZE} bugs in any category.")
+        print("  Try lowering the minimum sample size threshold or check if categories are properly encoded.")
+        return None
+
+    results_df = pd.DataFrame(results)
+    
+    print(f"\nGenerated {len(results_df)} category-tool combinations")
+
+    out_file = OUT_DIR / f"repair_difficulty_by_category_top{threshold}.csv"
+    results_df.to_csv(out_file, index=False)
+
+    print(f"\nSaved: {out_file}")
+    print(f"  Rows: {len(results_df)}")
+    print(f"  Columns: {list(results_df.columns)}")
+
+    return results_df
+
+
+def analyze_repair_difficulty_by_category_overall(df_features, threshold):
+    """
+    Analyze repair difficulty across bug categories for the entire dataset (not per tool).
+    """
+    
+    print(f"\n{'='*80}")
+    print(f"OVERALL REPAIR DIFFICULTY × BUG CATEGORY ANALYSIS (Top-{threshold})")
+    print(f"{'='*80}")
+    
+    print(f"Dataset shape: {df_features.shape}")
+    print(f"Columns in dataset: {len(df_features.columns)}")
+    
+    if "repair_difficulty" not in df_features.columns:
+        print("[ERROR] repair_difficulty column not found")
+        print(f"  Available columns containing 'repair': {[c for c in df_features.columns if 'repair' in c.lower()]}")
+        return None
+    
+    # Detect category columns - use the explicit category columns from the preprocessed dataset
+    desired_category_cols = [
+        "fg_cat_Dependency",
+        "fg_cat_Exception handling",
+        "fg_cat_Missing case",
+        "fg_cat_Null pointer dereference",
+        "fg_cat_Other (Logic)",
+        "fg_cat_Processing",
+        "fg_cat___missing__",
+        "fg_cat___other__",
+        "cat_Functional Issue",
+        "cat___other__",
+    ]
+    
+    # Keep only those that actually exist in the dataframe
+    category_cols = [c for c in desired_category_cols if c in df_features.columns]
+    
+    print(f"Found {len(category_cols)} category columns (from explicit list)")
+    if category_cols:
+        print(f"  Using category columns: {category_cols}")
+    
+    missing_cats = [c for c in desired_category_cols if c not in df_features.columns]
+    if missing_cats:
+        print(f"  Note: the following expected category columns were not found and will be skipped: {missing_cats}")
+    
+    if not category_cols:
+        print("[ERROR] No bug category columns detected from the explicit list")
+        print(f"  Available columns containing 'cat': {[c for c in df_features.columns if 'cat' in c.lower()][:20]}")
+        return None
+    
+    results = []
+    
+    for cat in category_cols:
+        # Get all bugs in this category
+        subset = df_features[df_features[cat] == 1]
+        
+        if len(subset) < MIN_GROUP_SIZE:
+            print(f"  Skipping {cat}: only {len(subset)} bugs (need at least {MIN_GROUP_SIZE})")
+            continue
+        
+        results.append({
+            "category": cat,
+            "n": len(subset),
+            "mean_repair_difficulty": subset["repair_difficulty"].mean(),
+            "median_repair_difficulty": subset["repair_difficulty"].median(),
+            "std_repair_difficulty": subset["repair_difficulty"].std(),
+            "min_repair_difficulty": subset["repair_difficulty"].min(),
+            "max_repair_difficulty": subset["repair_difficulty"].max()
+        })
+        
+        print(f"  {cat}: {len(subset)} bugs, mean repair difficulty = {subset['repair_difficulty'].mean():.3f}")
+    
+    if not results:
+        print(f"[WARN] No sufficient category samples found.")
+        print(f"  This means no category had at least {MIN_GROUP_SIZE} bugs.")
+        return None
+    
+    results_df = pd.DataFrame(results)
+    
+    # Perform Mann-Whitney U test and Cliff's delta for each category vs all other bugs
+    print(f"\n{'='*80}")
+    print(f"STATISTICAL COMPARISONS: Each Category vs All Other Bugs")
+    print(f"{'='*80}")
+    
+    all_repair_difficulty = df_features["repair_difficulty"].dropna()
+    
+    statistical_results = []
+    for _, row in results_df.iterrows():
+        cat = row["category"]
+        cat_bugs = df_features[df_features[cat] == 1]["repair_difficulty"].dropna()
+        other_bugs = df_features[df_features[cat] == 0]["repair_difficulty"].dropna()
+        
+        if len(cat_bugs) < MIN_GROUP_SIZE or len(other_bugs) < MIN_GROUP_SIZE:
+            continue
+        
+        try:
+            # Mann-Whitney U test
+            u_stat, p_val = mannwhitneyu(cat_bugs.values, other_bugs.values, alternative="two-sided")
+            
+            # Cliff's delta (positive means category > others, negative means category < others)
+            delta = cliffs_delta(cat_bugs.values, other_bugs.values)
+            
+            statistical_results.append({
+                "category": cat,
+                "n_category": len(cat_bugs),
+                "n_others": len(other_bugs),
+                "median_category": cat_bugs.median(),
+                "median_others": other_bugs.median(),
+                "mean_category": cat_bugs.mean(),
+                "mean_others": other_bugs.mean(),
+                "u_statistic": u_stat,
+                "p_value": p_val,
+                "cliffs_delta": delta,
+                "abs_delta": abs(delta),
+                "effect_size": effect_size_label(delta)
+            })
+        except Exception as e:
+            print(f"  Warning: Could not compare {cat} vs others: {e}")
+            continue
+    
+    if statistical_results:
+        stats_df = pd.DataFrame(statistical_results)
+        
+        # Apply Holm-Bonferroni correction
+        stats_df = apply_holm(stats_df, alpha=ALPHA, pval_col="p_value")
+        
+        # Mark practically significant comparisons
+        stats_df["practically_significant"] = (
+            stats_df["significant"] & 
+            (stats_df["abs_delta"] >= PRACTICAL_SIG_DELTA)
+        )
+        
+        # Merge statistical results with descriptive statistics
+        results_df = results_df.merge(
+            stats_df[["category", "n_others", "median_others", "mean_others", 
+                     "u_statistic", "p_value", "pval_adj", "cliffs_delta", 
+                     "abs_delta", "effect_size", "significant", "practically_significant"]],
+            on="category",
+            how="left"
+        )
+        
+        print(f"\nGenerated statistical comparisons for {len(stats_df)} categories")
+        print(f"  Statistically significant: {stats_df['significant'].sum()}")
+        print(f"  Practically significant (|δ| ≥ {PRACTICAL_SIG_DELTA}): {stats_df['practically_significant'].sum()}")
+        
+        # Print top comparisons
+        print(f"\nTop categories by effect size (vs all other bugs):")
+        stats_df_sorted = stats_df.sort_values("abs_delta", ascending=False)
+        for _, row in stats_df_sorted.head(10).iterrows():
+            sig_marker = "***" if row["practically_significant"] else ("*" if row["significant"] else "")
+            direction = "higher" if row["cliffs_delta"] > 0 else "lower"
+            print(f"  {row['category']}: {direction} repair difficulty "
+                  f"(δ={row['cliffs_delta']:.3f}, {row['effect_size']}), "
+                  f"p={row['pval_adj']:.4f} {sig_marker}")
+    
+    results_df = results_df.sort_values("mean_repair_difficulty", ascending=False)
+    
+    print(f"\nGenerated {len(results_df)} category statistics")
+    
+    out_file = OUT_DIR / f"repair_difficulty_by_category_overall_top{threshold}.csv"
+    results_df.to_csv(out_file, index=False)
+    
+    print(f"\nSaved: {out_file}")
+    print(f"  Rows: {len(results_df)}")
+    print(f"  Columns: {list(results_df.columns)}")
+    
+    return results_df
+
+
+# ======================================
+# VISUALIZATION
+# ======================================
+
+def create_summary_heatmap(pairwise_df, threshold):
+    """Create heatmap showing which features distinguish tool pairs."""
+    if pairwise_df is None or len(pairwise_df) == 0:
+        return
+    
+    # Get top features per pair
+    top_features_per_pair = {}
+    for (tool_a, tool_b), group in pairwise_df.groupby(["tool_a", "tool_b"]):
+        group_sig = group[group["practically_significant"]]
+        if len(group_sig) > 0:
+            top_features_per_pair[(tool_a, tool_b)] = group_sig.head(10)["feature"].tolist()
+    
+    # Get all features that appear in any top list
+    all_top_features = set()
+    for features in top_features_per_pair.values():
+        all_top_features.update(features)
+    
+    if not all_top_features:
+        return
+    
+    # Create matrix: features x tool pairs
+    pairs = sorted(top_features_per_pair.keys())
+    features = sorted(all_top_features)
+    
+    matrix = np.zeros((len(features), len(pairs)))
+    for j, pair in enumerate(pairs):
+        for i, feat in enumerate(features):
+            if feat in top_features_per_pair.get(pair, []):
+                # Find the delta for this feature-pair combination
+                subset = pairwise_df[
+                    (pairwise_df["tool_a"] == pair[0]) & 
+                    (pairwise_df["tool_b"] == pair[1]) & 
+                    (pairwise_df["feature"] == feat)
+                ]
+                if len(subset) > 0:
+                    matrix[i, j] = subset.iloc[0]["cliffs_delta"]
+    
+    # Plot
+    fig, ax = plt.subplots(figsize=(max(8, len(pairs) * 1.5), max(8, len(features) * 0.3)))
+    
+    pair_labels = [f"{a}\nvs\n{b}" for a, b in pairs]
+    
+    sns.heatmap(matrix, 
+                xticklabels=pair_labels,
+                yticklabels=features,
+                cmap="RdBu_r",
+                center=0,
+                vmin=-1, vmax=1,
+                annot=False,
+                cbar_kws={"label": "Cliff's Delta"},
+                ax=ax)
+    
+    ax.set_title(f"Tool-Pair Discriminative Features (Top-{threshold})")
+    ax.set_xlabel("Tool Comparison")
+    ax.set_ylabel("Feature")
+    
+    plt.tight_layout()
+    out_file = OUT_DIR / f"pairwise_heatmap_top{threshold}.png"
+    plt.savefig(out_file, dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"Saved visualization: {out_file}")
+
+
+# ======================================
+# MAIN EXECUTION
+# ======================================
+
+def main():
+    print("=" * 80)
+    print("ENHANCED FOCUSED TOOL COMPARISON FEATURE ANALYSIS")
+    print("=" * 80)
+    print(f"Output directory: {OUT_DIR}")
+    print(f"Thresholds: {THRESHOLDS}")
+    print(f"Minimum group size: {MIN_GROUP_SIZE}")
+    print(f"Practical significance threshold: |δ| ≥ {PRACTICAL_SIG_DELTA}")
+    print(f"UpSet diagrams: {'Enabled' if UPSET_AVAILABLE else 'Disabled (install upsetplot)'}")
+    print("=" * 80)
+    
+    # Load data
+    df_features, df_tools, feature_cols, categorized_features, tools, id_cols = load_data()
+    
+    # Run analyses for each threshold
+    for threshold in THRESHOLDS:
+        print(f"\n{'#'*80}")
+        print(f"# THRESHOLD: Top-{threshold}")
+        print(f"{'#'*80}")
+        
+        # NEW: Create UpSet diagram first
+        create_upset_diagram(df_tools, tools, threshold)
+        
+        # Analysis 1: ALL vs NONE
+        all_vs_none_df = analyze_all_vs_none(df_features, df_tools, feature_cols, tools, threshold, categorized_features)
+        
+        #difficulty_df = analyze_bug_difficulty_spectrum(
+        #    df_features, df_tools, feature_cols, tools, threshold
+        #)
+        # Analysis 3: Tool vs rest
+        tool_vs_rest_df = analyze_tool_vs_rest(df_features, df_tools, feature_cols, tools, threshold)
+
+       # pairwise_df = analyze_pairwise_unique_tools(df_features, df_tools, feature_cols, tools, threshold)
+
+        # Analysis: Repair difficulty by category (per tool)
+        #repair_cat_df = analyze_repair_difficulty_by_category(
+        #    df_features, df_tools, tools, threshold
+        #)
+        
+        # Analysis: Repair difficulty by category (overall dataset)
+        #repair_cat_overall_df = analyze_repair_difficulty_by_category_overall(
+        #    df_features, threshold
+        #)
+    
+    print("\n" + "=" * 80)
+    print("ANALYSIS COMPLETE")
+    print(f"Results saved to: {OUT_DIR}")
+    print("=" * 80)
+    if UPSET_AVAILABLE:
+        print("  - upset_diagram_top{1,5,10}.png")
+    print("=" * 80)
+
+if __name__ == "__main__":
+    main()

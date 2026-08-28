@@ -56,7 +56,7 @@ def main() -> int:
 
     fixed_steps = [
         ROOT / "tool_feature_analysis" / "merge_features_and_performance.py",
-        ROOT / "rq2_3_analysis" / "unified_analysis.py",
+        ROOT / "tool_comparison_results_fixed" / "unified_analysis.py",
         ROOT / "delta_score_outputs" / "predictor.py",
     ]
 

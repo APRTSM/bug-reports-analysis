@@ -1,5 +1,5 @@
 """
-Analysis of 117 Unlocalizable Bugs
+Analysis of Unlocalizable Bugs
 ====================================
 Three angles:
   1. Hard vs. Soft failure classification
@@ -14,8 +14,40 @@ from scipy import stats
 import warnings
 warnings.filterwarnings('ignore')
 
+# Optional import, same graceful-degradation pattern as rq2_3_analysis/unified_analysis.py:
+# allow this script to still run (uncorrected) if statsmodels isn't installed.
+try:
+    from statsmodels.stats.multitest import multipletests
+    MULTITEST_AVAILABLE = True
+except ImportError:
+    multipletests = None
+    MULTITEST_AVAILABLE = False
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 OUT_DIR = Path(__file__).resolve().parent
+
+
+def apply_holm(df_results, alpha=0.05, pval_col="p_value"):
+    """Holm-Bonferroni correction for multiple testing -- matches
+    rq2_3_analysis/unified_analysis.py's apply_holm(), replicated here (not
+    imported) so this script stays independently runnable."""
+    df_results = df_results.copy()
+    mask = df_results[pval_col].notna()
+    pvals = df_results.loc[mask, pval_col].values
+
+    if len(pvals) == 0 or not MULTITEST_AVAILABLE:
+        df_results["pval_adj"] = np.nan
+        df_results["reject"] = False
+        df_results["significant"] = False
+        return df_results
+
+    reject, p_adj, _, _ = multipletests(pvals, alpha=alpha, method="holm")
+    df_results.loc[mask, "pval_adj"] = p_adj
+    df_results.loc[mask, "reject"] = reject
+    df_results.loc[mask, "significant"] = reject
+    df_results["reject"] = df_results["reject"].fillna(False).astype(bool)
+    df_results["significant"] = df_results["significant"].fillna(False).astype(bool)
+    return df_results
 
 # Tools currently in scope: boostnsift excluded on request, blia held back until its
 # CleanBaselines run produces non-empty output for more than Chart + 2 Math bugs.
@@ -23,7 +55,7 @@ TOOLS = ['BRaIn', 'FlexFL', 'bluir', 'buglocator', 'locus']
 
 # ── Load data ──────────────────────────────────────────────────────────────────
 summary = pd.read_csv(ROOT_DIR / "tool_feature_analysis" / "tool_comparison_summary.csv")
-features = pd.read_csv(ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports.csv")
+features = pd.read_csv(ROOT_DIR / "full_feature_preproccessed_fixed" / "final_feature_set_bug_reports_analysis.csv")
 
 # Restrict to the 5 in-scope tools before anything else, so "unlocalizable" is
 # defined over the same tool set as the rest of the current analysis.
@@ -137,18 +169,21 @@ for col in NUM_FEATS:
         'unloc_median':  u.median(),
         'local_median':  l.median(),
         'p_value':       p,
-        'significant':   p < 0.05,
     })
 
-res_df = pd.DataFrame(results).sort_values('p_value')
+res_df = pd.DataFrame(results)
+# Holm-Bonferroni correction across all NUM_FEATS tests, matching
+# rq2_3_analysis/unified_analysis.py's convention (apply_holm / method="holm").
+res_df = apply_holm(res_df, alpha=0.05)
+res_df = res_df.sort_values('p_value')
 sig_df  = res_df[res_df['significant']]
 
-print("--- Numeric features with significant difference (p < 0.05, Mann-Whitney U) ---")
-print(f"  {len(sig_df)} / {len(res_df)} features are significantly different\n")
+print("--- Numeric features with significant difference (Holm-adjusted p < 0.05, Mann-Whitney U) ---")
+print(f"  {len(sig_df)} / {len(res_df)} features are significantly different after Holm correction\n")
 pd.set_option('display.float_format', '{:.4f}'.format)
 pd.set_option('display.max_colwidth', 40)
 pd.set_option('display.width', 120)
-print(sig_df[['feature', 'unloc_mean', 'local_mean', 'unloc_median', 'local_median', 'p_value']].to_string(index=False))
+print(sig_df[['feature', 'unloc_mean', 'local_mean', 'unloc_median', 'local_median', 'p_value', 'pval_adj']].to_string(index=False))
 
 # ── Boolean feature comparison ─────────────────────────────────────────────────
 print("\n--- Boolean / structural feature comparison ---")
@@ -182,7 +217,7 @@ print(top10[['feature', 'unloc_median', 'local_median', 'p_value', 'direction']]
 # 3. TOOL COMPARISON ON UNLOCALIZABLE BUGS
 # ═══════════════════════════════════════════════════════════════════════════════
 print("\n" + "=" * 70)
-print("3. TOOL COMPARISON ON THE 117 UNLOCALIZABLE BUGS")
+print(f"3. TOOL COMPARISON ON THE {len(unloc_ids)} UNLOCALIZABLE BUGS")
 print("=" * 70)
 
 unloc_summary = summary.merge(unloc_ids[['project', 'bug_id', 'failure_type']], on=['project', 'bug_id'])
@@ -252,6 +287,6 @@ print(proj_breakdown.sort_values('Total', ascending=False).to_string())
 unloc_ids.to_csv(OUT_DIR / 'unlocalizable_bugs_classified.csv', index=False)
 res_df.to_csv(OUT_DIR / 'unlocalizable_feature_comparison.csv', index=False)
 print("\n\nSaved:")
-print("  unlocalizable_bugs_classified.csv   – 117 bugs with Hard/Soft label")
+print("  unlocalizable_bugs_classified.csv   – 85 bugs with Hard/Soft label")
 print("  unlocalizable_feature_comparison.csv – feature comparison results")
 print("\nDone.")
